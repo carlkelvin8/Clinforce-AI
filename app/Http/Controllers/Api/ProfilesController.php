@@ -1,0 +1,196 @@
+<?php
+// app/Http/Controllers/Api/ProfilesController.php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Requests\Api\AgencyProfileUpsertRequest;
+use App\Http\Requests\Api\ApplicantProfileUpsertRequest;
+use App\Http\Requests\Api\EmployerProfileUpsertRequest;
+use App\Models\AgencyProfile;
+use App\Models\ApplicantProfile;
+use App\Models\EmployerProfile;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+
+class ProfilesController extends ApiController
+{
+    public function show(int $userId): JsonResponse
+    {
+        $u = $this->requireAuth();
+        // Only staff can view candidate profiles
+        if (!in_array($u->role, ['admin', 'employer', 'agency'], true)) {
+            return $this->fail('Forbidden', null, 403);
+        }
+
+        $target = User::with('applicantProfile')->find($userId);
+        if (!$target || $target->role !== 'applicant') {
+            return $this->fail('Candidate not found', null, 404);
+        }
+
+        $p = $target->applicantProfile;
+
+        // Construct public profile data
+        $data = [
+            'id' => $target->id,
+            'name' => $p?->public_display_name ?? ($p?->first_name ? $p->first_name . ' ' . substr($p->last_name ?? '', 0, 1) . '.' : 'Candidate'),
+            'first_name' => $p?->first_name,
+            'last_name' => $p?->last_name, // Maybe hide full last name depending on privacy? Assuming ok for now.
+            'headline' => $p?->headline,
+            'summary' => $p?->summary,
+            'city' => $p?->city,
+            'country_code' => $p?->country_code,
+            'years_experience' => $p?->years_experience,
+            'bio' => $p?->bio, // or summary?
+            'avatar' => $p?->avatar ? asset('storage/' . $p->avatar) : null,
+            'email' => $target->email,
+            'phone' => $target->phone,
+            'updated_at' => $p?->updated_at,
+        ];
+
+        return $this->ok($data);
+    }
+
+    public function meEmployer(): JsonResponse
+    {
+        $u = $this->requireAuth();
+        if ($u->role !== 'employer' && $u->role !== 'admin') {
+            return $this->fail('Only employers can view employer profile', null, 403);
+        }
+
+        $p = EmployerProfile::query()->where('user_id', $u->id)->first();
+        if (!$p) {
+            return $this->ok(null);
+        }
+
+        $logo = asset('assets/brand/default-hospital-logo.svg');
+
+        $data = [
+            'user_id' => $p->user_id,
+            'logo' => $logo,
+            'logo_path' => null,
+            'business_name' => $p->business_name,
+            'business_type' => $p->business_type,
+            'country_code' => $p->country_code,
+            'billing_currency_code' => $p->billing_currency_code,
+            'state' => $p->state,
+            'city' => $p->city,
+            'zip_code' => $p->zip_code,
+            'tax_id' => $p->tax_id,
+            'address_line' => $p->address_line,
+            'website_url' => $p->website_url,
+            'verification_status' => $p->verification_status,
+            'updated_at' => optional($p->updated_at)->toISOString(),
+        ];
+
+        return $this->ok($data);
+    }
+
+    public function uploadEmployerLogo(Request $request): JsonResponse
+    {
+        $u = $this->requireAuth();
+        if ($u->role !== 'employer' && $u->role !== 'admin') {
+            return $this->fail('Only employers can upload logo', null, 403);
+        }
+
+        $profile = EmployerProfile::query()->where('user_id', $u->id)->first();
+        if (!$profile) {
+            $profile = new EmployerProfile();
+            $profile->user_id = $u->id;
+            $profile->business_name = $request->input('business_name')
+                ?: (is_string($u->email) && strpos($u->email, '@') !== false ? explode('@', $u->email)[0] : 'Company');
+            $profile->business_type = $request->input('business_type') ?: ($profile->business_type ?: 'clinic');
+            $profile->save();
+        }
+
+        $url = asset('assets/brand/default-hospital-logo.svg');
+
+        return $this->ok([
+            'logo' => $url,
+            'logo_path' => null,
+            'profile' => $profile,
+        ], 'Logo uploaded');
+    }
+
+    public function me(): JsonResponse
+    {
+        $u = $this->requireAuth();
+        $u->load(['applicantProfile', 'employerProfile', 'agencyProfile']);
+        
+        // Attach avatar URL if available
+        $avatar = null;
+        if ($u->role === 'applicant') {
+            $avatar = $u->applicantProfile?->avatar;
+        }
+        // Add other roles if they have avatars later
+        
+        // Explicitly construct data array to ensure avatar is included
+        $data = $u->toArray();
+        $avatarUrl = $avatar ? asset('storage/' . $avatar) : null;
+        $data['avatar'] = $avatarUrl;
+        $data['avatar_url'] = $avatarUrl;
+        
+        return $this->ok($data);
+    }
+
+    public function upsertApplicant(ApplicantProfileUpsertRequest $request): JsonResponse
+    {
+        $u = $this->requireAuth();
+        if ($u->role !== 'applicant') return $this->fail('Only applicants can update applicant profile', null, 403);
+
+        $v = $request->validated();
+        $public = $v['first_name'] . ' ' . mb_substr($v['last_name'], 0, 1) . '.';
+
+        $profile = ApplicantProfile::query()->updateOrCreate(
+            ['user_id' => $u->id],
+            array_merge($v, ['public_display_name' => $public])
+        );
+
+        return $this->ok($profile, 'Profile saved');
+    }
+
+    public function upsertEmployer(EmployerProfileUpsertRequest $request): JsonResponse
+    {
+        $u = $this->requireAuth();
+        if ($u->role !== 'employer') return $this->fail('Only employers can update employer profile', null, 403);
+
+        $existing = EmployerProfile::query()->where('user_id', $u->id)->first();
+
+        $data = $request->validated();
+        $countryCode = $data['country_code'] ?? ($existing?->country_code ?? null);
+        if ($countryCode) {
+            $countryCode = strtoupper($countryCode);
+        }
+
+        $billingCurrency = $countryCode === 'PH' ? 'PHP' : 'USD';
+
+        $payload = array_merge(
+            $data,
+            [
+                'country_code' => $countryCode,
+                'billing_currency_code' => $billingCurrency,
+            ]
+        );
+
+        $profile = EmployerProfile::query()->updateOrCreate(
+            ['user_id' => $u->id],
+            $payload
+        );
+
+        return $this->ok($profile, 'Profile saved');
+    }
+
+    public function upsertAgency(AgencyProfileUpsertRequest $request): JsonResponse
+    {
+        $u = $this->requireAuth();
+        if ($u->role !== 'agency') return $this->fail('Only agencies can update agency profile', null, 403);
+
+        $profile = AgencyProfile::query()->updateOrCreate(
+            ['user_id' => $u->id],
+            $request->validated()
+        );
+
+        return $this->ok($profile, 'Profile saved');
+    }
+}
