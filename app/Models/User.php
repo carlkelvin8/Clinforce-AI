@@ -6,13 +6,15 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
+use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
 
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmailContract
 {
-    use HasApiTokens, Notifiable, HasFactory;
+    use HasApiTokens, Notifiable, HasFactory, MustVerifyEmailTrait;
 
     protected $table = 'users';
 
@@ -21,6 +23,7 @@ class User extends Authenticatable
         'email',
         'phone',
         'password_hash',
+        'stripe_customer_id',
         'status',
         'email_verified_at',
         'last_login_at',
@@ -60,7 +63,26 @@ class User extends Authenticatable
             $path = $this->agencyProfile?->logo;
         }
 
-        return $path ? asset('storage/' . $path) : null;
+        if (!$path) {
+            return null;
+        }
+
+        $p = ltrim($path, '/');
+
+        if (str_starts_with($p, 'http://') || str_starts_with($p, 'https://')) {
+            return $p;
+        }
+
+        if (str_contains($p, 'uploads/avatars/')) {
+            $pos = strpos($p, 'uploads/avatars/');
+            $p = substr($p, $pos);
+        }
+
+        if (str_starts_with($p, 'uploads/')) {
+            return '/' . $p;
+        }
+
+        return '/' . $p;
     }
 
     // Profiles
@@ -89,6 +111,17 @@ class User extends Authenticatable
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class, 'user_id');
+    }
+
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class, 'user_id')
+            ->where('status', 'active')
+            ->where(function ($query) {
+                $query->whereNull('current_period_end')
+                    ->orWhere('current_period_end', '>', now());
+            })
+            ->latest();
     }
 
     public function payments(): HasMany

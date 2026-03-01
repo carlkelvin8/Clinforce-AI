@@ -23,6 +23,7 @@ class ApplicantProfileUpsertRequest extends FormRequest
             'summary'          => ['nullable','string','max:5000'],
             'years_experience' => ['nullable','integer','min:0','max:80'],
             'country_code'     => ['nullable','string','size:2','regex:/^[A-Z]{2}$/'],
+            'state'            => ['nullable','string','min:2','max:120'],
             'city'             => ['nullable','string','min:2','max:120'],
 
             // If you also send these from the Vue page, add rules here too:
@@ -49,7 +50,7 @@ class ApplicantProfileUpsertRequest extends FormRequest
             'last_name'  => trim((string) $this->input('last_name')),
         ]);
 
-        foreach (['headline','summary','city','location','preferred_locations','primary_role'] as $k) {
+        foreach (['headline','summary','city','state','location','preferred_locations','primary_role'] as $k) {
             if ($this->has($k)) $this->merge([$k => trim((string) $this->input($k))]);
         }
 

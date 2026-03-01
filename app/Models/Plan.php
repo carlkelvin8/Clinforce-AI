@@ -13,10 +13,12 @@ class Plan extends Model
 
     protected $fillable = [
         'name',
+        'stripe_price_id',
         'duration_months',
         'job_post_limit',
         'ai_screening_enabled',
         'analytics_enabled',
+        'features_json',
         'price_cents',
         'currency',
         'is_active',
@@ -30,6 +32,7 @@ class Plan extends Model
         'analytics_enabled' => 'boolean',
         'price_cents' => 'integer',
         'is_active' => 'boolean',
+        'features_json' => 'array',
         'created_at' => 'datetime',
     ];
 

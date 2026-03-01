@@ -19,20 +19,20 @@
                   class="bg-white text-slate-700 font-bold w-12 h-12 text-sm ring-1 ring-slate-200"
                 />
                 <div class="flex items-center gap-3">
-                  <h1 class="text-2xl md:text-3xl font-bold text-slate-900 m-0">Application #{{ app?.id ?? props.id }}</h1>
+                  <h1 class="text-2xl md:text-3xl font-bold text-slate-900 m-0">{{ applicantDisplayName(app) }}</h1>
                   <Tag v-if="app" :value="titleCase(app.status)" :severity="getSeverity(app.status)" class="!whitespace-nowrap shrink-0" />
                 </div>
               </div>
               <p class="text-slate-600 mt-1" v-if="app">
-                Applicant #{{ app.applicant_user_id }} • Job: <span class="font-semibold">{{ app.job?.title || 'N/A' }}</span>
+                Job: <span class="font-semibold">{{ app.job?.title || 'N/A' }}</span>
               </p>
             </div>
             <div class="flex flex-wrap items-start md:items-center gap-2">
               <Button label="Shortlist" icon="pi pi-check" @click="shortlist" class="!rounded-md" severity="success" :disabled="!app || busy || app.status!=='submitted'" />
               <Button label="Reject" icon="pi pi-times" @click="rejectApp" class="!rounded-md" severity="danger" :disabled="!app || busy || app.status==='rejected' || app.status==='hired'" outlined />
+              <Button label="Hire" icon="pi pi-check-circle" @click="hire" class="!rounded-md" severity="success" :disabled="!canHire" />
               <Button label="Schedule Interview" icon="pi pi-calendar" @click="scheduleInterview" class="!rounded-md" :disabled="!app || busy" />
-              <Button v-if="canHire" label="Mark as hired" icon="pi pi-check-circle" severity="success" @click="hire" class="!rounded-md" />
-              <Button label="Message" icon="pi pi-envelope" @click="goMessages" class="!rounded-md" outlined />
+              <Button label="Message" icon="pi pi-envelope" @click="goMessages" class="!rounded-md" outlined :loading="messaging" :disabled="messaging" />
             </div>
           </div>
         </div>
@@ -51,16 +51,20 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2">
                   <div class="text-xs text-slate-500 font-semibold">Application ID</div>
                   <div class="text-sm font-bold text-slate-900 text-right break-words">#{{ app.id }}</div>
-                  <div class="text-xs text-slate-500 font-semibold">Applicant User ID</div>
-                  <div class="text-sm font-bold text-slate-900 text-right break-words">#{{ app.applicant_user_id }}</div>
+                  <div class="text-xs text-slate-500 font-semibold">Applicant</div>
+                  <div class="text-sm font-bold text-slate-900 text-right break-words">{{ applicantDisplayName(app) }}</div>
                   <div class="text-xs text-slate-500 font-semibold">Submitted</div>
                   <div class="text-sm font-bold text-slate-900 text-right break-words">{{ formatDate(app.submitted_at) }}</div>
                   <div class="md:col-span-2 border-t border-slate-200 my-1"></div>
                   <div class="text-xs text-slate-500 font-semibold">Job</div>
                   <div class="text-sm font-bold text-slate-900 text-right truncate max-w-full md:max-w-[220px]" :title="app.job?.title">{{ app.job?.title || 'N/A' }}</div>
                   <div class="text-xs text-slate-500 font-semibold" v-if="app.job?.city || app.job?.country_code">Location</div>
-                  <div class="text-sm font-bold text-slate-900 text-right truncate max-w-full md:max-w-[220px]" v-if="app.job?.city || app.job?.country_code" :title="[app.job?.city, app.job?.country_code].filter(Boolean).join(', ')">
-                    {{ [app.job?.city, app.job?.country_code].filter(Boolean).join(', ') }}
+                  <div
+                    class="text-sm font-bold text-slate-900 text-right truncate max-w-full md:max-w-[220px]"
+                    v-if="app.job?.city || app.job?.country_code"
+                    :title="[app.job?.city, countryName(app.job?.country_code)].filter(Boolean).join(', ')"
+                  >
+                    {{ [app.job?.city, countryName(app.job?.country_code)].filter(Boolean).join(', ') }}
                   </div>
                 </div>
               </template>
@@ -83,6 +87,67 @@
                 <p v-else class="text-slate-500">No cover letter provided.</p>
               </template>
             </Card>
+
+            <!-- Document Access Card -->
+            <DocumentAccessCard 
+              v-if="!hasDocumentAccess"
+              :applicant-id="app.applicant_user_id"
+              :application-id="app.id"
+              @purchased="onDocumentAccessPurchased"
+            />
+
+            <!-- Resume Section -->
+            <Card v-else class="!border-0 !shadow-none">
+              <template #title>
+                <div class="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <div class="text-base font-bold text-slate-900">Resume & Documents</div>
+                    <div class="text-sm text-slate-500">Full access granted</div>
+                  </div>
+                  <Tag value="Unlocked" severity="success" icon="pi pi-unlock" />
+                </div>
+              </template>
+              <template #content>
+                <div v-if="hasResume">
+                  <div class="flex gap-2">
+                    <Button 
+                      label="Preview Resume" 
+                      icon="pi pi-eye" 
+                      @click="previewResume"
+                      class="!rounded-md"
+                      outlined
+                    />
+                    <Button 
+                      label="Download Resume" 
+                      icon="pi pi-download" 
+                      @click="downloadResume"
+                      class="!rounded-md"
+                      :loading="downloadingResume"
+                      :disabled="downloadingResume"
+                    />
+                  </div>
+                </div>
+                <div v-else class="text-center py-8 bg-slate-50 rounded-lg border border-slate-200">
+                  <i class="pi pi-file-pdf text-4xl text-slate-300 mb-3"></i>
+                  <p class="text-slate-600 font-medium">No resume uploaded</p>
+                  <p class="text-sm text-slate-500 mt-1">This applicant hasn't uploaded a resume yet</p>
+                </div>
+              </template>
+            </Card>
+
+            <!-- Resume Preview Dialog -->
+            <Dialog v-model:visible="showResumePreview" modal header="Resume Preview" :style="{ width: '90vw', maxWidth: '1200px' }" :dismissableMask="true">
+              <iframe 
+                v-if="resumePreviewUrl" 
+                :src="resumePreviewUrl" 
+                class="w-full h-[70vh] border-0 rounded-lg"
+                title="Resume Preview"
+              ></iframe>
+              <div v-else class="text-center py-8">
+                <i class="pi pi-spin pi-spinner text-3xl text-slate-400"></i>
+                <p class="text-slate-600 mt-3">Loading preview...</p>
+              </div>
+            </Dialog>
 
             <Card id="history" class="!border-0 !shadow-none">
               <template #title>
@@ -166,6 +231,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/Components/AppLayout.vue'
+import DocumentAccessCard from '@/Components/DocumentAccessCard.vue'
 import api from '@/lib/api'
 import { me } from '@/lib/auth'
 import Card from 'primevue/card'
@@ -173,6 +239,7 @@ import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import Message from 'primevue/message'
 import Avatar from 'primevue/avatar'
+import Dialog from 'primevue/dialog'
 import Swal from 'sweetalert2'
 
 const props = defineProps({
@@ -185,6 +252,12 @@ const error = ref('')
 const app = ref(null)
 const busy = ref(false)
 const role = ref('')
+const messaging = ref(false)
+const hasDocumentAccess = ref(false)
+const downloadingResume = ref(false)
+const hasResume = ref(false)
+const showResumePreview = ref(false)
+const resumePreviewUrl = ref(null)
 
 function formatDate(v) {
   if (!v) return 'N/A'
@@ -205,17 +278,55 @@ function scrollToSel(sel) {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+function countryName(code) {
+  const c = String(code || '').trim()
+  if (!c) return ''
+  try {
+    if (typeof Intl !== 'undefined' && Intl.DisplayNames) {
+      const dn = new Intl.DisplayNames(['en'], { type: 'region' })
+      return dn.of(c.toUpperCase()) || c.toUpperCase()
+    }
+  } catch {}
+  return c.toUpperCase()
+}
+
+function applicantDisplayName(app) {
+  const u = app?.applicant || app?.user || null
+  const p = u?.applicant_profile || u?.applicantProfile || null
+  const fn = (p?.first_name || '').trim()
+  const ln = (p?.last_name || '').trim()
+  const name = fn ? `${fn}${ln ? ' ' + ln[0].toUpperCase() + '.' : ''}` : ''
+  return (
+    name ||
+    p?.public_display_name ||
+    u?.name ||
+    u?.full_name ||
+    `Applicant #${app?.applicant_user_id || app?.applicant_id || app?.user_id || ''}`.trim()
+  )
+}
+
 const canHire = computed(() => {
   const r = String(role.value || '').toLowerCase()
   if (!app.value) return false
   if (!['employer', 'agency', 'admin'].includes(r)) return false
-  return String(app.value.status || '') === 'interview' && !busy.value
+  const status = String(app.value.status || '').toLowerCase()
+  // Can hire from submitted, shortlisted, or interview status (matches backend allowed transitions)
+  return ['submitted', 'shortlisted', 'interview'].includes(status) && !busy.value
 })
 
 function candidateAvatarUrl(a) {
   if (!a) return null
   const u = a.applicant || a.user || null
-  return u?.avatar_url || (a.applicantProfile?.avatar ? `/storage/${a.applicantProfile.avatar}` : null) || null
+  if (u?.avatar_url) return u.avatar_url
+  const raw =
+    u?.applicant_profile?.avatar ||
+    u?.applicantProfile?.avatar ||
+    null
+  if (!raw) return null
+  const p = String(raw).replace(/^\/+/, '')
+  if (/^https?:\/\//i.test(p)) return raw
+  if (p.startsWith('uploads/')) return '/' + p
+  return '/storage/' + p
 }
 
 async function fetchOne() {
@@ -224,12 +335,175 @@ async function fetchOne() {
   try {
     const res = await api.get(`/api/applications/${props.id}`)
     app.value = res.data?.data ?? res.data
+    
+    // Set resume availability from backend
+    hasResume.value = app.value?.has_resume || false
+    
+    // Check document access
+    if (app.value?.applicant_user_id) {
+      await checkDocumentAccess(app.value.applicant_user_id)
+    }
   } catch (e) {
     error.value = e?.__payload?.message || e?.message || 'Request failed'
     app.value = null
   } finally {
     loading.value = false
   }
+}
+
+async function checkDocumentAccess(applicantId) {
+  try {
+    const res = await api.get('/api/document-access/check', {
+      params: { applicant_id: applicantId }
+    })
+    hasDocumentAccess.value = res.data?.data?.has_access || false
+  } catch (e) {
+    console.error('Failed to check document access:', e)
+    hasDocumentAccess.value = false
+  }
+}
+
+async function onDocumentAccessPurchased() {
+  hasDocumentAccess.value = true
+  await fetchOne()
+}
+
+async function previewResume() {
+  if (!app.value?.id) return
+  
+  try {
+    // Get the resume URL for preview
+    const response = await api.get(`/api/applications/${app.value.id}/resume`, {
+      responseType: 'blob'
+    })
+    
+    // Create blob URL for preview
+    const blob = new Blob([response.data], { type: 'application/pdf' })
+    resumePreviewUrl.value = window.URL.createObjectURL(blob)
+    showResumePreview.value = true
+  } catch (e) {
+    console.error('Resume preview error:', e)
+    
+    const status = e?.response?.status
+    let msg = 'Preview failed'
+    
+    if (status === 402) {
+      msg = 'Document access payment required.'
+    } else if (status === 404) {
+      msg = 'Resume not found.'
+    } else {
+      if (e?.response?.data instanceof Blob) {
+        try {
+          const text = await e.response.data.text()
+          const json = JSON.parse(text)
+          msg = json.message || msg
+        } catch (parseError) {
+          console.error('Could not parse error blob:', parseError)
+        }
+      } else {
+        msg = e?.response?.data?.message || e?.__payload?.message || e?.message || msg
+      }
+    }
+    
+    await Swal.fire({
+      icon: 'error',
+      title: 'Preview Failed',
+      text: msg,
+    })
+  }
+}
+
+async function downloadResume() {
+  if (!app.value?.id) return
+  
+  downloadingResume.value = true
+  try {
+    console.log('Downloading resume for application:', app.value.id)
+    const response = await api.get(`/api/applications/${app.value.id}/resume`, {
+      responseType: 'blob'
+    })
+    
+    console.log('Resume download response:', response)
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `resume_${app.value.applicant_user_id}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+    
+    await Swal.fire({
+      icon: 'success',
+      title: 'Downloaded',
+      text: 'Resume downloaded successfully',
+      timer: 1500,
+      showConfirmButton: false,
+    })
+  } catch (e) {
+    console.error('Resume download error:', e)
+    console.error('Error response:', e?.response)
+    
+    const status = e?.response?.status
+    let msg = 'Download failed'
+    
+    if (status === 402) {
+      msg = 'Document access payment required. Please purchase document access to download resumes.'
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Document Access Required',
+        html: `<p>${msg}</p><p class="text-sm text-slate-600 mt-2">Subscription unlocks messaging and hiring, but documents require separate payment.</p>`,
+        confirmButtonText: 'OK',
+      })
+    } else if (status === 404) {
+      msg = 'Resume not found for this applicant.'
+      await Swal.fire({
+        icon: 'error',
+        title: 'Not Found',
+        text: msg,
+      })
+    } else {
+      // Try to read error message from blob response
+      if (e?.response?.data instanceof Blob) {
+        try {
+          const text = await e.response.data.text()
+          const json = JSON.parse(text)
+          msg = json.message || msg
+        } catch (parseError) {
+          console.error('Could not parse error blob:', parseError)
+        }
+      } else {
+        msg = e?.response?.data?.message || e?.__payload?.message || e?.message || msg
+      }
+      
+      await Swal.fire({
+        icon: 'error',
+        title: 'Download Failed',
+        text: msg,
+      })
+    }
+  } finally {
+    downloadingResume.value = false
+  }
+}
+
+async function hire() {
+  if (!app.value?.id) return
+  await doStatus('hired', 'Mark this candidate as hired?')
+}
+
+function shortlist() {
+  doStatus('shortlisted', 'Shortlist this candidate?')
+}
+
+function rejectApp() {
+  doStatus('rejected', 'Reject this application?')
+}
+
+function scheduleInterview() {
+  router.push({ name: 'employer.interviews' })
 }
 
 async function doStatus(to, titleText) {
@@ -255,28 +529,97 @@ async function doStatus(to, titleText) {
     app.value = res.data?.data ?? res.data ?? app.value
     await Swal.fire({ icon: 'success', title: 'Updated', text: 'Application status updated.' })
   } catch (e) {
-    await Swal.fire({ icon: 'error', title: 'Failed', text: e?.__payload?.message || e?.message || 'Update failed' })
+    const status = e?.response?.status
+    const msg = e?.response?.data?.message || e?.__payload?.message || e?.message || 'Update failed'
+    
+    if (status === 402) {
+      await Swal.fire({ 
+        icon: 'warning', 
+        title: 'Subscription Required', 
+        html: `<p>${msg}</p><p class="text-sm text-slate-600 mt-2">Your subscription unlocks messaging, interviews, and hiring workflows.</p>`,
+        confirmButtonText: 'View Plans',
+        showCancelButton: true,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          router.push({ name: 'employer.billing' })
+        }
+      })
+    } else {
+      await Swal.fire({ icon: 'error', title: 'Failed', text: msg })
+    }
   } finally {
     busy.value = false
   }
 }
+async function goMessages() {
+  if (!app.value || messaging.value) return
+  messaging.value = true
+  try {
+    const u = app.value.applicant || app.value.user || null
+    const p = u?.applicant_profile || u?.applicantProfile || null
+    const fn = (p?.first_name || '').trim()
+    const ln = (p?.last_name || '').trim()
+    const display = fn ? `${fn}${ln ? ' ' + ln[0].toUpperCase() + '.' : ''}` : ''
+    const name = display || p?.public_display_name || u?.name || u?.full_name || 'there'
+    const jobTitle = app.value.job?.title || null
+    const firstMessage = jobTitle
+      ? `Hi ${name}, thank you for applying for ${jobTitle}. I’d like to connect with you about this role.`
+      : `Hi ${name}, I’d like to connect with you about a potential opportunity.`
+    const subject = jobTitle
+      ? `Regarding your application for ${jobTitle}`
+      : `Message to ${name}`
+    const targetId =
+      app.value.applicant_user_id ||
+      u?.id ||
+      app.value.applicant_id ||
+      app.value.user_id ||
+      null
+    if (!targetId) throw new Error('Candidate not found')
 
-async function hire() {
-  if (!app.value?.id) return
-  await doStatus('hired', 'Mark this candidate as hired?')
-}
+    const payload = {
+      participant_user_ids: [targetId],
+      subject,
+      first_message: firstMessage,
+    }
 
-function shortlist() {
-  doStatus('shortlisted', 'Shortlist this candidate?')
-}
-function rejectApp() {
-  doStatus('rejected', 'Reject this application?')
-}
-function scheduleInterview() {
-  router.push({ name: 'employer.interviews' })
-}
-function goMessages() {
-  router.push({ name: 'employer.messages' })
+    try {
+      await api.post('/api/conversations', payload)
+    } catch {
+      await api.post('/conversations', payload)
+    }
+
+    await Swal.fire({
+      icon: 'success',
+      title: 'Message started',
+      text: 'A new conversation with this candidate has been created.',
+      timer: 2000,
+      showConfirmButton: false,
+    })
+    router.push({ name: 'employer.messages' })
+  } catch (e) {
+    const status = e?.response?.status
+    const msg =
+      e?.response?.data?.message ||
+      e?.__payload?.message ||
+      e?.message ||
+      'Failed to start conversation.'
+
+    if (status === 403) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Cannot start conversation',
+        text: msg || 'You can only message candidates you invited or who applied to your jobs.',
+      })
+    } else {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Message failed',
+        text: msg,
+      })
+    }
+  } finally {
+    messaging.value = false
+  }
 }
 
 onMounted(async () => {

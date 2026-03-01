@@ -5,6 +5,8 @@ import api from "@/lib/api";
 // --- Auth pages ---
 const Login = () => import("@/Pages/Auth/Login.vue");
 const Register = () => import("@/Pages/Auth/Register.vue");
+const VerifySuccess = () => import("@/Pages/Auth/VerifySuccess.vue");
+const SocialCallback = () => import("@/Pages/Auth/SocialCallback.vue");
 const Landing = () => import("@/Pages/Landing.vue");
 
 // --- Staff pages ---
@@ -17,6 +19,7 @@ const EmployerMessages = () => import("@/Pages/Employer/Messages.vue");
 const EmployerInterviews = () => import("@/Pages/Employer/Interviews.vue");
 const EmployerInvitations = () => import("@/Pages/Employer/Invitations.vue");
 const EmployerBilling = () => import("@/Pages/Employer/Billing.vue");
+const EmployerPaymentMethod = () => import("@/Pages/Billing/PaymentMethod.vue");
 const EmployerCandidateProfile = () => import("@/Pages/Employer/CandidateProfile.vue");
 const EmployerSettings = () => import("@/Pages/Employer/Settings.vue");
 
@@ -130,6 +133,8 @@ const routes = [
   // Auth
   { path: "/login", name: "auth.login", component: Login, meta: { guestOnly: true } },
   { path: "/register", name: "auth.register", component: Register, meta: { guestOnly: true } },
+  { path: "/verify/success", name: "auth.verify.success", component: VerifySuccess, meta: { guestOnly: true } },
+  { path: "/auth/social/callback", name: "auth.social.callback", component: SocialCallback, meta: { guestOnly: true } },
 
   // Staff dashboard
   { path: "/employer/dashboard", name: "employer.dashboard", component: EmployerDashboard, meta: staffMeta },
@@ -147,6 +152,7 @@ const routes = [
   { path: "/employer/interviews", name: "employer.interviews", component: EmployerInterviews, meta: staffMeta },
   { path: "/employer/invitations", name: "employer.invitations", component: EmployerInvitations, meta: staffMeta },
   { path: "/employer/billing", name: "employer.billing", component: EmployerBilling, meta: staffMeta },
+  { path: "/employer/payment-method", name: "employer.payment-method", component: EmployerPaymentMethod, meta: staffMeta },
   { path: "/employer/settings", name: "employer.settings", component: EmployerSettings, meta: staffMeta },
   { path: "/employer/candidates/:id", name: "employer.candidates.view", component: EmployerCandidateProfile, props: true, meta: staffMeta },
 

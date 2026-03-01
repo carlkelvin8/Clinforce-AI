@@ -63,6 +63,14 @@ class TalentSearchController extends ApiController
                 $matchScore = min(98, max(10, $score)); // Cap between 10 and 98
             }
 
+            $avatar = $p->avatar;
+            if ($avatar) {
+                $user = $p->user;
+                if ($user) {
+                    $avatar = $user->avatar_url;
+                }
+            }
+
             return [
                 'id' => $p->user_id,
                 'name' => $p->public_display_name ?? ($p->first_name . ' ' . substr($p->last_name, 0, 1) . '.'),
@@ -71,7 +79,7 @@ class TalentSearchController extends ApiController
                 'city' => $p->city,
                 'country_code' => $p->country_code,
                 'years_experience' => $p->years_experience,
-                'avatar' => $p->avatar ? asset('storage/' . $p->avatar) : null,
+                'avatar' => $avatar,
                 'updated_at' => $p->updated_at,
                 'match' => $matchScore,
             ];

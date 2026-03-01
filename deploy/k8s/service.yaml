@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: clinforce-svc
+  labels:
+    app: clinforce
+spec:
+  selector:
+    app: clinforce
+    tier: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+  type: ClusterIP

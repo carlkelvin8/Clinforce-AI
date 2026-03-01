@@ -1,0 +1,39 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: clinforce-alerts
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: clinforce-app.rules
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(nginx_ingress_controller_requests{status=~"5.."}[5m])) 
+            /
+            sum(rate(nginx_ingress_controller_requests[5m])) 
+            > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High 5xx error rate (>5%) on Ingress"
+            description: "Investigate backend health and capacity."
+        - alert: HighLatency
+          expr: histogram_quantile(0.95, sum(rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])) by (le))
+            > 0.5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High P95 latency (>500ms) on Ingress"
+            description: "Latency is elevated; consider scaling or investigating bottlenecks."
+        - alert: UnavailableReplicas
+          expr: kube_deployment_status_replicas_unavailable{deployment="clinforce-app"} > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Unavailable replicas for clinforce-app"
+            description: "Some pods are not ready; check app health and logs."

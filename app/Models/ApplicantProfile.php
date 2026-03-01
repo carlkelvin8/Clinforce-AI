@@ -20,6 +20,7 @@ class ApplicantProfile extends Model
         'summary',
         'years_experience',
         'country_code',
+        'state',
         'city',
         'public_display_name',
         'avatar',

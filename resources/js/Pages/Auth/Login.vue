@@ -1,6 +1,6 @@
 <!-- resources/js/Pages/Auth/Login.vue -->
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useRouter, useRoute, RouterLink } from "vue-router";
 import axios from "axios";
 import AppLayout from "@/Components/AppLayout.vue";
@@ -41,6 +41,21 @@ const router = useRouter();
   function clearErrorOnType() {
     if (error.value) error.value = "";
   }
+
+  onMounted(() => {
+    const q = route.query || {};
+    if (q.verified === "1") {
+      Swal.fire({
+        icon: "success",
+        title: "Email verified",
+        text: "Your email has been verified. You can now sign in.",
+        timer: 2500,
+        showConfirmButton: false,
+      });
+    } else if (q.verification === "invalid") {
+      error.value = "This verification link is invalid or has expired. Please request a new one.";
+    }
+  });
   
   async function onSubmit() {
     loading.value = true;
@@ -93,7 +108,44 @@ const router = useRouter();
   }
   
   function goForgot() {
-    // router.push({ name: "auth.forgot" })
+    if (loading.value) return;
+    error.value = "";
+    Swal.fire({
+      title: "Reset password",
+      input: "email",
+      inputLabel: "Enter the email on your account",
+      inputPlaceholder: "you@example.com",
+      showCancelButton: true,
+      confirmButtonText: "Send reset link",
+      showLoaderOnConfirm: true,
+      preConfirm: async (value) => {
+        const email = String(value || "").trim();
+        if (!email) {
+          Swal.showValidationMessage("Email is required");
+          return;
+        }
+        try {
+          await axios.post("/api/auth/forgot-password", { email });
+        } catch (e) {
+          const msg = e?.response?.data?.message || "Could not send reset link.";
+          Swal.showValidationMessage(msg);
+        }
+      },
+      allowOutsideClick: () => !Swal.isLoading(),
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({
+          icon: "success",
+          title: "Check your email",
+          text: "If an account with that email exists, a reset link has been sent.",
+        });
+      }
+    });
+  }
+  
+  function loginWithGoogle() {
+    if (loading.value) return;
+    window.location.href = "/auth/google/redirect";
   }
   </script>
   
@@ -195,6 +247,29 @@ const router = useRouter();
               </RouterLink>
             </div>
           </form>
+          
+          <div class="mt-6">
+            <div class="relative py-2">
+              <div class="absolute inset-0 flex items-center">
+                <div class="w-full border-t border-slate-200"></div>
+              </div>
+              <div class="relative flex justify-center">
+                <span class="bg-white px-3 text-xs text-slate-400 uppercase tracking-wide">Or continue with</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+              @click="loginWithGoogle"
+            >
+              <img
+                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                alt="Google"
+                class="h-4 w-4"
+              />
+              <span>Continue with Google</span>
+            </button>
+          </div>
           
           <div class="mt-8 text-center text-xs text-slate-400">
             © {{ year }} AI Clinforce Partners. All rights reserved.

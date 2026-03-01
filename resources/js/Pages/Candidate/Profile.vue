@@ -45,7 +45,7 @@
                     <div class="flex flex-col min-w-0 max-w-[180px]">
                       <div class="text-[11px] uppercase tracking-wide text-slate-400">Location</div>
                       <div class="text-sm font-medium text-slate-800 truncate whitespace-nowrap">
-                        {{ form.city || 'Add city' }}
+                        {{ [form.city, form.state].filter(Boolean).join(', ') || 'Add city' }}
                       </div>
                     </div>
                   </div>
@@ -187,6 +187,15 @@
                           id="city"
                           v-model="form.city"
                           placeholder="Makati"
+                          class="!h-11 !px-3 !rounded-xl !border-none !bg-slate-50/80 hover:!bg-white focus:!ring-2 focus:!ring-sky-200 !text-sm transition-all"
+                        />
+                      </div>
+                      <div class="flex flex-col gap-1.5">
+                        <label for="state" class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">State/Province</label>
+                        <InputText
+                          id="state"
+                          v-model="form.state"
+                          placeholder="NCR"
                           class="!h-11 !px-3 !rounded-xl !border-none !bg-slate-50/80 hover:!bg-white focus:!ring-2 focus:!ring-sky-200 !text-sm transition-all"
                         />
                       </div>
@@ -384,6 +393,7 @@ import { computed, onMounted, ref } from "vue";
 import AppLayout from "@/Components/AppLayout.vue";
 import api from "@/lib/api";
 import Swal from "sweetalert2";
+import { getCachedUser } from "@/lib/auth";
 
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -408,7 +418,7 @@ const removingId = ref(null);
 const error = ref("");
 const success = ref("");
 
-const auth = ref({ id: null, role: null, email: null });
+const auth = ref({ id: null, role: null, email: null, avatar: null });
 
 const form = ref({
   first_name: "",
@@ -417,6 +427,7 @@ const form = ref({
   summary: "",
   years_experience: null,
   country_code: "",
+  state: "",
   city: "",
 });
 
@@ -436,6 +447,17 @@ const upload = ref({
 
 function unwrap(resData) {
   return resData?.data ?? resData;
+}
+
+function buildAvatarUrl(raw) {
+  if (!raw) return null;
+  const v = String(raw);
+  if (/^https?:\/\//i.test(v)) return v;
+  if (v.startsWith("/uploads/")) return v;
+  if (v.startsWith("uploads/")) return `/${v}`;
+  if (v.startsWith("/storage/")) return v;
+  if (v.startsWith("storage/")) return `/${v}`;
+  return `/storage/${v.replace(/^\/+/, "")}`;
 }
 
 const displayName = computed(() => {
@@ -459,6 +481,7 @@ const completeness = computed(() => {
     form.value.summary,
     String(form.value.years_experience ?? ""),
     form.value.country_code,
+    form.value.state,
     form.value.city,
   ];
   const filled = fields.filter((v) => String(v || "").trim().length > 0).length;
@@ -498,12 +521,30 @@ async function fetchMe() {
 
   meName.value = u?.full_name || u?.name || u?.user?.name || "ME";
 
+  const avatarRaw = u?.avatar_url || u?.avatar || null;
+  const avatarUrl = buildAvatarUrl(avatarRaw);
+
   auth.value = {
     id: u?.id ?? null,
     role: u?.role ?? null,
     email: u?.email ?? null,
-    avatar: u?.avatar_url || u?.avatar || null,
+    avatar: avatarUrl,
   };
+
+  try {
+    const prevRaw = localStorage.getItem("auth_user") || "{}";
+    const prev = JSON.parse(prevRaw);
+    const merged = {
+      ...prev,
+      id: auth.value.id,
+      role: auth.value.role,
+      email: auth.value.email,
+      avatar: auth.value.avatar,
+      avatar_url: auth.value.avatar,
+    };
+    localStorage.setItem("auth_user", JSON.stringify(merged));
+    window.dispatchEvent(new Event("auth:changed"));
+  } catch {}
 
   const ap = u?.applicant_profile || u?.applicantProfile || null;
   form.value = {
@@ -513,6 +554,7 @@ async function fetchMe() {
     summary: ap?.summary ?? "",
     years_experience: ap?.years_experience ?? null,
     country_code: ap?.country_code ?? "",
+    state: ap?.state ?? "",
     city: ap?.city ?? "",
   };
 }
@@ -555,6 +597,7 @@ async function saveProfile() {
       summary: form.value.summary,
       years_experience: form.value.years_experience,
       country_code: (form.value.country_code || "").toUpperCase(),
+      state: form.value.state,
       city: form.value.city,
     };
 
@@ -710,6 +753,17 @@ async function removeDoc(d) {
 }
 
 onMounted(() => {
+  try {
+    const cached = getCachedUser();
+    if (cached) {
+      auth.value = {
+        id: cached.id ?? null,
+        role: cached.role ?? null,
+        email: cached.email ?? null,
+        avatar: buildAvatarUrl(cached.avatar_url || cached.avatar || null),
+      };
+    }
+  } catch {}
   fetchAll();
 });
 </script>

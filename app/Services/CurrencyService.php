@@ -43,11 +43,12 @@ class CurrencyService
         }
 
         if ($country) {
+            $currencyCode = $country->currency_code ?: 'USD';
             return [
                 'country_code' => $country->country_code,
                 'country_name' => $country->country_name,
-                'currency_code' => $country->currency_code,
-                'currency_symbol' => $country->currency_symbol ?: $this->fallbackSymbol($country->currency_code),
+                'currency_code' => $currencyCode,
+                'currency_symbol' => $country->currency_symbol ?: $this->fallbackSymbol($currencyCode),
                 'currency_decimals' => (int) $country->currency_decimals,
             ];
         }
@@ -155,6 +156,36 @@ class CurrencyService
             'currency_code' => $targetCurrency,
             'decimals' => $decimals,
         ];
+    }
+
+    /**
+     * Convert amount from one currency to another
+     * 
+     * @param int $amountCents Amount in cents (minor units)
+     * @param string $fromCurrency Source currency code (e.g., 'USD')
+     * @param string $toCurrency Target currency code (e.g., 'PHP')
+     * @return int Converted amount in cents (minor units)
+     */
+    public function convertAmount(int $amountCents, string $fromCurrency, string $toCurrency): int
+    {
+        // If same currency, no conversion needed
+        if ($fromCurrency === $toCurrency) {
+            return $amountCents;
+        }
+
+        // Get exchange rate
+        $rateData = $this->getRate($fromCurrency, $toCurrency);
+        $rate = $rateData['rate'] ?? null;
+
+        if ($rate === null) {
+            \Log::warning("Currency conversion failed: no rate for {$fromCurrency} to {$toCurrency}");
+            return $amountCents; // Return original amount if conversion fails
+        }
+
+        // Convert
+        $converted = (int) round($amountCents * $rate);
+
+        return $converted;
     }
 
     public function formatMinor(int $amountCents, int $decimals): string

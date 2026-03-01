@@ -6,10 +6,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Requests\Api\JobApplyRequest;
 use App\Http\Requests\Api\JobApplicationStatusUpdateRequest;
 use App\Models\ApplicationStatusHistory;
+use App\Models\Document;
 use App\Models\Job;
 use App\Models\JobApplication;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class JobApplicationsController extends ApiController
 {
@@ -70,14 +72,227 @@ class JobApplicationsController extends ApiController
             ]);
         });
 
+        $resumeFile = $request->file('resume');
+        if ($resumeFile) {
+            $dir = "documents/{$u->id}";
+            $path = $resumeFile->store($dir, 'public');
+            $url  = Storage::disk('public')->url($path);
+            Document::query()->create([
+                'user_id' => $u->id,
+                'doc_type' => 'resume',
+                'file_url' => $url,
+                'file_name' => $resumeFile->getClientOriginalName(),
+                'mime_type' => $resumeFile->getClientMimeType(),
+                'file_size_bytes' => $resumeFile->getSize(),
+                'status' => 'active',
+                'created_at' => now(),
+            ]);
+        }
+
+        $others = $request->file('other_docs') ?: [];
+        foreach ($others as $file) {
+            if (!$file) continue;
+            $dir = "documents/{$u->id}";
+            $path = $file->store($dir, 'public');
+            $url  = Storage::disk('public')->url($path);
+            Document::query()->create([
+                'user_id' => $u->id,
+                'doc_type' => 'other',
+                'file_url' => $url,
+                'file_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'file_size_bytes' => $file->getSize(),
+                'status' => 'active',
+                'created_at' => now(),
+            ]);
+        }
+
+        // Notifications
+        try {
+            $this->notifyEmployerNewApplication($job->owner_user_id, $app);
+            $this->notifyApplicantStatus($u->id, $app, 'submitted');
+        } catch (\Throwable $e) {
+        }
+
         return $this->ok($app, 'Application submitted', 201);
     }
 
+    protected function notifyEmployerNewApplication(int $employerId, JobApplication $app): void
+    {
+        \App\Models\Notification::pushNotification([
+            'user_id' => $employerId,
+            'role' => 'employer',
+            'category' => 'applications',
+            'type' => 'new_application',
+            'title' => 'New application received',
+            'body' => 'A candidate applied to your job.',
+            'data' => [
+                'job_id' => $app->job_id,
+                'application_id' => $app->id,
+                'applicant_user_id' => $app->applicant_user_id,
+                'metrics' => [
+                    'skills_match' => 0.72,
+                    'experience_score' => 0.68,
+                    'education_score' => 0.6,
+                    'portfolio_score' => 0.65,
+                ],
+            ],
+            'url' => "/employer/applications/{$app->id}",
+            'batch_key' => "employer:{$employerId}:job:{$app->job_id}:new_application",
+        ]);
+    }
+
+    protected function notifyApplicantStatus(int $applicantId, JobApplication $app, string $status): void
+    {
+        \App\Models\Notification::pushNotification([
+            'user_id' => $applicantId,
+            'role' => 'applicant',
+            'category' => 'applications',
+            'type' => "status_{$status}",
+            'title' => 'Application update',
+            'body' => 'Your application status changed.',
+            'data' => [
+                'job_id' => $app->job_id,
+                'application_id' => $app->id,
+                'status' => $status,
+            ],
+            'url' => "/candidate/applications/{$app->id}",
+            'batch_key' => "applicant:{$applicantId}:app:{$app->id}:status",
+        ]);
+    }
+
     /**
-     * GET /applications?scope=mine|owned&status=...
-     *
-     * - scope=mine  => applicant sees own applications (admin sees all)
-     * - scope=owned => employer/agency sees applications for jobs they own (admin sees all)
+     * GET /applications/{application}/resume
+     * View/download applicant's resume (requires subscription for employers)
+     */
+    public function viewResume(JobApplication $application): mixed
+    {
+        $u = $this->requireAuth();
+
+        $application->load(['job', 'applicant']);
+
+        // Check ownership
+        $isOwner = $application->job
+            && in_array($u->role, ['employer', 'agency'], true)
+            && $application->job->owner_user_id === $u->id
+            && $application->job->owner_type === $u->role;
+
+        $isApplicant = $application->applicant_user_id === $u->id;
+
+        if (!$this->isAdmin($u) && !$isApplicant && !$isOwner) {
+            return response()->json([
+                'success' => false,
+                'code' => 'FORBIDDEN',
+                'message' => 'You do not have permission to view this resume.',
+            ], 403);
+        }
+
+        // Employers need BOTH subscription AND document access payment
+        if (in_array($u->role, ['employer', 'agency'], true) && !$isApplicant) {
+            // First check subscription (for messaging, interviews, hiring)
+            $subscription = $u->subscription;
+
+            if (!$subscription || $subscription->status !== 'active') {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'SUBSCRIPTION_REQUIRED',
+                    'message' => 'Active subscription required.',
+                ], 402);
+            }
+
+            if ($subscription->current_period_end && $subscription->current_period_end->isPast()) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'SUBSCRIPTION_REQUIRED',
+                    'message' => 'Your subscription has expired.',
+                ], 402);
+            }
+
+            // Then check document access payment (separate from subscription)
+            $hasDocAccess = \App\Models\DocumentAccessPayment::hasAccess($u->id, $application->applicant_user_id);
+
+            if (!$hasDocAccess) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'DOCUMENT_ACCESS_REQUIRED',
+                    'message' => 'Document access payment required to view resume and documents. Subscription unlocks messaging and hiring, but documents require separate payment.',
+                    'action' => 'purchase_document_access',
+                    'applicant_id' => $application->applicant_user_id,
+                ], 402);
+            }
+        }
+
+        // Find resume document (check active or null status)
+        $resume = Document::query()
+            ->where('user_id', $application->applicant_user_id)
+            ->where('doc_type', 'resume')
+            ->where(function($q) {
+                $q->where('status', 'active')
+                  ->orWhereNull('status');
+            })
+            ->latest()
+            ->first();
+
+        if (!$resume) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Resume not found for this applicant.',
+            ], 404);
+        }
+
+        // Log access
+        if ($isOwner) {
+            try {
+                \DB::table('access_logs')->insert([
+                    'employer_id' => $u->id,
+                    'candidate_user_id' => $application->applicant_user_id,
+                    'action' => 'download_resume',
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                    'created_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to log resume access: ' . $e->getMessage());
+            }
+        }
+
+        // Serve file securely
+        $filePath = $resume->file_url;
+        
+        // Handle full URLs - extract just the path
+        if (str_starts_with($filePath, 'http://') || str_starts_with($filePath, 'https://')) {
+            // Extract path from URL: http://127.0.0.1:8000/storage/documents/... -> documents/...
+            $parsed = parse_url($filePath);
+            $path = $parsed['path'] ?? '';
+            // Remove /storage/ prefix
+            $filePath = preg_replace('#^/storage/#', '', $path);
+        } else {
+            // Remove leading slash and public prefix if present
+            $filePath = ltrim($filePath, '/');
+            if (str_starts_with($filePath, 'public/')) {
+                $filePath = substr($filePath, 7);
+            }
+            if (str_starts_with($filePath, 'storage/')) {
+                $filePath = substr($filePath, 8);
+            }
+        }
+
+        if (!Storage::disk('public')->exists($filePath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Resume file not found on server.',
+                'debug' => [
+                    'original_url' => $resume->file_url,
+                    'processed_path' => $filePath,
+                ],
+            ], 404);
+        }
+
+        return Storage::disk('public')->download($filePath, $resume->file_name);
+    }
+
+    /**
+     * GET /applications - Updated to include resume availability
      */
     public function index(): JsonResponse
     {
@@ -120,7 +335,47 @@ class JobApplicationsController extends ApiController
             $q->where('status', $status);
         }
 
-        return $this->ok($q->orderByDesc('id')->paginate(20));
+        $applications = $q->orderByDesc('id')->paginate(20);
+
+        \Log::info('Applications fetched', [
+            'user_id' => $u->id,
+            'scope' => $scope,
+            'count' => $applications->count(),
+            'total' => $applications->total(),
+        ]);
+
+        // Add subscription status and resume availability for employers
+        if ($scope === 'owned' && in_array($u->role, ['employer', 'agency'], true)) {
+            $hasSubscription = $u->subscription !== null;
+            
+            $applications->getCollection()->transform(function ($app) use ($hasSubscription) {
+                // Add applicant name to the application object
+                if ($app->applicant && $app->applicant->applicantProfile) {
+                    $profile = $app->applicant->applicantProfile;
+                    $app->applicant_name = trim(($profile->first_name ?? '') . ' ' . ($profile->last_name ?? ''));
+                } else {
+                    $app->applicant_name = $app->applicant->email ?? 'Unknown';
+                }
+                
+                $app->has_resume = Document::query()
+                    ->where('user_id', $app->applicant_user_id)
+                    ->where('doc_type', 'resume')
+                    ->where('status', 'active')
+                    ->exists();
+                
+                $app->can_view_resume = $hasSubscription;
+                
+                return $app;
+            });
+
+            return $this->ok([
+                'applications' => $applications,
+                'has_subscription' => $hasSubscription,
+                'total' => $applications->total(),
+            ]);
+        }
+
+        return $this->ok($applications);
     }
 
     /**
@@ -143,7 +398,20 @@ class JobApplicationsController extends ApiController
             return $this->fail('Forbidden (403). Your request is not allowed for this application.', null, 403);
         }
 
-        return $this->ok($application);
+        // Add resume availability flag (check without status filter first)
+        $hasResume = Document::query()
+            ->where('user_id', $application->applicant_user_id)
+            ->where('doc_type', 'resume')
+            ->where(function($q) {
+                $q->where('status', 'active')
+                  ->orWhereNull('status');
+            })
+            ->exists();
+
+        $data = $application->toArray();
+        $data['has_resume'] = $hasResume;
+
+        return $this->ok($data);
     }
 
     /**
@@ -167,6 +435,19 @@ class JobApplicationsController extends ApiController
             return $this->fail('Forbidden (403). Your request is not allowed for this application.', null, 403);
         }
 
+        // Employers need active subscription for hiring actions
+        if ($isOwner && in_array($u->role, ['employer', 'agency'], true)) {
+            $subscription = $u->subscription;
+
+            if (!$subscription || $subscription->status !== 'active') {
+                return $this->fail('Active subscription required to manage applications, schedule interviews, and hire candidates.', ['subscription' => ['Subscription required']], 402);
+            }
+
+            if ($subscription->current_period_end && $subscription->current_period_end->isPast()) {
+                return $this->fail('Your subscription has expired. Please renew to continue managing applications.', ['subscription' => ['Subscription expired']], 402);
+            }
+        }
+
         $from = $application->status;
         $to   = $v['status'];
 
@@ -180,8 +461,8 @@ class JobApplicationsController extends ApiController
             }
 
             $allowedOwnerTransitions = [
-                'submitted'   => ['shortlisted', 'rejected', 'interview'],
-                'shortlisted' => ['interview', 'rejected'],
+                'submitted'   => ['shortlisted', 'rejected', 'interview', 'hired'],
+                'shortlisted' => ['interview', 'rejected', 'hired'],
                 'interview'   => ['hired', 'rejected'],
                 'rejected'    => [],
                 'withdrawn'   => [],
@@ -223,6 +504,11 @@ class JobApplicationsController extends ApiController
                 'created_at'          => now(),
             ]);
         });
+
+        try {
+            $this->notifyApplicantStatus($application->applicant_user_id, $application, $v['status']);
+        } catch (\Throwable $e) {
+        }
 
         return $this->ok($application->fresh(), 'Status updated');
     }

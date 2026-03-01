@@ -1,0 +1,56 @@
+version: '3.9'
+services:
+  haproxy:
+    image: haproxy:2.9
+    container_name: clinforce-haproxy
+    ports:
+      - "80:80"
+      - "8404:8404"
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - app1
+      - app2
+      - app3
+    networks:
+      - appnet
+
+  app1:
+    image: ghcr.io/your-org/clinforce-ai:latest
+    container_name: clinforce-app1
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+    expose:
+      - "8000"
+    command: php -S 0.0.0.0:8000 -t public public/index.php
+    networks:
+      - appnet
+
+  app2:
+    image: ghcr.io/your-org/clinforce-ai:latest
+    container_name: clinforce-app2
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+    expose:
+      - "8000"
+    command: php -S 0.0.0.0:8000 -t public public/index.php
+    networks:
+      - appnet
+
+  app3:
+    image: ghcr.io/your-org/clinforce-ai:latest
+    container_name: clinforce-app3
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+    expose:
+      - "8000"
+    command: php -S 0.0.0.0:8000 -t public public/index.php
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    driver: bridge

@@ -146,6 +146,10 @@ class JobsController extends Controller
             'archived_at'  => null,
         ]);
 
+        try {
+            $this->notifyApplicantsForJob($job);
+        } catch (\Throwable $e) {
+        }
         return response()->json(['data' => $job]);
     }
 
@@ -164,6 +168,28 @@ class JobsController extends Controller
         return response()->json(['data' => $job]);
     }
 
+    protected function notifyApplicantsForJob(Job $job): void
+    {
+        $candidates = \App\Models\User::query()->where('role', 'applicant')->limit(50)->get();
+        foreach ($candidates as $u) {
+            \App\Models\Notification::pushNotification([
+                'user_id' => $u->id,
+                'role' => 'applicant',
+                'category' => 'recommendations',
+                'type' => 'job_recommendation',
+                'title' => 'New job matches your profile',
+                'body' => $job->title,
+                'data' => [
+                    'job_id' => $job->id,
+                    'match' => [
+                        'score' => 0.7,
+                    ],
+                ],
+                'url' => "/candidate/jobs/{$job->id}",
+                'batch_key' => "applicant:{$u->id}:job_reco",
+            ]);
+        }
+    }
     /**
      * DELETE /api/jobs/{job}
      */

@@ -85,6 +85,11 @@ const roleForApi = computed(() => {
       loading.value = false;
     }
   }
+  
+  function signupWithGoogle() {
+    if (loading.value) return;
+    window.location.href = "/auth/google/redirect";
+  }
   </script>
   
   <template>
@@ -207,6 +212,29 @@ const roleForApi = computed(() => {
                 </RouterLink>
              </div>
           </form>
+          
+          <div class="mt-6">
+            <div class="relative py-2">
+              <div class="absolute inset-0 flex items-center">
+                <div class="w-full border-t border-slate-200"></div>
+              </div>
+              <div class="relative flex justify-center">
+                <span class="bg-white px-3 text-xs text-slate-400 uppercase tracking-wide">Or sign up with</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+              @click="signupWithGoogle"
+            >
+              <img
+                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                alt="Google"
+                class="h-4 w-4"
+              />
+              <span>Sign up with Google</span>
+            </button>
+          </div>
           
           <div class="mt-8 text-center text-xs text-slate-400">
             © {{ year }} AI Clinforce Partners. All rights reserved.

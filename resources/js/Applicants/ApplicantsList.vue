@@ -70,6 +70,10 @@
         </div>
       </div>
 
+      <div v-if="demoMode" class="rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-2 text-sm">
+        Showing demo applications to illustrate statuses. Connect real data to replace this.
+      </div>
+
       <!-- Main Content -->
       <div class="bg-white rounded-2xl border border-gray-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
             <!-- Filters Bar -->
@@ -146,14 +150,14 @@
                     <template #body="{ data }">
                         <div class="flex items-center gap-3 py-2">
                             <Avatar 
-                                :image="data.applicant?.avatar_url || data.applicant_user?.avatar_url || (data.applicantProfile?.avatar ? '/storage/'+data.applicantProfile.avatar : null)"
-                                :label="!(data.applicant?.avatar_url || data.applicant_user?.avatar_url || data.applicantProfile?.avatar) ? initials(data.applicant_user_id) : null" 
+                                :image="candidateAvatarUrl(data)"
+                                :label="!candidateAvatarUrl(data) ? initials(displayApplicantName(data)) : null" 
                                 shape="circle" 
                                 class="!bg-indigo-50 !text-indigo-600 font-bold w-10 h-10 text-sm border border-indigo-100" 
                             />
                             <div>
-                                <div class="font-semibold text-gray-900">Applicant #{{ data.applicant_user_id }}</div>
-                                <div class="text-xs text-gray-500">ID: {{ data.id }}</div>
+                                <div class="font-semibold text-gray-900">{{ displayApplicantName(data) }}</div>
+                                <div class="text-xs text-gray-500">Application #{{ data.id }}</div>
                             </div>
                         </div>
                     </template>
@@ -223,6 +227,7 @@ const router = useRouter()
 const loading = ref(false)
 const error = ref('')
 const scope = ref('owned') // owned|mine
+const demoMode = ref(false)
 
 const status = ref('')
 const search = ref('')
@@ -243,7 +248,9 @@ const raw = ref(null)
 const hasActiveFilters = computed(() => !!status.value || !!search.value.trim())
 
 const items = computed(() => {
-  const rows = raw.value?.data || []
+  // Handle paginated response - data.data is the array
+  const rows = Array.isArray(raw.value?.data?.data) ? raw.value.data.data : 
+               Array.isArray(raw.value?.data) ? raw.value.data : []
   const q = search.value.trim().toLowerCase()
 
   return rows.filter((r) => {
@@ -262,7 +269,9 @@ const items = computed(() => {
 })
 
 const stats = computed(() => {
-  const rows = raw.value?.data || []
+  // Handle paginated response - data.data is the array
+  const rows = Array.isArray(raw.value?.data?.data) ? raw.value.data.data : 
+               Array.isArray(raw.value?.data) ? raw.value.data : []
   const count = (s) => rows.filter((r) => r.status === s).length
   return {
     total: rows.length,
@@ -285,8 +294,44 @@ const pagination = computed(() => {
 function initials(v) {
   const s = String(v ?? '').trim()
   if (!s) return 'A'
-  const last = s.slice(-2)
-  return last.toUpperCase()
+  const parts = s.split(/\s+/).filter(Boolean)
+  const first = parts[0]?.[0] || ''
+  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] : ''
+  return (first + last).toUpperCase() || s.slice(0, 2).toUpperCase()
+}
+
+function buildAvatarUrl(path) {
+  if (!path) return null
+  const p = String(path).replace(/^\/+/, '')
+  if (/^https?:\/\//i.test(p)) return path
+  if (p.startsWith('uploads/')) return '/' + p
+  return '/storage/' + p
+}
+
+function candidateAvatarUrl(row) {
+  if (!row) return null
+  const u = row.applicant || row.user || null
+  if (u?.avatar_url) return u.avatar_url
+  const raw =
+    u?.applicant_profile?.avatar ||
+    u?.applicantProfile?.avatar ||
+    null
+  return buildAvatarUrl(raw)
+}
+
+function displayApplicantName(row) {
+  const u = row?.applicant || row?.user || null
+  const p = u?.applicant_profile || u?.applicantProfile || null
+  const fn = (p?.first_name || '').trim()
+  const ln = (p?.last_name || '').trim()
+  const name = fn ? `${fn}${ln ? ' ' + ln[0].toUpperCase() + '.' : ''}` : ''
+  return (
+    name ||
+    p?.public_display_name ||
+    u?.name ||
+    u?.full_name ||
+    `Applicant #${row?.applicant_user_id || row?.applicant_id || row?.user_id || ''}`.trim()
+  )
 }
 
 function formatDate(v) {
@@ -303,11 +348,37 @@ async function fetchData(page = 1) {
     const params = { scope: scope.value, page }
     if (status.value) params.status = status.value
 
+    console.log('Fetching applications with params:', params)
     const res = await api.get('/api/applications', { params })
-    raw.value = res.data?.data ?? res.data
-    // Handle wrapped data
-    if (res.data?.data?.data) raw.value = res.data.data
+    console.log('Applications response:', res.data)
+    console.log('Response data.data:', res.data.data)
+    
+    // Handle different response structures
+    if (res.data?.data?.applications) {
+      // Employer response: { data: { applications: {...}, has_subscription: true } }
+      raw.value = res.data.data.applications
+      console.log('Using employer structure (applications key), raw.value:', raw.value)
+    } else if (res.data?.data?.data) {
+      // Paginated: { data: { data: [...], current_page, total, etc } }
+      raw.value = res.data.data
+      console.log('Using paginated structure, raw.value:', raw.value)
+    } else if (res.data?.data) {
+      // Wrapped: { data: [...] }
+      raw.value = { data: res.data.data }
+      console.log('Using wrapped structure, raw.value:', raw.value)
+    } else {
+      // Direct: [...]
+      raw.value = { data: res.data }
+      console.log('Using direct structure, raw.value:', raw.value)
+    }
+    
+    console.log('Final raw.value:', raw.value)
+    console.log('Final raw.value.data:', raw.value?.data)
+    console.log('Is array?', Array.isArray(raw.value?.data))
+    console.log('Items count:', raw.value?.data?.length || 'N/A')
+    demoMode.value = false
   } catch (e) {
+    console.error('Fetch error:', e)
     error.value = e?.__payload?.message || e?.message || 'Request failed'
     raw.value = null
   } finally {

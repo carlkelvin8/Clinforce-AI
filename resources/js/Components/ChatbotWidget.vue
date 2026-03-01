@@ -108,7 +108,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import axios from 'axios'
 
 const isOpen = ref(false)
@@ -145,6 +145,13 @@ onMounted(() => {
     micNotice.value = 'Microphone requires HTTPS or localhost.'
   }
   ttsSupported.value = 'speechSynthesis' in window
+  window.addEventListener('chatbot:toggle', toggle)
+  window.addEventListener('chatbot:open', () => { isOpen.value = true })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('chatbot:toggle', toggle)
+  window.removeEventListener('chatbot:open', () => { isOpen.value = true })
 })
 
 watch(messages, (newVal) => {

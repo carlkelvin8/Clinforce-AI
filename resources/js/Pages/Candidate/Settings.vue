@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import AppLayout from '@/Components/AppLayout.vue'
 import { http } from '@/lib/http'
-import { me } from '@/lib/auth'
+import { me as authMe, getCachedUser } from '@/lib/auth'
 import Card from 'primevue/card';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
@@ -35,6 +35,17 @@ const fileUploadRef = ref(null)
 const showCropDialog = ref(false)
 const cropImage = ref(null)
 const cropperRef = ref(null)
+
+function buildAvatarUrl(raw) {
+  if (!raw) return null
+  const v = String(raw)
+  if (/^https?:\/\//i.test(v)) return v
+  if (v.startsWith('/uploads/')) return v
+  if (v.startsWith('uploads/')) return `/${v}`
+  if (v.startsWith('/storage/')) return v
+  if (v.startsWith('storage/')) return `/${v}`
+  return `/storage/${v.replace(/^\/+/, '')}`
+}
 
 const passwordStrength = computed(() => {
   const value = form.value.password || ''
@@ -69,14 +80,32 @@ const passwordStrengthClass = computed(() => {
 
 async function fetchUser() {
   try {
-    const u = await me()
+    const res = await http.get('/me')
+    const outer = res?.data?.data ?? res?.data ?? {}
+    const u = outer?.data ?? outer?.user ?? outer
     user.value = u
     if (u) {
       form.value.email = u.email || ''
       form.value.phone = u.phone || ''
-      if (u.avatar_url) {
-        avatarPreview.value = u.avatar_url
+      const url = u.avatar_url || u.avatar || null
+      if (url) {
+        avatarPreview.value = buildAvatarUrl(url)
       }
+      try {
+        localStorage.setItem('auth_user', JSON.stringify({
+          ...(JSON.parse(localStorage.getItem('auth_user') || '{}')),
+          ...u,
+        }))
+        window.dispatchEvent(new Event('auth:changed'))
+      } catch {}
+    }
+    if (!avatarPreview.value) {
+      try {
+        const authUser = await authMe()
+        if (authUser && (authUser.avatar_url || authUser.avatar)) {
+          avatarPreview.value = buildAvatarUrl(authUser.avatar_url || authUser.avatar)
+        }
+      } catch {}
     }
   } catch (e) {
     console.error("Failed to fetch user", e)
@@ -84,6 +113,12 @@ async function fetchUser() {
 }
 
 onMounted(() => {
+  try {
+    const cached = getCachedUser()
+    if (cached && (cached.avatar_url || cached.avatar)) {
+      avatarPreview.value = buildAvatarUrl(cached.avatar_url || cached.avatar)
+    }
+  } catch {}
   fetchUser()
 })
 
@@ -101,26 +136,40 @@ function onFileSelect(event) {
 
 function applyCrop() {
     const { canvas } = cropperRef.value.getResult();
-    if (canvas) {
-        canvas.toBlob((blob) => {
-            // Create a new File object from the blob to mimic file selection
-            const file = new File([blob], "avatar.png", { type: "image/png" });
-            avatarFile.value = file;
-            
-            // Update preview
-            if (avatarPreview.value && avatarPreview.value.startsWith('blob:')) {
-                URL.revokeObjectURL(avatarPreview.value)
-            }
-            avatarPreview.value = URL.createObjectURL(blob);
-            
-            showCropDialog.value = false;
-            
-            // Clear the file upload component so the same file can be selected again if needed
-            if (fileUploadRef.value) {
-                fileUploadRef.value.clear();
-            }
-        }, 'image/png');
-    }
+    if (!canvas) return;
+
+    // Downscale to keep well under 5MB and reduce dimensions
+    const maxDim = 640;
+    const scale = Math.min(1, maxDim / Math.max(canvas.width, canvas.height));
+    const outW = Math.max(1, Math.round(canvas.width * scale));
+    const outH = Math.max(1, Math.round(canvas.height * scale));
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = outW;
+    outCanvas.height = outH;
+    const ctx = outCanvas.getContext('2d');
+    ctx.drawImage(canvas, 0, 0, outW, outH);
+
+    const finalize = (blob) => {
+      if (!blob) return;
+      const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+      avatarFile.value = file;
+      if (avatarPreview.value && avatarPreview.value.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreview.value);
+      }
+      avatarPreview.value = URL.createObjectURL(blob);
+      showCropDialog.value = false;
+      if (fileUploadRef.value) fileUploadRef.value.clear();
+    };
+
+    // Encode as JPEG with quality; adjust if still large
+    outCanvas.toBlob((blob) => {
+      if (!blob) return;
+      if (blob.size > 4.8 * 1024 * 1024) {
+        outCanvas.toBlob((b2) => finalize(b2), 'image/jpeg', 0.75);
+      } else {
+        finalize(blob);
+      }
+    }, 'image/jpeg', 0.85);
 }
 
 function cancelCrop() {
@@ -145,8 +194,10 @@ async function saveSettings() {
   
   try {
     const formData = new FormData()
-    formData.append('email', form.value.email || '')
-    formData.append('phone', form.value.phone || '')
+    const emailTrim = (form.value.email || '').trim()
+    const phoneTrim = (form.value.phone || '').trim()
+    if (emailTrim) formData.append('email', emailTrim)
+    if (phoneTrim) formData.append('phone', phoneTrim)
     
     if (form.value.password) {
       formData.append('password', form.value.password)
@@ -160,13 +211,17 @@ async function saveSettings() {
     // Use POST with _method=PUT for file uploads
     formData.append('_method', 'PUT')
 
-    await http.post('/api/user/settings', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
+    const res = await http.post('/api/user/settings', formData)
+    const payload = res?.data?.data || res?.data || {}
+    const updatedUser = payload.user || payload
+    if (updatedUser && (updatedUser.avatar_url || updatedUser.avatar)) {
+      avatarPreview.value = buildAvatarUrl(updatedUser.avatar_url || updatedUser.avatar)
+    }
     
     await fetchUser()
+    try {
+      await authMe()
+    } catch {}
     
     toast.add({ severity: 'success', summary: 'Success', detail: 'Settings updated successfully.', life: 3000 });
     
@@ -175,10 +230,15 @@ async function saveSettings() {
     form.value.password_confirmation = ''
     avatarFile.value = null
   } catch (err) {
-    console.error(err)
-    const msg = err.response?.data?.message || 'Failed to update settings'
-    
-    toast.add({ severity: 'error', summary: 'Error', detail: msg, life: 5000 });
+    const payload = err?.response?.data;
+    let msg = payload?.message || 'Failed to update settings';
+    const errs = payload?.errors;
+    if (errs && typeof errs === 'object') {
+      const firstKey = Object.keys(errs)[0];
+      const firstMsg = firstKey && Array.isArray(errs[firstKey]) ? errs[firstKey][0] : null;
+      if (firstMsg) msg = firstMsg;
+    }
+    toast.add({ severity: 'error', summary: 'Error', detail: msg, life: 6000 });
   } finally {
     saving.value = false
   }

@@ -6,24 +6,20 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        Schema::dropIfExists('invitations');
+        
         Schema::create('invitations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('employer_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('candidate_id')->constrained('users')->onDelete('cascade');
-            $table->string('status')->default('pending'); // pending, accepted, declined
+            $table->string('status', 50)->default('pending');
             $table->text('message')->nullable();
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('invitations');

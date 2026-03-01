@@ -8,6 +8,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Http\JsonResponse;
+use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -50,15 +55,12 @@ class AuthController extends Controller
             'status'        => 'active',
             'password_hash' => Hash::make($request->input('password')),
         ]);
-
-        $token = $user->createToken('clinforce-ai')->plainTextToken;
+        if ($user->email) {
+            $user->sendEmailVerificationNotification();
+        }
 
         return response()->json([
-            'message' => 'Registered successfully.',
-            'data' => [
-                'token' => $token,
-                'user'  => $this->userPayload($user),
-            ],
+            'message' => 'Registered successfully. Please check your email to verify your account.',
         ], 201);
     }
 
@@ -92,6 +94,10 @@ class AuthController extends Controller
             return response()->json(['message' => 'Account is disabled.'], 403);
         }
 
+        if (in_array($user->role, ['employer', 'applicant'], true) && $user->email && !$user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Please verify your email address before logging in.'], 403);
+        }
+
         if (!Hash::check($password, (string) $user->password_hash)) {
             return response()->json(['message' => 'Invalid credentials.'], 401);
         }
@@ -113,6 +119,34 @@ class AuthController extends Controller
         ]);
     }
 
+    public function forgotPassword(Request $request)
+    {
+        $v = Validator::make($request->all(), [
+            'email' => ['required','email','max:190'],
+        ]);
+
+        if ($v->fails()) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors'  => $v->errors(),
+            ], 422);
+        }
+
+        $status = Password::broker('users')->sendResetLink(
+            ['email' => $request->input('email')]
+        );
+
+        if ($status === Password::RESET_LINK_SENT) {
+            return response()->json([
+                'message' => 'Password reset link sent to your email.',
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'We could not send a reset link to that email address.',
+        ], 400);
+    }
+
     public function me(Request $request)
     {
         /** @var User $user */
@@ -123,6 +157,129 @@ class AuthController extends Controller
                 'user' => $this->userPayload($user),
             ],
         ]);
+    }
+
+    public function verificationLink(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        if (!$user || !$user->email) {
+            return response()->json(['message' => 'No email to verify.'], 400);
+        }
+        if ($user->hasVerifiedEmail()) {
+            return response()->json([
+                'message' => 'Email already verified.',
+                'data' => ['verified' => true],
+            ]);
+        }
+
+        $url = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes(60),
+            [
+                'id' => $user->id,
+                'hash' => sha1($user->getEmailForVerification()),
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Verification link generated.',
+            'data' => [
+                'url' => $url,
+                'verified' => false,
+            ],
+        ]);
+    }
+
+    public function googleRedirect(Request $request)
+    {
+        $redirect = $request->query('redirect');
+        if ($redirect) {
+            $request->session()->put('social_redirect', $redirect);
+        }
+
+        return Socialite::driver('google')->redirect();
+    }
+
+    public function googleCallback(Request $request)
+    {
+        try {
+            $googleUser = Socialite::driver('google')->user();
+        } catch (\Throwable $e) {
+            return redirect('/login?social=error');
+        }
+
+        $email = $googleUser->getEmail();
+        if (!$email) {
+            return redirect('/login?social=error');
+        }
+
+        $user = User::where('email', $email)->first();
+
+        if (!$user) {
+            $user = User::create([
+                'role' => 'applicant',
+                'email' => $email,
+                'phone' => null,
+                'status' => 'active',
+                'password_hash' => Hash::make(Str::random(40)),
+                'email_verified_at' => now(),
+            ]);
+        } elseif (!$user->email_verified_at) {
+            $user->email_verified_at = now();
+            $user->save();
+        }
+
+        $avatarUrl = method_exists($googleUser, 'getAvatar') ? $googleUser->getAvatar() : null;
+        if ($avatarUrl && $user->role === 'applicant') {
+            try {
+                $binary = @file_get_contents($avatarUrl);
+                if ($binary !== false) {
+                    $destDir = public_path('uploads/avatars');
+                    if (!is_dir($destDir)) {
+                        @mkdir($destDir, 0755, true);
+                    }
+                    $pathPart = parse_url($avatarUrl, PHP_URL_PATH) ?: '';
+                    $ext = strtolower(pathinfo($pathPart, PATHINFO_EXTENSION) ?: 'jpg');
+                    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                        $ext = 'jpg';
+                    }
+                    $name = 'u' . $user->id . '_google_' . time() . '_' . bin2hex(random_bytes(3)) . '.' . $ext;
+                    $fullPath = $destDir . DIRECTORY_SEPARATOR . $name;
+                    file_put_contents($fullPath, $binary);
+                    $publicPath = 'uploads/avatars/' . $name;
+
+                    $profile = $user->applicantProfile;
+                    if (!$profile) {
+                        $display = trim(($user->email ?? '') !== '' ? explode('@', $user->email)[0] : 'Candidate');
+                        $profile = $user->applicantProfile()->create([
+                            'first_name' => '',
+                            'last_name' => '',
+                            'public_display_name' => $display,
+                        ]);
+                    }
+                    $profile->avatar = $publicPath;
+                    $profile->save();
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $token = $user->createToken('clinforce')->plainTextToken;
+
+        $payload = base64_encode(json_encode([
+            'token' => $token,
+            'user' => $this->userPayload($user),
+        ]));
+
+        $redirect = $request->session()->pull('social_redirect');
+
+        $query = http_build_query(array_filter([
+            'payload' => $payload,
+            'redirect' => $redirect,
+        ]));
+
+        return redirect('/auth/social/callback' . ($query ? ('?' . $query) : ''));
     }
 
     public function logout(Request $request)
@@ -136,28 +293,25 @@ class AuthController extends Controller
 
     private function userPayload(User $user): array
     {
-        $avatar = null;
+        $avatar = $user->avatar_url;
         $name = null;
 
         if ($user->role === 'applicant') {
             $user->load('applicantProfile');
             $profile = $user->applicantProfile;
             if ($profile) {
-                $avatar = $profile->avatar ? asset('storage/' . $profile->avatar) : null;
                 $name = trim($profile->first_name . ' ' . $profile->last_name) ?: $profile->public_display_name;
             }
         } elseif ($user->role === 'employer') {
             $user->load('employerProfile');
             $profile = $user->employerProfile;
             if ($profile) {
-                $avatar = asset('assets/brand/default-hospital-logo.svg');
                 $name = $profile->business_name ?: $user->name;
             }
         } elseif ($user->role === 'agency') {
             $user->load('agencyProfile');
             $profile = $user->agencyProfile;
             if ($profile) {
-                $avatar = $profile->logo ? asset('storage/' . $profile->logo) : null;
                 $name = $profile->agency_name;
             }
         }

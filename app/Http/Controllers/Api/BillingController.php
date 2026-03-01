@@ -25,6 +25,12 @@ class BillingController extends ApiController
         }
 
         $profile = $this->currency->getEmployerProfile($u);
+        
+        \Log::info('Billing currency request', [
+            'user_id' => $u->id,
+            'profile_country' => $profile?->country_code,
+        ]);
+        
         if (!$profile || !$profile->country_code) {
             $countries = $this->currency->getCountriesList();
 
@@ -39,6 +45,8 @@ class BillingController extends ApiController
         }
 
         $ctx = $this->currency->getEmployerCurrencyContext($u);
+        
+        \Log::info('Currency context', $ctx);
 
         $plans = Plan::query()
             ->where('is_active', 1)
@@ -49,6 +57,14 @@ class BillingController extends ApiController
 
         foreach ($plans as $plan) {
             $conv = $this->currency->convertPlanPriceForUser($plan, $ctx);
+            
+            \Log::info('Plan conversion', [
+                'plan_id' => $plan->id,
+                'base_price' => $plan->price_cents,
+                'base_currency' => $plan->currency,
+                'converted_price' => $conv['amount_cents'],
+                'target_currency' => $conv['currency_code'],
+            ]);
 
             $amountCents = $conv['amount_cents'] ?? null;
             $decimals = $conv['decimals'];

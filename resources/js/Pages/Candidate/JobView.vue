@@ -29,13 +29,19 @@
             </div>
             <div class="flex gap-3">
               <Button label="Refresh" icon="pi pi-refresh" outlined class="!border-slate-300 !text-slate-600" @click="fetchJob" :loading="loading" />
-              <Button v-if="!loading && !error" label="Apply Now" icon="pi pi-send" class="!bg-blue-600 !border-blue-600 hover:!bg-blue-700" @click="openApply = true" />
+              <Button v-if="!loading && !error" label="Apply Now" icon="pi pi-send" class="!bg-blue-600 !border-blue-600 hover:!bg-blue-700" @click="applyNow" :loading="applyLoading" :disabled="applyLoading" />
             </div>
           </div>
         </div>
       </div>
 
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div v-if="applyError" class="mb-6 p-4 rounded bg-red-50 border border-red-200 text-red-700 text-sm">
+          {{ applyError }}
+        </div>
+        <div v-if="applyOk" class="mb-6 p-4 rounded bg-green-50 border border-green-200 text-green-700 text-sm">
+          {{ applyOk }}
+        </div>
         <!-- Loading State -->
         <div v-if="loading" class="flex flex-col items-center justify-center py-20 text-slate-500">
           <i class="pi pi-spin pi-spinner text-4xl text-blue-600 mb-4"></i>
@@ -85,64 +91,12 @@
                   <span class="font-medium">{{ prettyEnum(job.work_mode) }}</span>
                 </div>
                 <div class="pt-4">
-                  <Button label="Apply for this Job" class="w-full !bg-blue-600 !border-blue-600 hover:!bg-blue-700" @click="openApply = true" />
+                  <Button label="Apply for this Job" class="w-full !bg-blue-600 !border-blue-600 hover:!bg-blue-700" @click="applyNow" :loading="applyLoading" :disabled="applyLoading" />
                 </div>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- Apply modal -->
-        <Dialog v-model:visible="openApply" modal header="Apply for this position" :style="{ width: '500px' }" class="p-0 overflow-hidden">
-          <template #header>
-            <div class="flex flex-col gap-1">
-              <span class="text-xl font-bold text-slate-900">Apply Now</span>
-              <span class="text-sm text-slate-500">Applying for <span class="font-medium text-slate-900">{{ job.title }}</span></span>
-            </div>
-          </template>
-
-          <div class="pt-2">
-            <transition
-              enter-active-class="transition ease-out duration-300"
-              enter-from-class="opacity-0 -translate-y-2"
-              enter-to-class="opacity-100 translate-y-0"
-              leave-active-class="transition ease-in duration-200"
-              leave-from-class="opacity-100 translate-y-0"
-              leave-to-class="opacity-0 -translate-y-2"
-            >
-              <div v-if="applyError" class="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700 text-sm">
-                {{ applyError }}
-              </div>
-            </transition>
-
-            <transition
-              enter-active-class="transition ease-out duration-300"
-              enter-from-class="opacity-0 -translate-y-2"
-              enter-to-class="opacity-100 translate-y-0"
-            >
-              <div v-if="applyOk" class="mb-4 p-4 rounded bg-green-50 border border-green-200 text-green-700 flex flex-col items-center text-center">
-                <i class="pi pi-check-circle text-4xl mb-2 text-green-600"></i>
-                <div class="font-bold text-lg">Application Sent!</div>
-                <div class="text-sm mt-1">{{ applyOk }}</div>
-                <Button label="Close" class="mt-4 p-button-sm !bg-green-600 !border-green-600" @click="openApply = false" />
-              </div>
-            </transition>
-
-            <div v-if="!applyOk" class="flex flex-col gap-4">
-              <div class="flex flex-col gap-2">
-                <label for="coverLetter" class="font-medium text-slate-700">Cover Letter <span class="text-slate-400 font-normal">(Optional)</span></label>
-                <Textarea id="coverLetter" v-model="coverLetter" rows="6" placeholder="Introduce yourself and explain why you're a good fit..." class="w-full !border-slate-300 focus:!border-blue-500" autoResize />
-              </div>
-            </div>
-          </div>
-
-          <template #footer>
-            <div v-if="!applyOk" class="flex justify-end gap-2">
-              <Button label="Cancel" text class="!text-slate-600 hover:!bg-slate-50" @click="openApply = false" :disabled="applyLoading" />
-              <Button :label="applyLoading ? 'Sending...' : 'Submit Application'" icon="pi pi-send" class="!bg-blue-600 !border-blue-600" @click="applyNow" :loading="applyLoading" />
-            </div>
-          </template>
-        </Dialog>
       </div>
     </div>
   </AppLayout>
@@ -155,9 +109,6 @@ import AppLayout from "@/Components/AppLayout.vue";
 import api from "@/lib/api";
 
 import Button from 'primevue/button';
-import Dialog from 'primevue/dialog';
-import Textarea from 'primevue/textarea';
-import InputText from 'primevue/inputtext';
 
 const router = useRouter();
 
@@ -169,11 +120,12 @@ const loading = ref(false);
 const error = ref("");
 const job = ref({});
 
-const openApply = ref(false);
-const coverLetter = ref("");
 const applyLoading = ref(false);
 const applyError = ref("");
 const applyOk = ref("");
+const resumeFile = ref(null);
+const existingDocs = ref([]);
+let triedAutoAttach = false;
 
 function goBack() {
   router.back();
@@ -229,16 +181,14 @@ async function applyNow() {
   applyLoading.value = true;
   applyError.value = "";
   applyOk.value = "";
+  await autoAttachResumeIfAvailable();
 
   const id = encodeURIComponent(String(props.id));
-  const payload = {};
-  if (coverLetter.value.trim()) payload.cover_letter = coverLetter.value.trim();
-
-  // Try multiple endpoints to be robust
+  const fd = new FormData();
+  if (resumeFile.value) fd.append("resume", resumeFile.value);
   const candidates = [
-    { method: "post", url: `/jobs/${id}/apply`, data: payload },
-    { method: "post", url: `/jobs/${id}/applications`, data: payload },
-    { method: "post", url: `/applications`, data: { job_id: props.id, ...payload } },
+    { method: "post", url: `/api/jobs/${id}/apply`, data: fd },
+    { method: "post", url: `/jobs/${id}/apply`, data: fd },
   ];
 
   try {
@@ -265,13 +215,62 @@ async function applyNow() {
 
     const msg = extractMessage(res.data, "Application submitted successfully!");
     applyOk.value = msg;
-    coverLetter.value = "";
+    resumeFile.value = null;
+    triedAutoAttach = false;
     
     // Auto close after success is handled by UI showing success message
   } catch (e) {
-    applyError.value = e?.response?.data?.message || e?.message || "Submit failed";
+    const payload = e?.response?.data;
+    const errs = payload?.errors;
+    let preferred = payload?.message || e?.message || "Submit failed";
+    if (errs && typeof errs === 'object') {
+      if (Array.isArray(errs.resume) && errs.resume[0]) {
+        preferred = errs.resume[0];
+      }
+    }
+    applyError.value = preferred;
   } finally {
     applyLoading.value = false;
+  }
+}
+
+function isAllowedResume(d) {
+  const mime = (d?.mime_type || '').toLowerCase();
+  return ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(mime);
+}
+
+async function fetchAsBlob(url, mime) {
+  const r = await fetch(url, { credentials: 'same-origin' });
+  if (!r.ok) throw new Error('Failed to fetch document');
+  const b = await r.blob();
+  if (mime && b.type !== mime) {
+    // keep original blob; server validates anyway
+  }
+  return b;
+}
+
+async function loadUserDocuments() {
+  try {
+    const res = await api.get('/api/documents');
+    const p = unwrapPayload(res.data);
+    const docs = Array.isArray(p?.data) ? p.data : Array.isArray(p) ? p : [];
+    existingDocs.value = docs.filter(d => d?.status === 'active' && d?.file_url);
+  } catch (e) {
+    existingDocs.value = [];
+  }
+}
+
+async function autoAttachResumeIfAvailable() {
+  if (triedAutoAttach) return;
+  triedAutoAttach = true;
+  await loadUserDocuments();
+  const resume = existingDocs.value.find(d => d.doc_type === 'resume' && isAllowedResume(d));
+  if (!resume) return;
+  try {
+    const blob = await fetchAsBlob(resume.file_url, resume.mime_type);
+    resumeFile.value = new File([blob], resume.file_name || 'resume', { type: resume.mime_type || blob.type });
+  } catch (e) {
+    // fall through - no auto attach
   }
 }
 

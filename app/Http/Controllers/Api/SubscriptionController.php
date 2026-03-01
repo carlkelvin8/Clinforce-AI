@@ -23,6 +23,11 @@ class SubscriptionController extends ApiController
     {
         $u = $this->requireAuth();
 
+        \Log::info('Fetching subscriptions', [
+            'user_id' => $u->id,
+            'role' => $u->role,
+        ]);
+
         $q = Subscription::query()->with('plan')->orderByDesc('id');
 
         if ($u->role !== 'admin') {
@@ -32,7 +37,15 @@ class SubscriptionController extends ApiController
             $q->where('user_id', $u->id);
         }
 
-        return $this->ok($q->paginate(20));
+        $result = $q->paginate(20);
+        
+        \Log::info('Subscriptions fetched', [
+            'count' => $result->count(),
+            'total' => $result->total(),
+            'data' => $result->items(),
+        ]);
+
+        return $this->ok($result);
     }
 
     public function store(SubscriptionStoreRequest $request): JsonResponse
@@ -70,6 +83,45 @@ class SubscriptionController extends ApiController
             );
         }
 
+        // Check if user has payment method
+        \Log::info('Subscription check', [
+            'user_id' => $u->id,
+            'stripe_customer_id' => $u->stripe_customer_id,
+        ]);
+
+        if (!$u->stripe_customer_id) {
+            return $this->fail(
+                'Please add a payment method before subscribing.',
+                ['payment_method' => ['Payment method required'], 'debug' => ['user_id' => $u->id, 'stripe_customer_id' => null]],
+                422
+            );
+        }
+
+        // Verify payment method exists
+        try {
+            \Stripe\Stripe::setApiKey(config('services.stripe.secret'));
+            $paymentMethods = \Stripe\PaymentMethod::all([
+                'customer' => $u->stripe_customer_id,
+                'type' => 'card',
+            ]);
+
+            \Log::info('Payment methods found', [
+                'customer_id' => $u->stripe_customer_id,
+                'count' => count($paymentMethods->data),
+            ]);
+
+            if (count($paymentMethods->data) === 0) {
+                return $this->fail(
+                    'Please add a payment method before subscribing.',
+                    ['payment_method' => ['No payment method found'], 'debug' => ['customer_id' => $u->stripe_customer_id]],
+                    422
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::error('Stripe error', ['error' => $e->getMessage()]);
+            return $this->fail('Failed to verify payment method: ' . $e->getMessage(), null, 500);
+        }
+
         $ctx = $this->currency->getEmployerCurrencyContext($u instanceof User ? $u : User::find($u->id));
 
         $conversion = $this->currency->convertPlanPriceForUser($plan, $ctx);
@@ -91,11 +143,25 @@ class SubscriptionController extends ApiController
             $sub = Subscription::query()->create([
                 'user_id' => $u->id,
                 'plan_id' => $plan->id,
+                'stripe_customer_id' => $u->stripe_customer_id,
                 'currency_code' => $ctx['currency_code'],
                 'amount_cents' => $amountCents,
                 'status' => 'active',
                 'start_at' => $start,
                 'end_at' => $end,
+            ]);
+
+            // Create initial invoice
+            \App\Models\Invoice::create([
+                'user_id' => $u->id,
+                'subscription_id' => $sub->id,
+                'amount_cents' => $amountCents,
+                'currency_code' => $ctx['currency_code'],
+                'status' => 'paid',
+                'provider' => 'stripe',
+                'provider_ref' => null,
+                'issued_at' => now(),
+                'paid_at' => now(),
             ]);
         });
 
@@ -118,5 +184,23 @@ class SubscriptionController extends ApiController
         $subscription->save();
 
         return $this->ok($subscription, 'Cancelled');
+    }
+
+    public function invoices(): JsonResponse
+    {
+        $u = $this->requireAuth();
+
+        $q = \App\Models\Invoice::query()
+            ->with(['subscription.plan'])
+            ->orderByDesc('issued_at');
+
+        if ($u->role !== 'admin') {
+            if (!in_array($u->role, ['employer','agency'], true)) {
+                return $this->fail('Only employer/agency can view invoices', null, 403);
+            }
+            $q->where('user_id', $u->id);
+        }
+
+        return $this->ok($q->paginate(20));
     }
 }

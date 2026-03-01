@@ -15,8 +15,33 @@ class DocumentStoreRequest extends FormRequest
     {
         return [
             'doc_type' => ['bail','required','string','max:60'],
-            'file' => ['bail','required','file','max:10240','mimes:pdf,doc,docx,png,jpg,jpeg'],
+            'file' => ['bail','required','file','max:10240'],
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            if ($this->hasFile('file')) {
+                $file = $this->file('file');
+                $extension = strtolower($file->getClientOriginalExtension());
+                $mimeType = $file->getMimeType();
+                
+                $allowedExtensions = ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg'];
+                $allowedMimes = [
+                    'application/pdf',
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'image/png',
+                    'image/jpeg',
+                    'image/jpg',
+                ];
+                
+                if (!in_array($extension, $allowedExtensions) && !in_array($mimeType, $allowedMimes)) {
+                    $validator->errors()->add('file', 'File must be PDF, DOC, DOCX, PNG, JPG, or JPEG. Detected: ' . $extension . ' (' . $mimeType . ')');
+                }
+            }
+        });
     }
 
     public function messages(): array

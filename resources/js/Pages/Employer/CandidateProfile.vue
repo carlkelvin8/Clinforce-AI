@@ -22,6 +22,17 @@ const profile = ref(null)
 const inviting = ref(false)
 const messaging = ref(false)
 
+function buildAvatarUrl(raw) {
+  if (!raw) return null
+  const v = String(raw)
+  if (/^https?:\/\//i.test(v)) return v
+  if (v.startsWith('/uploads/')) return v
+  if (v.startsWith('uploads/')) return `/${v}`
+  if (v.startsWith('/storage/')) return v
+  if (v.startsWith('storage/')) return `/${v}`
+  return `/storage/${v.replace(/^\/+/, '')}`
+}
+
 function formatDate(v) {
   if (!v) return 'N/A'
   const d = new Date(v)
@@ -142,8 +153,8 @@ onMounted(fetchProfile)
         <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div class="flex items-center gap-4">
             <Avatar 
-              v-if="profile?.avatar" 
-              :image="profile.avatar" 
+              v-if="buildAvatarUrl(profile?.avatar)" 
+              :image="buildAvatarUrl(profile.avatar)" 
               shape="circle" 
               size="large" 
               class="border border-slate-200 shadow-sm"
@@ -164,11 +175,8 @@ onMounted(fetchProfile)
             />
             <div>
               <h1 class="text-2xl md:text-3xl font-bold m-0 text-slate-900">
-                {{ profile?.name || 'Candidate Profile' }}
+                Candidate Profile
               </h1>
-              <p class="text-slate-600 mt-1" v-if="profile">
-                {{ profile.headline || 'No headline' }} • User #{{ profile.id }} • {{ [profile.city, profile.country_code].filter(Boolean).join(', ') || 'No location' }}
-              </p>
             </div>
           </div>
           <div class="flex flex-wrap items-center justify-end gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
@@ -189,105 +197,50 @@ onMounted(fetchProfile)
       
       <Message v-else-if="error" severity="error" :closable="false" class="mb-4">{{ error }}</Message>
 
-      <div v-else-if="profile" class="grid grid-cols-1 md:grid-cols-12 gap-6">
-        <div class="md:col-span-4 lg:col-span-3">
-          <Card class="bg-white rounded-xl shadow-sm border border-slate-200 sticky top-6">
-          <template #content>
-            <div class="flex flex-col items-center text-center mb-4">
-                <Avatar 
-                    v-if="profile.avatar" 
-                    :image="profile.avatar" 
-                    size="xlarge" 
-                    shape="circle" 
-                    class="mb-3 w-6rem h-6rem border border-slate-200 shadow-sm"
-                />
-                <Avatar 
-                    v-else 
-                    :label="profile.first_name ? profile.first_name[0] : 'C'" 
-                    size="xlarge" 
-                    shape="circle" 
-                    class="mb-3 w-6rem h-6rem text-3xl bg-indigo-600 text-white border border-slate-200 shadow-sm"
-                />
-              <div class="text-xl font-bold text-slate-900">{{ profile.name }}</div>
-              <div class="text-slate-600">{{ profile.headline || 'No headline' }}</div>
+      <div v-else-if="profile" class="grid grid-cols-1 gap-6">
+        <div class="flex flex-col gap-6">
+          <div v-if="profile.summary" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h3 class="text-lg font-bold text-slate-900 mb-3">Summary</h3>
+            <p class="m-0 leading-7 text-slate-700">{{ profile.summary }}</p>
+          </div>
+
+          <div v-if="profile.bio" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h3 class="text-lg font-bold text-slate-900 mb-3">Bio</h3>
+            <p class="m-0 leading-7 text-slate-700">{{ profile.bio }}</p>
+          </div>
+
+          <div v-if="toArray(profile.skills).length" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h3 class="text-lg font-bold text-slate-900 mb-3">Skills</h3>
+            <div class="flex flex-wrap gap-2">
+              <Tag v-for="(s, i) in toArray(profile.skills)" :key="i" :value="s" class="!bg-indigo-50 !text-indigo-700 !border !border-indigo-100 !rounded-md" />
             </div>
+          </div>
 
-            <div class="my-3 border-t border-slate-200"></div>
-
-            <div class="flex flex-col gap-3">
+          <div v-if="Array.isArray(profile.experience) && profile.experience.length" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h3 class="text-lg font-bold text-slate-900 mb-3">Experience</h3>
+            <div class="space-y-4">
+              <div v-for="(x, i) in profile.experience" :key="i" class="flex items-start justify-between gap-4">
                 <div>
-                    <div class="text-xs text-slate-500 font-medium mb-1">Email</div>
-                    <div class="text-slate-900 font-semibold break-all">{{ profile.email }}</div>
+                  <div class="font-semibold text-slate-900">{{ x.title || x.role || 'Role' }}</div>
+                  <div class="text-slate-600">{{ x.company || x.organization || 'Company' }}</div>
                 </div>
-                <div>
-                    <div class="text-xs text-slate-500 font-medium mb-1">Phone</div>
-                    <div class="text-slate-900 font-semibold">{{ profile.phone || 'N/A' }}</div>
-                </div>
-                <div>
-                    <div class="text-xs text-slate-500 font-medium mb-1">Experience</div>
-                    <div class="text-slate-900 font-semibold">{{ profile.years_experience }} years</div>
-                </div>
-                <div>
-                    <div class="text-xs text-slate-500 font-medium mb-1">Location</div>
-                    <div class="text-slate-900 font-semibold">{{ profile.city }} {{ profile.country_code }}</div>
-                </div>
-                <div v-if="profile?.linkedin || profile?.website" class="pt-2">
-                  <div class="text-xs text-slate-500 font-medium mb-1">Links</div>
-                  <div class="flex flex-wrap gap-2">
-                    <a v-if="profile.linkedin" :href="profile.linkedin" target="_blank" rel="noreferrer" class="text-blue-600 hover:text-blue-700 text-sm font-medium">LinkedIn</a>
-                    <a v-if="profile.website" :href="profile.website" target="_blank" rel="noreferrer" class="text-blue-600 hover:text-blue-700 text-sm font-medium">Website</a>
-                  </div>
-                </div>
-            </div>
-          </template>
-        </Card>
-        </div>
-
-        <div class="md:col-span-8 lg:col-span-9">
-          <div class="flex flex-col gap-6">
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h3 class="text-lg font-bold text-slate-900 mb-3">Summary</h3>
-              <p class="m-0 leading-7 text-slate-700">{{ profile.summary || 'No summary provided.' }}</p>
-            </div>
-
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h3 class="text-lg font-bold text-slate-900 mb-3">Bio</h3>
-              <p class="m-0 leading-7 text-slate-700">{{ profile.bio || 'No bio provided.' }}</p>
-            </div>
-
-            <div v-if="toArray(profile.skills).length" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h3 class="text-lg font-bold text-slate-900 mb-3">Skills</h3>
-              <div class="flex flex-wrap gap-2">
-                <Tag v-for="(s, i) in toArray(profile.skills)" :key="i" :value="s" class="!bg-indigo-50 !text-indigo-700 !border !border-indigo-100 !rounded-md" />
-              </div>
-            </div>
-
-            <div v-if="Array.isArray(profile.experience) && profile.experience.length" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h3 class="text-lg font-bold text-slate-900 mb-3">Experience</h3>
-              <div class="space-y-4">
-                <div v-for="(x, i) in profile.experience" :key="i" class="flex items-start justify-between gap-4">
-                  <div>
-                    <div class="font-semibold text-slate-900">{{ x.title || x.role || 'Role' }}</div>
-                    <div class="text-slate-600">{{ x.company || x.organization || 'Company' }}</div>
-                  </div>
-                  <div class="text-sm text-slate-500">
-                    {{ formatDate(x.start_date || x.start) }} - {{ x.end_date || x.end ? formatDate(x.end_date || x.end) : 'Present' }}
-                  </div>
+                <div class="text-sm text-slate-500">
+                  {{ formatDate(x.start_date || x.start) }} - {{ x.end_date || x.end ? formatDate(x.end_date || x.end) : 'Present' }}
                 </div>
               </div>
             </div>
+          </div>
 
-            <div v-if="Array.isArray(profile.education) && profile.education.length" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h3 class="text-lg font-bold text-slate-900 mb-3">Education</h3>
-              <div class="space-y-3">
-                <div v-for="(e, i) in profile.education" :key="i" class="flex items-start justify-between gap-4">
-                  <div>
-                    <div class="font-semibold text-slate-900">{{ e.degree || e.program || 'Degree' }}</div>
-                    <div class="text-slate-600">{{ e.school || e.institution || 'Institution' }}</div>
-                  </div>
-                  <div class="text-sm text-slate-500">
-                    {{ formatDate(e.start_date || e.start) }} - {{ e.end_date || e.end ? formatDate(e.end_date || e.end) : 'Present' }}
-                  </div>
+          <div v-if="Array.isArray(profile.education) && profile.education.length" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h3 class="text-lg font-bold text-slate-900 mb-3">Education</h3>
+            <div class="space-y-3">
+              <div v-for="(e, i) in profile.education" :key="i" class="flex items-start justify-between gap-4">
+                <div>
+                  <div class="font-semibold text-slate-900">{{ e.degree || e.program || 'Degree' }}</div>
+                  <div class="text-slate-600">{{ e.school || e.institution || 'Institution' }}</div>
+                </div>
+                <div class="text-sm text-slate-500">
+                  {{ formatDate(e.start_date || e.start) }} - {{ e.end_date || e.end ? formatDate(e.end_date || e.end) : 'Present' }}
                 </div>
               </div>
             </div>

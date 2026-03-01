@@ -20,6 +20,13 @@ use App\Http\Controllers\Api\MessagesController;
 use App\Http\Controllers\Api\UsersController;
 use App\Http\Controllers\Api\ChatbotController;
 use App\Http\Controllers\Api\TalentSearchController;
+use App\Http\Controllers\Api\NotificationsController;
+use App\Http\Controllers\Api\StripeCheckoutController;
+use App\Http\Controllers\Api\StripeWebhookController;
+use App\Http\Controllers\Api\PaymentMethodController;
+use App\Http\Controllers\Api\CandidatesController;
+use App\Http\Controllers\Api\ApplicantsController;
+use App\Http\Controllers\Api\SecureDocumentController;
 /*
 |--------------------------------------------------------------------------
 | Public
@@ -32,6 +39,9 @@ Route::get('/plans', [PlansController::class, 'index']);
 Route::get('/public/jobs', [JobsController::class, 'publicIndex']);
 Route::get('/public/jobs/{job}', [JobsController::class, 'publicShow']);
 
+// Stripe webhook (must be outside auth middleware)
+Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle']);
+
 /*
 |--------------------------------------------------------------------------
 | Auth
@@ -40,10 +50,12 @@ Route::get('/public/jobs/{job}', [JobsController::class, 'publicShow']);
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login',    [AuthController::class, 'login']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me',      [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/verification-link', [AuthController::class, 'verificationLink']);
     });
 });
 
@@ -94,6 +106,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/applications', [JobApplicationsController::class, 'index']);
     Route::get('/applications/{application}', [JobApplicationsController::class, 'show']);
     Route::post('/applications/{application}/status', [JobApplicationsController::class, 'updateStatus']);
+    Route::get('/applications/{application}/resume', [JobApplicationsController::class, 'viewResume']);
 
     // Talent Search
     Route::get('/talent-search', [TalentSearchController::class, 'index']);
@@ -111,7 +124,38 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/interviews/{interview}/cancel', [InterviewsController::class, 'cancel']);
 
     // Subscriptions / Payments
+    Route::get('/subscriptions/debug', function() {
+        $user = auth('sanctum')->user();
+        return response()->json([
+            'authenticated' => $user ? true : false,
+            'user' => $user ? $user->only(['id', 'email', 'role']) : null,
+            'subscriptions' => $user ? \App\Models\Subscription::where('user_id', $user->id)->with('plan')->get() : [],
+        ]);
+    });
+    
+    Route::get('/billing/test-currency', function() {
+        $user = \App\Models\User::find(9006);
+        $service = app(\App\Services\CurrencyService::class);
+        $ctx = $service->getEmployerCurrencyContext($user);
+        $plan = \App\Models\Plan::find(4);
+        $conversion = $service->convertPlanPriceForUser($plan, $ctx);
+        
+        return response()->json([
+            'context' => $ctx,
+            'plan' => $plan->only(['id', 'name', 'price_cents', 'currency']),
+            'conversion' => $conversion,
+        ]);
+    });
+    
     Route::get('/subscriptions', [SubscriptionController::class, 'index']);
+    
+    Route::get('/invoices', [SubscriptionController::class, 'invoices']);
+    
+    // Document Access (separate from subscription)
+    Route::get('/document-access/check', [App\Http\Controllers\Api\DocumentAccessController::class, 'checkAccess']);
+    Route::get('/document-access/pricing', [App\Http\Controllers\Api\DocumentAccessController::class, 'pricing']);
+    Route::post('/document-access/purchase', [App\Http\Controllers\Api\DocumentAccessController::class, 'purchase']);
+    Route::get('/document-access', [App\Http\Controllers\Api\DocumentAccessController::class, 'index']);
     
     // AI Chatbot
     Route::post('/chatbot', [ChatbotController::class, 'chat']);
@@ -144,6 +188,50 @@ Route::middleware('auth:sanctum')->group(function () {
     // Billing currency
     Route::get('/billing/currency', [BillingController::class, 'currency']);
     Route::post('/billing/profile', [BillingController::class, 'updateProfile']);
+
+    // Payment Methods
+    Route::post('/payment-methods/setup-intent', [PaymentMethodController::class, 'createSetupIntent']);
+    Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
+    Route::post('/payment-methods/confirm', [PaymentMethodController::class, 'confirm']);
+    Route::delete('/payment-methods/{paymentMethodId}', [PaymentMethodController::class, 'destroy']);
+
+    // Stripe Checkout & Billing Portal
+    Route::post('/stripe/checkout', [StripeCheckoutController::class, 'createCheckoutSession']);
+    Route::post('/stripe/checkout/success', [StripeCheckoutController::class, 'handleSuccess']);
+    Route::post('/stripe/portal', [StripeCheckoutController::class, 'createPortalSession']);
+
+    // Candidates - List (preview mode, no subscription required)
+    Route::get('/candidates', [CandidatesController::class, 'index']);
+    
+    // Candidates - Protected (requires active subscription)
+    Route::middleware(['require.sub', 'throttle:60,1'])->group(function () {
+        Route::get('/candidates/{id}', [CandidatesController::class, 'show']);
+        Route::get('/candidates/{id}/resume', [CandidatesController::class, 'downloadResume']);
+    });
+
+    // Applicants (with subscription gates for employers)
+    Route::get('/applicants/test', function() {
+        return response()->json([
+            'message' => 'Applicants endpoint is working',
+            'user' => auth('sanctum')->user() ? auth('sanctum')->user()->only(['id', 'email', 'role']) : null,
+        ]);
+    });
+    Route::get('/applicants', [ApplicantsController::class, 'index']);
+    Route::get('/applicants/{userId}', [ApplicantsController::class, 'show']);
+    Route::get('/applications/{applicationId}/applicant', [ApplicantsController::class, 'showFromApplication']);
+
+    // Secure document downloads (with subscription gates)
+    Route::get('/documents/{documentId}/download', [SecureDocumentController::class, 'download']);
+    Route::get('/documents/{documentId}/stream', [SecureDocumentController::class, 'stream']);
+
+    // Notifications
+    Route::get('/notifications', [NotificationsController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/unread-count', [NotificationsController::class, 'unreadCount'])->name('notifications.unreadCount');
+    Route::post('/notifications/read', [NotificationsController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationsController::class, 'markAllRead'])->name('notifications.readAll');
+    Route::get('/notifications/stream', [NotificationsController::class, 'stream'])->name('notifications.stream');
+    Route::get('/notifications/preferences', [NotificationsController::class, 'preferencesGet'])->name('notifications.preferences.get');
+    Route::put('/notifications/preferences', [NotificationsController::class, 'preferencesUpdate'])->name('notifications.preferences.update');
 });
 
 

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
 import { http } from "../../lib/http";
+import { getCachedUser, me } from "@/lib/auth";
 
 // PrimeVue
 import Dropdown from "primevue/dropdown";
@@ -22,6 +23,7 @@ const error = ref("");
 const range = ref("30"); // 7 | 30 | 90
 const jobs = ref([]);
 const apps = ref([]);
+const demoAppsMode = ref(false);
 
 // derived "event" list for charts
 const applicantEvents = ref([]); // { dayKey:'YYYY-MM-DD', ts:Date, status:'new'|'review'|'shortlisted'|'rejected'|'hired' }
@@ -97,14 +99,18 @@ function normalizeAppStage(a) {
 }
 
 function candidateAvatarUrl(a) {
-  // Try multiple shapes commonly returned by API
-  const p =
-    a?.applicant?.avatar_url ||
-    a?.user?.avatar_url ||
-    a?.applicant_user?.avatar_url ||
-    (a?.applicantProfile?.avatar ? `/storage/${a.applicantProfile.avatar}` : null) ||
+  if (!a) return null;
+  const u = a.applicant || a.user || null;
+  if (u?.avatar_url) return u.avatar_url;
+  const raw =
+    u?.applicant_profile?.avatar ||
+    u?.applicantProfile?.avatar ||
     null;
-  return p;
+  if (!raw) return null;
+  const p = String(raw).replace(/^\/+/, "");
+  if (/^https?:\/\//i.test(p)) return raw;
+  if (p.startsWith("uploads/")) return "/" + p;
+  return "/storage/" + p;
 }
 
 function extractInterviewEvents(appList) {
@@ -146,6 +152,7 @@ async function load() {
       .catch(() => http.get("/applications", { params: { scope: "mine" } }))
       .catch(() => http.get("/applications"));
     apps.value = unwrapPaginated(ar);
+    demoAppsMode.value = false;
 
     applicantEvents.value = extractApplicantEvents(apps.value);
     interviewEvents.value = extractInterviewEvents(apps.value);
@@ -166,6 +173,22 @@ async function load() {
 }
 
 onMounted(() => load());
+const currentUser = ref(null);
+const employerName = computed(() => {
+  const u = currentUser.value || {};
+  const ep = u?.employer_profile || u?.employerProfile || null;
+  return ep?.business_name || u?.name || "Employer";
+});
+onMounted(() => {
+  try {
+    currentUser.value = getCachedUser();
+  } catch {
+    currentUser.value = null;
+  }
+  me().then((u) => {
+    currentUser.value = u || currentUser.value;
+  }).catch(() => {});
+});
 
 /** =======================
  *  Range + Chart Buckets
@@ -539,7 +562,7 @@ const donutChartOptions = computed(() => ({
     <div class="flex flex-col gap-8 max-w-7xl mx-auto px-4 md:px-6 py-6">
       <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-5">
         <div class="space-y-1">
-          <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Employer Dashboard</h1>
+          <h1 class="text-3xl font-bold text-slate-900 tracking-tight">{{ employerName }} Dashboard</h1>
           <p class="text-slate-600 text-sm">Monitor roles, candidates, and pipeline health at a glance.</p>
         </div>
         <div class="flex items-center gap-3">
@@ -560,6 +583,10 @@ const donutChartOptions = computed(() => ({
             :disabled="loading"
           />
         </div>
+      </div>
+      
+      <div v-if="demoAppsMode" class="rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-2 text-sm">
+        Showing demo applications to populate charts and KPIs. Connect real data to replace this.
       </div>
       
       <div class="w-full rounded-2xl p-5 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 text-white shadow-sm">

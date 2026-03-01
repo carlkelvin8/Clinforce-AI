@@ -255,7 +255,7 @@ import { computed, onMounted, ref } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
 import api from "@/lib/api";
-import { me } from "@/lib/auth";
+import { me, getCachedUser } from "@/lib/auth";
 
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
@@ -339,8 +339,8 @@ const upcomingInterviewRows = computed(() => {
     }));
 });
 
-const meAvatarUrl = ref(null)
-const meInitials = ref('ME')
+const meAvatarUrl = ref(null);
+const meInitials = ref("ME");
 
 async function fetchMe() {
   try {
@@ -348,12 +348,40 @@ async function fetchMe() {
     const u = unwrap(res.data);
 
     meUser.value = u || null;
-    meName.value = u?.full_name || u?.name || u?.user?.name || u?.email || "ME";
-    meAvatarUrl.value = u?.avatar_url || u?.avatar || null;
+    const ap = u?.applicant_profile || u?.applicantProfile || null;
+    const publicName = ap?.public_display_name;
+    const fn = ap?.first_name;
+    const ln = ap?.last_name;
+    const profileName = publicName || [fn, ln].filter(Boolean).join(" ").trim();
+    meName.value = profileName || u?.full_name || u?.name || u?.user?.name || "Candidate";
+    meAvatarUrl.value = u?.avatar_url || u?.avatar || buildAvatarUrl(ap?.avatar) || null;
     meInitials.value = (meName.value || "C").charAt(0).toUpperCase();
+
+    try {
+      const prevRaw = localStorage.getItem("auth_user") || "{}";
+      const prev = JSON.parse(prevRaw);
+      const merged = {
+        ...prev,
+        id: u?.id ?? prev.id,
+        role: u?.role ?? prev.role,
+        email: u?.email ?? prev.email,
+        avatar: meAvatarUrl.value || prev.avatar,
+        avatar_url: meAvatarUrl.value || prev.avatar_url,
+      };
+      localStorage.setItem("auth_user", JSON.stringify(merged));
+      window.dispatchEvent(new Event("auth:changed"));
+    } catch {}
   } catch {
     meName.value = "ME";
   }
+}
+
+function buildAvatarUrl(path) {
+  if (!path) return null;
+  const p = String(path).replace(/^\/+/, '');
+  if (/^https?:\/\//i.test(p)) return path;
+  if (p.startsWith('uploads/')) return '/' + p;
+  return '/storage/' + p;
 }
 
 async function fetchApps() {
@@ -372,6 +400,20 @@ async function fetchJobs() {
 }
 
 onMounted(async () => {
+  try {
+    const cached = getCachedUser();
+    if (cached) {
+      meUser.value = cached;
+      meName.value =
+        cached.name ||
+        cached.full_name ||
+        cached.email ||
+        "Candidate";
+      meAvatarUrl.value = cached.avatar_url || cached.avatar || null;
+      meInitials.value = (meName.value || "C").charAt(0).toUpperCase();
+    }
+  } catch {}
+
   await fetchMe();
   await fetchApps();
   await fetchJobs();

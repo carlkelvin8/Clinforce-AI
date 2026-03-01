@@ -17,21 +17,37 @@ const saving = ref(false)
 const error = ref('')
 const success = ref('')
 
+const checkoutBlocked = ref(false)
+const currencyInfo = ref(null)
+const plans = ref([])
+
 const authUser = ref(null)
 const DEFAULT_EMPLOYER_LOGO = '/assets/brand/default-hospital-logo.svg'
 const logoUrl = ref(DEFAULT_EMPLOYER_LOGO)
+
+const notif = ref({
+  frequency: 'immediate',
+})
+const notifLoading = ref(false)
+const notifSaving = ref(false)
+const frequencyOptions = [
+  { label: 'Immediate', value: 'immediate' },
+  { label: 'Daily digest', value: 'daily' },
+  { label: 'Weekly summary', value: 'weekly' },
+]
 
 const businessTypes = [
   { label: 'Clinic', value: 'clinic' },
   { label: 'Hospital', value: 'hospital' },
   { label: 'Medical Agency', value: 'medical_agency' },
   { label: 'Other', value: 'other' },
-]let fallbackAlerted = false;
+];
+let fallbackAlerted = false;
 
 async function ensureBillingContext() {
   checkoutBlocked.value = false;
   try {
-    const res = await http.get("/billing/currency");
+    const res = await api.get("/billing/currency");
     const data = res.data?.data || res.data || null;
     if (!data) {
       throw new Error("Missing billing currency payload");
@@ -53,6 +69,13 @@ async function ensureBillingContext() {
     if (!data.conversion_available) {
       // ...
     }
+
+  } catch (e) {
+    // swallow
+  } finally {
+    // no-op
+  }
+}
 
 const countries = [
   { label: 'Afghanistan', value: 'AF' },
@@ -328,6 +351,51 @@ async function loadProfile() {
   }
 }
 
+async function loadNotificationPrefs() {
+  notifLoading.value = true
+  try {
+    const res = await api.get('/notifications/preferences')
+    const p = res?.data?.data
+    if (p && typeof p.frequency === 'string') {
+      notif.value.frequency = p.frequency
+    } else {
+      notif.value.frequency = 'immediate'
+    }
+  } catch (e) {
+    // keep silent, non-blocking
+  } finally {
+    notifLoading.value = false
+  }
+}
+
+async function saveNotificationPrefs() {
+  notifSaving.value = true
+  error.value = ''
+  success.value = ''
+  try {
+    const payload = { frequency: notif.value.frequency }
+    const res = await api.put('/notifications/preferences', payload)
+    success.value = res?.data?.message || 'Notification preferences saved'
+    await Swal.fire({
+      icon: 'success',
+      title: 'Preferences saved',
+      text: 'Your notification frequency has been updated.',
+      timer: 1800,
+      showConfirmButton: false,
+    })
+  } catch (e) {
+    const msg = e?.__payload?.message || e?.message || 'Failed to save notification preferences'
+    error.value = msg
+    await Swal.fire({
+      icon: 'error',
+      title: 'Save failed',
+      text: msg,
+    })
+  } finally {
+    notifSaving.value = false
+  }
+}
+
 async function saveProfile() {
   if (!form.value.business_name || form.value.business_name.trim().length < 2) {
     await Swal.fire({
@@ -366,6 +434,7 @@ async function saveProfile() {
 onMounted(async () => {
   await loadMe()
   await loadProfile()
+  await loadNotificationPrefs()
 })
 </script>
 <template>
@@ -473,6 +542,33 @@ onMounted(async () => {
 
                 <div class="flex justify-end">
                   <Button label="Save changes" icon="pi pi-check" :loading="saving" @click="saveProfile" />
+                </div>
+              </div>
+            </template>
+          </Card>
+
+          <Card class="h-full">
+            <template #title>Notification Settings</template>
+            <template #content>
+              <div class="space-y-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div class="space-y-1.5 md:col-span-1">
+                    <label class="text-sm font-semibold text-slate-700">Notification frequency</label>
+                    <Select
+                      v-model="notif.frequency"
+                      :options="frequencyOptions"
+                      optionLabel="label"
+                      optionValue="value"
+                      class="w-full"
+                      :loading="notifLoading"
+                    />
+                    <p class="text-[11px] text-slate-500 mt-1">
+                      Choose how often to receive notifications: immediate, daily digest, or weekly summary.
+                    </p>
+                  </div>
+                </div>
+                <div class="flex justify-end">
+                  <Button label="Save preferences" icon="pi pi-save" :loading="notifSaving" @click="saveNotificationPrefs" />
                 </div>
               </div>
             </template>

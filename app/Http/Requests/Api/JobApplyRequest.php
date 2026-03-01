@@ -17,11 +17,62 @@ class JobApplyRequest extends ApiRequest
     {
         return [
             'cover_letter' => ['nullable','string','max:8000'],
+            'resume' => ['nullable','file','max:10240'],
+            'cover_letter_file' => ['nullable','file','max:10240'],
+            'other_docs' => ['nullable','array'],
+            'other_docs.*' => ['file','max:10240'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'cover_letter.string' => 'Cover letter must be text.',
+            'cover_letter.max' => 'Cover letter must be 8000 characters or fewer.',
+            'resume.file' => 'Resume must be a file.',
+            'resume.max' => 'Resume file size must not exceed 10MB.',
+            'cover_letter_file.file' => 'Cover letter must be a file.',
+            'cover_letter_file.max' => 'Cover letter file size must not exceed 10MB.',
+        ];
+    }
+
+    protected function validateFiles($validator): void
+    {
+        $allowedExtensions = ['pdf', 'doc', 'docx'];
+        $allowedMimes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
+
+        // Validate resume
+        if ($this->hasFile('resume')) {
+            $file = $this->file('resume');
+            $extension = strtolower($file->getClientOriginalExtension());
+            $mimeType = $file->getMimeType();
+            
+            if (!in_array($extension, $allowedExtensions) && !in_array($mimeType, $allowedMimes)) {
+                $validator->errors()->add('resume', 'Resume must be a PDF or Word document (PDF/DOC/DOCX). Detected: ' . $extension . ' (' . $mimeType . ')');
+            }
+        }
+
+        // Validate cover letter file
+        if ($this->hasFile('cover_letter_file')) {
+            $file = $this->file('cover_letter_file');
+            $extension = strtolower($file->getClientOriginalExtension());
+            $mimeType = $file->getMimeType();
+            
+            if (!in_array($extension, $allowedExtensions) && !in_array($mimeType, $allowedMimes)) {
+                $validator->errors()->add('cover_letter_file', 'Cover letter file must be a PDF or Word document (PDF/DOC/DOCX). Detected: ' . $extension . ' (' . $mimeType . ')');
+            }
+        }
     }
 
     public function withValidator($validator): void
     {
+        // Validate file types
+        $this->validateFiles($validator);
+        
         $validator->after(function ($validator) {
             $u = $this->user();
             /** @var Job|null $job */

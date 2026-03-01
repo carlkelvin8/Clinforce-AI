@@ -31,7 +31,14 @@ class ProfilesController extends ApiController
 
         $p = $target->applicantProfile;
 
-        // Construct public profile data
+        $avatarUrl = null;
+        if ($p?->avatar) {
+            $path = ltrim($p->avatar, '/');
+            $avatarUrl = str_starts_with($path, 'uploads/')
+                ? '/' . $path
+                : '/storage/' . $path;
+        }
+
         $data = [
             'id' => $target->id,
             'name' => $p?->public_display_name ?? ($p?->first_name ? $p->first_name . ' ' . substr($p->last_name ?? '', 0, 1) . '.' : 'Candidate'),
@@ -40,10 +47,11 @@ class ProfilesController extends ApiController
             'headline' => $p?->headline,
             'summary' => $p?->summary,
             'city' => $p?->city,
+            'state' => $p?->state,
             'country_code' => $p?->country_code,
             'years_experience' => $p?->years_experience,
             'bio' => $p?->bio, // or summary?
-            'avatar' => $p?->avatar ? asset('storage/' . $p->avatar) : null,
+            'avatar' => $avatarUrl,
             'email' => $target->email,
             'phone' => $target->phone,
             'updated_at' => $p?->updated_at,
@@ -117,20 +125,12 @@ class ProfilesController extends ApiController
     {
         $u = $this->requireAuth();
         $u->load(['applicantProfile', 'employerProfile', 'agencyProfile']);
-        
-        // Attach avatar URL if available
-        $avatar = null;
-        if ($u->role === 'applicant') {
-            $avatar = $u->applicantProfile?->avatar;
-        }
-        // Add other roles if they have avatars later
-        
-        // Explicitly construct data array to ensure avatar is included
+
         $data = $u->toArray();
-        $avatarUrl = $avatar ? asset('storage/' . $avatar) : null;
+        $avatarUrl = $u->avatar_url;
         $data['avatar'] = $avatarUrl;
         $data['avatar_url'] = $avatarUrl;
-        
+
         return $this->ok($data);
     }
 

@@ -11,12 +11,16 @@ import OverlayBadge from 'primevue/overlaybadge';
 import Popover from 'primevue/popover';
 import Drawer from 'primevue/drawer';
 import ChatbotWidget from '@/Components/ChatbotWidget.vue';
+import api from '@/lib/api';
 
 const router = useRouter();
 const sidebarCollapsed = ref(false);
 const mobileSidebarOpen = ref(false);
 const userMenu = ref();
 const notificationPanel = ref();
+const notifications = ref([]);
+const unreadCount = ref(0);
+let sse = null;
 
 const props = defineProps({
   guestFull: { type: Boolean, default: false },
@@ -42,23 +46,68 @@ const isEmployer = computed(() => {
 
 const userInitials = computed(() => (user.value?.name || user.value?.email || 'U').charAt(0).toUpperCase());
 
-onMounted(() => {
+onMounted(async () => {
     loadUser();
-    // Refresh user data to ensure avatar_url is up to date
-    if (isAuthed.value) {
-        me().catch(() => {});
-    }
     window.addEventListener('auth:changed', loadUser);
+    if (isAuthed.value) {
+        try {
+            await me();
+        } catch {}
+        initNotifications();
+    }
     document.documentElement.classList.remove('app-dark');
 });
 
 onBeforeUnmount(() => {
     window.removeEventListener('auth:changed', loadUser);
+    if (sse) {
+        try { sse.close(); } catch {}
+        sse = null;
+    }
 });
 
+async function initNotifications() {
+    try {
+        const c = await api.get('/notifications/unread-count');
+        unreadCount.value = c?.data?.data?.count || 0;
+        const res = await api.get('/notifications?is_read=false');
+        const items = res?.data?.data?.data || res?.data?.data || [];
+        notifications.value = items;
+    } catch {}
+    try {
+        if (sse) sse.close();
+        const origin = window.location.origin;
+        const ev = new EventSource(`${origin}/api/notifications/stream`);
+        ev.addEventListener('notification', (e) => {
+            try {
+                const payload = JSON.parse(e.data);
+                notifications.value.unshift(payload);
+                unreadCount.value++;
+            } catch {}
+        });
+        ev.onerror = () => {};
+        sse = ev;
+    } catch {}
+}
+
+async function markRead(ids) {
+    try {
+        await api.post('/notifications/read', { ids });
+        notifications.value = notifications.value.filter(n => !ids.includes(n.id));
+        unreadCount.value = Math.max(0, unreadCount.value - ids.length);
+    } catch {}
+}
+
+async function markAllRead() {
+    try {
+        await api.post('/notifications/read-all');
+        notifications.value = [];
+        unreadCount.value = 0;
+    } catch {}
+}
 const menuItems = [
     { label: 'Profile', icon: 'pi pi-user', command: () => router.push(isEmployer.value ? { name: 'employer.settings' } : { name: 'candidate.profile' }) },
-    { label: 'Settings', icon: 'pi pi-cog', command: () => router.push(isEmployer.value ? { name: 'employer.settings' } : { name: 'candidate.settings' }) },
+    { label: 'Account', icon: 'pi pi-cog', command: () => router.push(isEmployer.value ? { name: 'employer.settings' } : { name: 'candidate.settings' }) },
     { separator: true },
     { label: 'Logout', icon: 'pi pi-sign-out', command: logout }
 ];
@@ -113,7 +162,7 @@ const employerNavGroups = [
         title: 'Workspace',
         items: [
             { label: 'Subscription', icon: 'pi pi-credit-card', to: { name: 'employer.billing' } },
-            { label: 'Settings', icon: 'pi pi-cog', to: { name: 'employer.settings' } }, 
+            { label: 'Profile', icon: 'pi pi-user', to: { name: 'employer.settings' } }, 
         ]
     }
 ];
@@ -134,7 +183,7 @@ const candidateNavGroups = [
         title: 'Account',
         items: [
             { label: 'Profile', icon: 'pi pi-user', to: { name: 'candidate.profile' } },
-            { label: 'Settings', icon: 'pi pi-cog', to: { name: 'candidate.settings' } },
+            { label: 'Account', icon: 'pi pi-cog', to: { name: 'candidate.settings' } },
         ]
     }
 ];
@@ -180,16 +229,7 @@ onMounted(() => {
                         @click="mobileSidebarOpen = true" 
                         class="lg:hidden text-gray-500"
                     />
-                    <div class="flex items-center gap-2">
-                        <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-sm shadow-blue-200">
-                            <i class="pi pi-briefcase text-white text-sm" v-if="!isEmployer"></i>
-                            <span v-else>C</span>
-                        </div>
-                        <span class="font-bold text-lg tracking-tight text-main hidden sm:block">Clinforce</span>
-                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 uppercase tracking-wider hidden md:block border-gray-200">
-                            {{ isEmployer ? 'Employer' : 'Candidate' }}
-                        </span>
-                    </div>
+                    <div class="flex items-center gap-2"></div>
                 </div>
 
                 <!-- Center: Search (Employer only for now) -->
@@ -207,15 +247,17 @@ onMounted(() => {
 
                 <!-- Right: Actions -->
                 <div class="flex items-center gap-2">
+                    <Button label="AI Clinforce" class="!bg-indigo-600 !text-white !rounded-xl" @click="() => window.dispatchEvent(new Event('chatbot:toggle'))" />
                     <Button icon="pi pi-question-circle" text rounded severity="secondary" class="text-gray-500" />
-                    <OverlayBadge value="3" severity="danger">
+                    <OverlayBadge :value="unreadCount" severity="danger" v-if="unreadCount > 0">
                         <Button icon="pi pi-bell" text rounded severity="secondary" @click="(e) => notificationPanel.toggle(e)" class="text-gray-500" />
                     </OverlayBadge>
+                    <Button v-else icon="pi pi-bell" text rounded severity="secondary" @click="(e) => notificationPanel.toggle(e)" class="text-gray-500" />
                     
                     <div class="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
                     
                     <div class="flex items-center gap-2 cursor-pointer p-1 rounded-full hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100" @click="(e) => userMenu.toggle(e)">
-                        <Avatar :image="user.avatar_url" :label="!user.avatar_url ? userInitials : null" shape="circle" class="bg-blue-100 text-blue-700 font-bold border border-blue-200" />
+                        <Avatar :image="user.avatar_url || user.avatar" :label="!(user.avatar_url || user.avatar) ? userInitials : null" shape="circle" class="bg-blue-100 text-blue-700 font-bold border border-blue-200" />
                         <i class="pi pi-chevron-down text-gray-400 text-xs hidden lg:block"></i>
                     </div>
                 </div>
@@ -292,13 +334,7 @@ onMounted(() => {
 
                 <!-- Mobile Sidebar -->
                 <Drawer v-model:visible="mobileSidebarOpen" class="w-72 bg-sidebar">
-                     <div class="flex items-center gap-2 mb-6 px-2">
-                        <div class="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white font-bold">
-                            <i class="pi pi-briefcase text-white text-sm" v-if="!isEmployer"></i>
-                            <span v-else>C</span>
-                        </div>
-                        <span class="font-bold text-lg text-main">Clinforce</span>
-                    </div>
+                    <div class="flex items-center gap-2 mb-6 px-2"></div>
                     <nav class="flex flex-col gap-6">
                          <div v-for="group in navGroups" :key="group.title" class="flex flex-col gap-1">
                             <div class="px-2 mb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
@@ -338,7 +374,21 @@ onMounted(() => {
             <Popover ref="notificationPanel" class="w-80">
                 <div class="flex flex-col gap-3">
                     <span class="font-bold text-main">Notifications</span>
-                    <div class="text-sm text-muted">No new notifications.</div>
+                    <div v-if="!notifications.length" class="text-sm text-muted">No notifications.</div>
+                    <ul v-else class="flex flex-col gap-2 max-h-80 overflow-auto">
+                        <li v-for="n in notifications" :key="n.id" class="p-2 rounded border border-slate-200 bg-white">
+                            <div class="text-sm font-medium text-slate-900">{{ n.title }}</div>
+                            <div class="text-xs text-slate-600">{{ n.body }}</div>
+                            <div class="flex gap-2 mt-2">
+                                <Button v-if="n.url" size="small" text label="Open" @click="$router.push(n.url)" />
+                                <Button size="small" text label="Mark read" @click="markRead([n.id])" />
+                            </div>
+                        </li>
+                    </ul>
+                    <div class="flex justify-between items-center mt-2">
+                        <Button size="small" text label="Mark all read" @click="markAllRead" />
+                        <RouterLink :to="isEmployer ? {name:'employer.dashboard'} : {name:'candidate.dashboard'}" class="text-xs text-blue-600">View more</RouterLink>
+                    </div>
                 </div>
             </Popover>
             <ChatbotWidget v-if="isEmployer" />
