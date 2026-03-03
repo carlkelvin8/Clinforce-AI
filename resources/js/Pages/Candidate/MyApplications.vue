@@ -59,9 +59,9 @@
               <div class="flex flex-col md:flex-row justify-between items-start gap-4">
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center flex-wrap gap-2 mb-2">
-                    <span class="font-bold text-gray-900 text-sm">Application #{{ row.id }}</span>
+                    <span class="font-bold text-gray-900 text-sm">{{ row.job?.title || 'Job Application' }}</span>
                     <span class="text-gray-300">•</span>
-                    <span class="font-bold text-gray-700 truncate max-w-md">{{ row.job?.title || "Job" }}</span>
+                    <span class="font-bold text-gray-700 truncate max-w-md">{{ formatDate(row.submitted_at) }}</span>
                     <Tag :value="row.status || '—'" :severity="getSeverity(row.status)" />
                   </div>
                   <div class="text-xs text-gray-500 mb-2">

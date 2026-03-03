@@ -157,7 +157,7 @@
                             />
                             <div>
                                 <div class="font-semibold text-gray-900">{{ displayApplicantName(data) }}</div>
-                                <div class="text-xs text-gray-500">Application #{{ data.id }}</div>
+                                <div class="text-xs text-gray-500">{{ data.job?.title || 'Job Application' }}</div>
                             </div>
                         </div>
                     </template>

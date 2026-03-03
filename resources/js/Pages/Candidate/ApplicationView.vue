@@ -28,7 +28,7 @@
                     <Card>
                         <template #title>
                             <div class="flex justify-between items-start">
-                                <span>Application #{{ app.id }}</span>
+                                <span>{{ app.job?.title || 'Job Application' }}</span>
                                 <Tag :value="app.status" :severity="getSeverity(app.status)" />
                             </div>
                         </template>

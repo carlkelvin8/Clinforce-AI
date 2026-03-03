@@ -193,7 +193,7 @@ function normalizeRow(i) {
           : i?.mode === "in_person"
             ? "In-person"
             : "Interview",
-    jobTitle: job?.title || `Application #${String(i?.application_id ?? "")}`,
+    jobTitle: job?.title || 'Job Application',
   };
 }
 

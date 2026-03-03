@@ -334,7 +334,7 @@ const upcomingInterviewRows = computed(() => {
     .slice(0, 3)
     .map((a) => ({
       id: a.id,
-      title: a.job?.title || `Application #${a.id}`,
+      title: a.job?.title || 'Job Application',
       when: "Scheduled",
     }));
 });
