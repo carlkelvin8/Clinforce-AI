@@ -88,6 +88,7 @@ const roleForApi = computed(() => {
   
   function signupWithGoogle() {
     if (loading.value) return;
+    // Don't pass role - let the backend redirect to role selection for new users
     window.location.href = "/auth/google/redirect";
   }
   </script>
@@ -191,7 +192,7 @@ const roleForApi = computed(() => {
              <div class="flex items-start gap-2 pt-2">
                 <Checkbox v-model="agree" binary inputId="agree" :disabled="loading" class="mt-0.5" />
                 <label for="agree" class="text-sm text-slate-600 leading-snug cursor-pointer">
-                   I agree to the <a href="#" class="text-blue-600 font-medium hover:underline">Terms of Service</a> and <a href="#" class="text-blue-600 font-medium hover:underline">Privacy Policy</a>.
+                   I agree to the <RouterLink :to="{ name: 'terms' }" target="_blank" class="text-blue-600 font-medium hover:underline">Terms of Service</RouterLink> and <RouterLink :to="{ name: 'privacy' }" target="_blank" class="text-blue-600 font-medium hover:underline">Privacy Policy</RouterLink>.
                 </label>
              </div>
 

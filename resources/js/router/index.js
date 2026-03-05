@@ -5,9 +5,15 @@ import api from "@/lib/api";
 // --- Auth pages ---
 const Login = () => import("@/Pages/Auth/Login.vue");
 const Register = () => import("@/Pages/Auth/Register.vue");
+const ForgotPassword = () => import("@/Pages/Auth/ForgotPassword.vue");
+const ResetPassword = () => import("@/Pages/Auth/ResetPassword.vue");
 const VerifySuccess = () => import("@/Pages/Auth/VerifySuccess.vue");
 const SocialCallback = () => import("@/Pages/Auth/SocialCallback.vue");
+const SelectRole = () => import("@/Pages/Auth/SelectRole.vue");
 const Landing = () => import("@/Pages/Landing.vue");
+const Privacy = () => import("@/Pages/Privacy.vue");
+const Terms = () => import("@/Pages/Terms.vue");
+const NotFound = () => import("@/Pages/NotFound.vue");
 
 // --- Staff pages ---
 const EmployerDashboard = () => import("@/Pages/Employer/Dashboard.vue");
@@ -108,33 +114,23 @@ async function ensureUserLoaded() {
   return authState.inflight;
 }
 
-// ---------- 404 ----------
-const NotFound = {
-  template: `
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <div class="bg-white border rounded-xl p-5 text-sm">
-        <div class="font-semibold">Page not found</div>
-        <div class="text-xs text-neutral-600 mt-1">Invalid route.</div>
-        <a href="/" class="inline-flex mt-4 text-xs px-3 py-1.5 rounded-lg border bg-white hover:bg-neutral-50">
-          Go home
-        </a>
-      </div>
-    </div>
-  `,
-};
-
 // ---------- routes ----------
 const staffMeta = { requiresAuth: true, roles: ["admin", "employer", "agency"] };
 const candidateMeta = { requiresAuth: true, roles: ["applicant"] };
 
 const routes = [
-  { path: "/", name: "landing", component: Landing, meta: { guestOnly: true } },
+  { path: "/", name: "landing", component: Landing },
 
   // Auth
   { path: "/login", name: "auth.login", component: Login, meta: { guestOnly: true } },
   { path: "/register", name: "auth.register", component: Register, meta: { guestOnly: true } },
+  { path: "/forgot-password", name: "auth.forgot-password", component: ForgotPassword, meta: { guestOnly: true } },
+  { path: "/password/reset/:token", name: "auth.reset-password", component: ResetPassword, meta: { guestOnly: true } },
+  { path: "/privacy", name: "privacy", component: Privacy },
+  { path: "/terms", name: "terms", component: Terms },
   { path: "/verify/success", name: "auth.verify.success", component: VerifySuccess, meta: { guestOnly: true } },
   { path: "/auth/social/callback", name: "auth.social.callback", component: SocialCallback, meta: { guestOnly: true } },
+  { path: "/auth/select-role", name: "auth.select-role", component: SelectRole, meta: { guestOnly: true } },
 
   // Staff dashboard
   { path: "/employer/dashboard", name: "employer.dashboard", component: EmployerDashboard, meta: staffMeta },

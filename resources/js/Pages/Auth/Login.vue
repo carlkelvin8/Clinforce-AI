@@ -54,6 +54,8 @@ const router = useRouter();
       });
     } else if (q.verification === "invalid") {
       error.value = "This verification link is invalid or has expired. Please request a new one.";
+    } else if (q.social === "error") {
+      error.value = "Google sign in failed. Please try again or use email/password.";
     }
   });
   
@@ -145,6 +147,7 @@ const router = useRouter();
   
   function loginWithGoogle() {
     if (loading.value) return;
+    // Don't pass role for existing users - they already have one
     window.location.href = "/auth/google/redirect";
   }
   </script>
@@ -220,7 +223,7 @@ const router = useRouter();
             <div class="space-y-1.5">
               <div class="flex justify-between items-center">
                 <label for="password" class="block text-sm font-semibold text-slate-700">Password</label>
-                <button type="button" @click="goForgot" class="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline">Forgot password?</button>
+                <RouterLink :to="{ name: 'auth.forgot-password' }" class="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline">Forgot password?</RouterLink>
               </div>
               <Password id="password" v-model="password" placeholder="••••••••" :disabled="loading" required @input="clearErrorOnType" toggleMask :feedback="false" inputClass="!w-full !rounded-lg !py-2.5" class="w-full" />
             </div>

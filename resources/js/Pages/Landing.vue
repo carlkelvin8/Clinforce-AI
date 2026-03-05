@@ -153,6 +153,24 @@
           </div>
         </div>
 
+        <!-- Banner Section -->
+        <section class="mt-24 md:mt-32">
+          <div class="grid md:grid-cols-2 gap-6">
+            <div class="relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 group bg-gradient-to-br from-blue-100 to-indigo-100">
+              <div class="p-12 text-center">
+                <h3 class="text-2xl font-bold text-slate-900 mb-4">Banner 1</h3>
+                <p class="text-slate-600">Healthcare Excellence</p>
+              </div>
+            </div>
+            <div class="relative overflow-hidden rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 group bg-gradient-to-br from-indigo-100 to-purple-100">
+              <div class="p-12 text-center">
+                <h3 class="text-2xl font-bold text-slate-900 mb-4">Banner 2</h3>
+                <p class="text-slate-600">Professional Staffing</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section id="features" class="mt-24 md:mt-32">
           <div class="text-center max-w-2xl mx-auto mb-16">
             <h2 class="text-3xl font-bold text-slate-900">Everything you need to hire</h2>
@@ -293,6 +311,7 @@
 import { RouterLink } from "vue-router";
 import { ref } from "vue";
 import AppLayout from "@/Components/AppLayout.vue";
+
 const year = new Date().getFullYear();
 const mobileOpen = ref(false);
 </script>

@@ -147,6 +147,41 @@ class AuthController extends Controller
         ], 400);
     }
 
+    public function resetPassword(Request $request)
+    {
+        $v = Validator::make($request->all(), [
+            'token' => ['required', 'string'],
+            'email' => ['required', 'email', 'max:190'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        if ($v->fails()) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors'  => $v->errors(),
+            ], 422);
+        }
+
+        $status = Password::broker('users')->reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill([
+                    'password_hash' => Hash::make($password)
+                ])->save();
+            }
+        );
+
+        if ($status === Password::PASSWORD_RESET) {
+            return response()->json([
+                'message' => 'Password has been reset successfully.',
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Failed to reset password. The token may be invalid or expired.',
+        ], 400);
+    }
+
     public function me(Request $request)
     {
         /** @var User $user */
@@ -198,6 +233,11 @@ class AuthController extends Controller
             $request->session()->put('social_redirect', $redirect);
         }
 
+        $role = $request->query('role');
+        if ($role && in_array($role, ['employer', 'applicant', 'agency'], true)) {
+            $request->session()->put('social_role', $role);
+        }
+
         return Socialite::driver('google')->redirect();
     }
 
@@ -217,8 +257,23 @@ class AuthController extends Controller
         $user = User::where('email', $email)->first();
 
         if (!$user) {
+            // New user - check if role was provided
+            $role = $request->session()->pull('social_role');
+            
+            if (!$role) {
+                // No role selected - redirect to role selection page
+                $tempData = base64_encode(json_encode([
+                    'email' => $email,
+                    'google_id' => $googleUser->getId(),
+                    'name' => $googleUser->getName(),
+                    'avatar' => method_exists($googleUser, 'getAvatar') ? $googleUser->getAvatar() : null,
+                ]));
+                
+                return redirect('/auth/select-role?data=' . $tempData);
+            }
+
             $user = User::create([
-                'role' => 'applicant',
+                'role' => $role,
                 'email' => $email,
                 'phone' => null,
                 'status' => 'active',

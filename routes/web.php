@@ -45,6 +45,23 @@ Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) 
     return redirect('/verify/success');
 })->name('verification.verify');
 
+// Password reset routes
+Route::get('/password/reset/{token}', function ($token) {
+    return view('app');
+})->name('password.reset');
+
+Route::get('/password/reset', function () {
+    return view('app');
+})->name('password.request');
+
+Route::get('/auth/select-role', function () {
+    return view('app');
+})->name('auth.select-role');
+
+Route::get('/forgot-password', function () {
+    return view('app');
+})->name('password.request.page');
+
 Route::view('/', 'app');
 
 Route::view('/{any}', 'app')

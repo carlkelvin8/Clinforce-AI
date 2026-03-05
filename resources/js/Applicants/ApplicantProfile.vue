@@ -353,10 +353,13 @@ async function fetchOne() {
 
 async function checkDocumentAccess(applicantId) {
   try {
+    console.log('Checking document access for applicant:', applicantId)
     const res = await api.get('/api/document-access/check', {
       params: { applicant_id: applicantId }
     })
+    console.log('Document access response:', res.data)
     hasDocumentAccess.value = res.data?.data?.has_access || false
+    console.log('hasDocumentAccess set to:', hasDocumentAccess.value)
   } catch (e) {
     console.error('Failed to check document access:', e)
     hasDocumentAccess.value = false

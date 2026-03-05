@@ -25,6 +25,13 @@ function saveAuth(token, user) {
 }
 
 onMounted(() => {
+  // Check for error from redirect
+  if (route.query.social === 'error') {
+    error.value = "Google sign in was cancelled or failed. Please try again.";
+    loading.value = false;
+    return;
+  }
+
   const payloadRaw = route.query.payload;
   if (!payloadRaw) {
     error.value = "Missing social login data. Please try again.";

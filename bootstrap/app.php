@@ -24,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn ($request) => 
             $request->expectsJson() 
                 ? response()->json(['message' => 'Unauthenticated.'], 401)
-                : route('login')
+                : url('/')
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
