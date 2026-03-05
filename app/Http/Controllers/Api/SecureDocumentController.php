@@ -31,8 +31,8 @@ class SecureDocumentController extends ApiController
 
         if (!$canAccess) {
             return response()->json([
-                'error' => 'subscription_required',
-                'message' => 'An active subscription is required to download applicant documents.',
+                'error' => 'access_denied',
+                'message' => 'Document access payment required. Please unlock this applicant\'s documents first.',
                 'subscription_status' => $this->subscriptionService->getSubscriptionStatus($user->id),
             ], 403);
         }
@@ -63,7 +63,7 @@ class SecureDocumentController extends ApiController
         $canAccess = $this->canAccessDocument($user, $document);
 
         if (!$canAccess) {
-            abort(403, 'Subscription required');
+            abort(403, 'Document access payment required');
         }
 
         // Get file path from URL
@@ -93,19 +93,37 @@ class SecureDocumentController extends ApiController
             return true;
         }
 
-        // Employers need active subscription to access applicant documents
+        // Employers need active subscription OR document access payment
         if ($user->role === 'employer') {
             $documentOwner = $document->user;
             
-            // Only check subscription for applicant documents
+            // Only check for applicant documents
             if ($documentOwner && $documentOwner->role === 'applicant') {
-                return $this->subscriptionService->hasActiveSubscription($user->id);
+                // Check if has active subscription
+                if ($this->subscriptionService->hasActiveSubscription($user->id)) {
+                    return true;
+                }
+                
+                // Check if has paid for document access for this specific applicant
+                $hasDocumentAccess = \App\Models\DocumentAccessPayment::hasAccess(
+                    $user->id, 
+                    $document->user_id
+                );
+                
+                return $hasDocumentAccess;
             }
         }
 
         // Agencies can access if they have relationship
         if ($user->role === 'agency') {
-            // Add agency-specific logic here
+            // Check document access payment for agencies too
+            $documentOwner = $document->user;
+            if ($documentOwner && $documentOwner->role === 'applicant') {
+                return \App\Models\DocumentAccessPayment::hasAccess(
+                    $user->id, 
+                    $document->user_id
+                );
+            }
             return true;
         }
 

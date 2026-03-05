@@ -184,24 +184,32 @@ function resetForm() {
 async function loadApplications() {
   appsLoading.value = true;
   try {
-    let res = null;
-    try {
-      res = await api.get("/applications", { params: { scope: "owned", with: "job,applicant", status: "open" } });
-    } catch {
-      res = await api.get("/applications", { params: { scope: "owned" } });
-    }
-    applications.value = unwrapList(res.data);
+    // Load applications with open status (submitted, shortlisted, interview)
+    const res = await api.get("/applications", { 
+      params: { 
+        scope: "owned", 
+        with: "job,applicant"
+      } 
+    });
+    
+    const data = unwrap(res.data);
+    applications.value = Array.isArray(data?.applications) ? data.applications : unwrapList(res.data);
+    
+    console.log('Loaded applications:', applications.value.length);
     
     // Auto-select application if candidate_id matches
     if (route.query.candidate_id) {
       const candId = String(route.query.candidate_id);
       const match = applications.value.find(a => 
-        String(a?.applicant_id || a?.user_id) === candId
+        String(a?.applicant_id || a?.applicant_user_id || a?.user_id) === candId
       );
       if (match) {
         form.value.application_id = match.id;
       }
     }
+  } catch (error) {
+    console.error('Failed to load applications:', error);
+    formError.value = "Failed to load applications. Please try again.";
   } finally {
     appsLoading.value = false;
   }
@@ -221,14 +229,14 @@ const applicationOptions = computed(() => {
   return applications.value.map((a) => {
     const jobTitle = a?.job?.title || a?.job_title || "Job";
     const cand =
+      a?.applicant_name ||
       a?.applicant?.name ||
       a?.user?.name ||
-      a?.applicant_name ||
       a?.applicant_full_name ||
       "Candidate";
     return {
       id: a.id,
-      label: `${jobTitle} — ${cand} — App #${a.id}`,
+      label: `${cand} — ${jobTitle} (App #${a.id})`,
     };
   });
 });
@@ -476,9 +484,16 @@ function getSeverity(status) {
                         placeholder="Select candidate application..." 
                         :disabled="appsLoading" 
                         filter 
+                        filterPlaceholder="Search by name or job..."
+                        :filterFields="['label']"
                         class="w-full" 
                         :class="{'p-invalid': formFieldErrors?.application_id}" 
+                        :loading="appsLoading"
+                        emptyFilterMessage="No matching applications found"
+                        emptyMessage="No applications available"
                     />
+                     <small v-if="appsLoading" class="text-gray-500 text-xs">Loading applications...</small>
+                     <small v-else-if="applicationOptions.length === 0" class="text-amber-600 text-xs">No open applications found. Make sure you have job applications to schedule interviews for.</small>
                      <small v-if="formFieldErrors?.application_id" class="text-red-600 text-xs">{{ formFieldErrors.application_id[0] }}</small>
                  </div>
 
