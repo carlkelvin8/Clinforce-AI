@@ -193,7 +193,18 @@ async function loadApplications() {
     });
     
     const data = unwrap(res.data);
-    applications.value = Array.isArray(data?.applications) ? data.applications : unwrapList(res.data);
+    
+    // The employer/agency response is { applications: { data: [...] }, ... }
+    if (data?.applications?.data && Array.isArray(data.applications.data)) {
+        applications.value = data.applications.data;
+    } else if (Array.isArray(data?.applications)) {
+        applications.value = data.applications;
+    } else {
+        applications.value = unwrapList(res.data);
+    }
+    
+    // Only show applications that are not rejected or withdrawn
+    applications.value = applications.value.filter(app => !['rejected', 'withdrawn'].includes(app.status));
     
     console.log('Loaded applications:', applications.value.length);
     
@@ -234,11 +245,19 @@ const applicationOptions = computed(() => {
       a?.user?.name ||
       a?.applicant_full_name ||
       "Candidate";
+    const phone = a?.applicant?.phone || a?.user?.phone || "";
+    const phoneStr = phone ? ` | ${phone}` : "";
+    
     return {
       id: a.id,
-      label: `${cand} — ${jobTitle} (App #${a.id})`,
+      label: `${cand}${phoneStr} — ${jobTitle} (App #${a.id})`,
     };
   });
+});
+
+const selectedApplication = computed(() => {
+  if (!form.value.application_id) return null;
+  return applications.value.find(a => a.id === form.value.application_id);
 });
 
 const modeOptions = [
@@ -420,7 +439,10 @@ function getSeverity(status) {
                                 "Candidate"
                             }}
                         </div>
-                        <div class="text-xs text-gray-500 mt-0.5">App #{{ data?.application?.id || data?.application_id || "—" }}</div>
+                        <div class="text-xs text-gray-600 mt-1 flex flex-col gap-1">
+                            <span class="flex items-center gap-1"><i class="pi pi-id-card text-[10px]"></i> App #{{ data?.application?.id || data?.application_id || "—" }}</span>
+                            <span v-if="data?.application?.applicant?.phone" class="flex items-center gap-1 text-blue-600 font-medium"><i class="pi pi-phone text-[10px]"></i> {{ data.application.applicant.phone }}</span>
+                        </div>
                     </template>
                 </Column>
 
@@ -495,6 +517,37 @@ function getSeverity(status) {
                      <small v-if="appsLoading" class="text-gray-500 text-xs">Loading applications...</small>
                      <small v-else-if="applicationOptions.length === 0" class="text-amber-600 text-xs">No open applications found. Make sure you have job applications to schedule interviews for.</small>
                      <small v-if="formFieldErrors?.application_id" class="text-red-600 text-xs">{{ formFieldErrors.application_id[0] }}</small>
+                 </div>
+
+                 <!-- Selected Application Detail -->
+                 <div v-if="selectedApplication" class="p-4 bg-slate-50 rounded-2xl border border-slate-100 animate-fade-in">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-black text-slate-400 uppercase tracking-widest">Candidate Details</span>
+                        <Tag :value="selectedApplication.status" severity="secondary" class="uppercase text-[10px]" rounded />
+                    </div>
+                    <div class="flex items-start gap-4">
+                        <Avatar :image="selectedApplication.applicant?.avatar_url" icon="pi pi-user" size="large" shape="circle" class="bg-blue-100 text-blue-600" />
+                        <div class="flex-1">
+                            <div class="text-lg font-black text-slate-900 leading-none mb-1">
+                                {{ selectedApplication.applicant?.name || selectedApplication.applicant_name || "Candidate" }}
+                            </div>
+                            <div class="text-sm font-medium text-slate-500 mb-2">{{ selectedApplication.job?.title || "Job Application" }}</div>
+                            <div class="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+                                <div class="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                                    <i class="pi pi-id-card text-slate-400"></i>
+                                    App #{{ selectedApplication.id }}
+                                </div>
+                                <div v-if="selectedApplication.applicant?.phone" class="flex items-center gap-1.5 text-xs font-bold text-blue-600">
+                                    <i class="pi pi-phone text-blue-400"></i>
+                                    {{ selectedApplication.applicant.phone }}
+                                </div>
+                                <div v-if="selectedApplication.applicant?.email" class="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                                    <i class="pi pi-envelope text-slate-400"></i>
+                                    {{ selectedApplication.applicant.email }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                  </div>
 
                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

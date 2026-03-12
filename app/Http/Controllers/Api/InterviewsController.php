@@ -7,6 +7,7 @@ use App\Http\Requests\Api\InterviewStoreRequest;
 use App\Http\Requests\Api\InterviewUpdateRequest;
 use App\Models\Interview;
 use App\Models\JobApplication;
+use App\Models\ZoomFilterSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -20,8 +21,8 @@ class InterviewsController extends ApiController
     {
         $u = $this->requireAuth();
 
-        // Always eager-load what both sides need
-        $q = Interview::query()->with(['application.job']);
+        // Always eager-load what both sides need (application, job, and applicant details)
+        $q = Interview::query()->with(['application.job', 'application.applicant.applicantProfile']);
 
         if ($u->role === 'admin') {
             // no extra filters
@@ -263,7 +264,8 @@ class InterviewsController extends ApiController
 
             $basic = base64_encode($clientId . ':' . $clientSecret);
 
-            $res = Http::withHeaders([
+            $res = Http::withoutVerifying()
+                ->withHeaders([
                     'Authorization' => "Basic {$basic}",
                 ])
                 ->asForm()
@@ -293,22 +295,35 @@ class InterviewsController extends ApiController
 
         $duration = max(15, $start->diffInMinutes($end));
 
+        $settings = [
+            'join_before_host' => true,
+            'waiting_room' => false,
+            'host_video' => true,
+            'participant_video' => true,
+            'mute_upon_entry' => false,
+            'auto_recording' => 'none',
+            'enforce_login' => false,
+        ];
+
+        $u = request()->user();
+        if ($u) {
+            $filter = ZoomFilterSetting::where('user_id', $u->id)->first();
+            if ($filter && $filter->lock_name) {
+                $settings['allow_participants_to_rename'] = false;
+            }
+        }
+
         $payload = [
             'topic' => $topic ?: ('Interview ' . Str::upper(Str::random(6))),
             'type' => 2,
             'start_time' => $start->toIso8601String(),
             'duration' => $duration,
             'timezone' => $tz,
-            'settings' => [
-                'join_before_host' => false,
-                'waiting_room' => true,
-                'host_video' => true,
-                'participant_video' => true,
-                'mute_upon_entry' => true,
-            ],
+            'settings' => $settings,
         ];
 
-        $res = Http::withToken($token)
+        $res = Http::withoutVerifying()
+            ->withToken($token)
             ->acceptJson()
             ->asJson()
             ->post("https://api.zoom.us/v2/users/{$userId}/meetings", $payload);

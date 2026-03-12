@@ -9,6 +9,7 @@ import Textarea from "primevue/textarea";
 import Dropdown from "primevue/dropdown";
 import Message from "primevue/message";
 import { http } from "@/lib/http";
+import { countries } from "@/lib/countries";
 
 const route = useRoute();
 const router = useRouter();
@@ -24,7 +25,7 @@ const form = ref({
     description: "",
     employment_type: "full_time",
     work_mode: "on_site",
-    country_code: "PH",
+    country: "",
     city: "",
 });
 
@@ -51,9 +52,6 @@ function validate() {
     if (!form.value.employment_type) return "Employment type is required.";
     if (!form.value.work_mode) return "Work mode is required.";
 
-    const cc = String(form.value.country_code || "").trim();
-    if (cc && !/^[A-Z]{2}$/.test(cc)) return "Country code must be 2-letter ISO (e.g., PH).";
-
     return "";
 }
 
@@ -73,7 +71,7 @@ async function load() {
         // backend fields
         form.value.employment_type = j.employment_type || "full_time";
         form.value.work_mode = j.work_mode || "on_site";
-        form.value.country_code = (j.country_code || "PH").toUpperCase();
+        form.value.country = j.country || j.country_code || "";
         form.value.city = j.city || "";
     } catch (e) {
         error.value = e?.response?.data?.message || e?.message || "Failed to load job";
@@ -97,7 +95,7 @@ async function save() {
         description: String(form.value.description || "").trim(),
         employment_type: form.value.employment_type,
         work_mode: form.value.work_mode,
-        country_code: String(form.value.country_code || "").trim().toUpperCase() || null,
+        country: form.value.country,
         city: String(form.value.city || "").trim() || null,
     };
 
@@ -213,9 +211,18 @@ onMounted(load);
                             </h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div class="flex flex-col gap-2">
-                                    <label for="country_code" class="font-medium text-slate-700">Country Code (ISO-2)</label>
-                                    <InputText id="country_code" v-model="form.country_code" placeholder="PH" maxlength="2" :disabled="loading" class="w-full !border-slate-300" />
-                                    <small class="text-slate-500">Two-letter code, e.g., PH, US, UK</small>
+                                    <label for="country" class="font-medium text-slate-700">Country</label>
+                                    <Dropdown
+                                      id="country"
+                                      v-model="form.country"
+                                      :options="countries"
+                                      optionLabel="label"
+                                      optionValue="value"
+                                      filter
+                                      :disabled="loading"
+                                      placeholder="Select Country"
+                                      class="w-full !border-slate-300"
+                                    />
                                 </div>
                                 <div class="flex flex-col gap-2">
                                     <label for="city" class="font-medium text-slate-700">City</label>

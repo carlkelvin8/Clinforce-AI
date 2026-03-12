@@ -10,6 +10,8 @@ import Message from "primevue/message";
 import Tag from "primevue/tag";
 import RadioButton from "primevue/radiobutton";
 
+import { countries } from "@/lib/countries";
+
 const loading = ref(true);
 const plans = ref([]);
 const subscription = ref(null);
@@ -141,46 +143,7 @@ async function ensureBillingContext() {
     const status = e?.response?.status;
     const body = e?.response?.data;
 
-    if (status === 422 && body?.errors?.code === "billing_country_required") {
-      const countries = Array.isArray(body.errors.countries) ? body.errors.countries : [];
-      if (!countries.length) {
-        errorMsg.value = body.message || "Billing country is required.";
-        return false;
-      }
-
-      const options = {};
-      countries.forEach((c) => {
-        options[c.country_code] = `${c.country_name} (${c.currency_code})`;
-      });
-
-      const result = await Swal.fire({
-        title: "Select billing country",
-        text: "We use your billing country to determine the correct currency.",
-        input: "select",
-        inputOptions: options,
-        inputPlaceholder: "Choose country",
-        confirmButtonText: "Save",
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        preConfirm: (value) => {
-          if (!value) {
-            Swal.showValidationMessage("Country is required");
-          }
-          return value;
-        },
-      });
-
-      if (!result.isConfirmed || !result.value) {
-        errorMsg.value = "Billing country is required to view localized pricing.";
-        return false;
-      }
-
-      await http.post("/billing/profile", {
-        country_code: result.value,
-      });
-
-      return ensureBillingContext();
-    }
+    // Removed country check - backend now defaults to USD
 
     errorMsg.value =
       body?.message ||

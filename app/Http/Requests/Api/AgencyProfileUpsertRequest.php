@@ -14,7 +14,7 @@ class AgencyProfileUpsertRequest extends ApiRequest
     {
         return [
             'agency_name' => ['required','string','min:2','max:190'],
-            'country_code' => ['nullable','string','size:2','regex:/^[A-Z]{2}$/'],
+            'country' => ['nullable','string','max:200'],
             'city' => ['nullable','string','min:2','max:120'],
             'address_line' => ['nullable','string','max:255'],
         ];
@@ -25,8 +25,8 @@ class AgencyProfileUpsertRequest extends ApiRequest
         foreach (['agency_name','city','address_line'] as $k) {
             if ($this->has($k)) $this->merge([$k => trim((string)$this->input($k))]);
         }
-        if ($this->has('country_code')) {
-            $this->merge(['country_code' => strtoupper(trim((string)$this->input('country_code')))]);
+        if ($this->has('country')) {
+            $this->merge(['country' => trim((string)$this->input('country'))]);
         }
     }
 }

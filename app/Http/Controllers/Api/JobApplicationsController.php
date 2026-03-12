@@ -288,7 +288,13 @@ class JobApplicationsController extends ApiController
             ], 404);
         }
 
-        return Storage::disk('public')->download($filePath, $resume->file_name);
+        $fullPath = Storage::disk('public')->path($filePath);
+        $disposition = request()->query('download') ? 'attachment' : 'inline';
+        
+        return response()->file($fullPath, [
+            'Content-Type' => $resume->mime_type ?: 'application/pdf',
+            'Content-Disposition' => $disposition . '; filename="' . $resume->file_name . '"'
+        ]);
     }
 
     /**

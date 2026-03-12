@@ -14,6 +14,7 @@ class ChatbotController extends Controller
 {
     public function chat(Request $request)
     {
+        $authUser = $request->user();
         try {
             // Normalize messages from JSON or multipart form
             $raw = $request->input('messages');
@@ -38,9 +39,8 @@ class ChatbotController extends Controller
                 ], 422);
             }
 
-            $user = $request->user();
-            $uid = $user?->id ?? 'guest';
-            $urole = $user?->role ?? 'guest';
+            $uid = $authUser?->id ?? 'guest';
+            $urole = $authUser?->role ?? 'guest';
 
         // Extract text content from any uploaded files (PDF, DOCX, TXT)
         $uploadedFiles = $request->file('files', []);
@@ -60,7 +60,12 @@ class ChatbotController extends Controller
                 $sizeBytes = (int) $file->getSize();
                 $sizeKb = $sizeBytes > 0 ? round($sizeBytes / 1024, 1) : 0;
 
-                $text = $this->extractTextFromUploadedFile($file);
+                $text = null;
+                try {
+                    $text = $this->extractTextFromUploadedFile($file);
+                } catch (\Throwable $e) {
+                    $text = null;
+                }
                 $snippet = null;
                 if (is_string($text) && $text !== '') {
                     $snippet = mb_substr($text, 0, 2000);
@@ -184,12 +189,16 @@ Current User Context:
         ];
 
         // 1. First Call to OpenAI
-        $apiKey = env('OPENAI_API_KEY');
+        $apiKey = (string) config('services.openai.api_key');
         if (!$apiKey) {
-            return response()->json(['error' => 'OpenAI API key not configured.'], 500);
+            return response()->json(['error' => 'AI service is not configured (missing OPENAI_API_KEY).'], 503);
         }
 
-        $response = Http::withToken($apiKey)->post('https://api.openai.com/v1/chat/completions', [
+        $response = Http::withToken($apiKey)
+            ->acceptJson()
+            ->timeout(60)
+            ->connectTimeout(10)
+            ->post('https://api.openai.com/v1/chat/completions', [
             'model' => 'gpt-4o-mini',
             'messages' => $messages,
             'tools' => $tools,
@@ -205,16 +214,23 @@ Current User Context:
         }
 
         $responseData = $response->json();
-        $message = $responseData['choices'][0]['message'];
+        $message = $responseData['choices'][0]['message'] ?? null;
+        if (!is_array($message) || !isset($message['role'])) {
+            return response()->json(['error' => 'AI service returned an unexpected response.'], 503);
+        }
+        if (!array_key_exists('content', $message)) {
+            $message['content'] = '';
+        }
 
         // 2. Check for Tool Calls
-        if (isset($message['tool_calls'])) {
+        if (isset($message['tool_calls']) && is_array($message['tool_calls'])) {
             // Append the assistant's "tool call" message to history
             $messages[] = $message;
 
             foreach ($message['tool_calls'] as $toolCall) {
-                $fnName = $toolCall['function']['name'];
-                $args = json_decode($toolCall['function']['arguments'], true);
+                $fnName = (string) ($toolCall['function']['name'] ?? '');
+                $args = json_decode((string) ($toolCall['function']['arguments'] ?? ''), true);
+                if (!is_array($args)) $args = [];
                 $result = '';
 
                 if ($fnName === 'search_candidates') {
@@ -232,7 +248,11 @@ Current User Context:
             }
 
             // 3. Second Call to OpenAI (with tool results)
-            $response2 = Http::withToken($apiKey)->post('https://api.openai.com/v1/chat/completions', [
+            $response2 = Http::withToken($apiKey)
+                ->acceptJson()
+                ->timeout(60)
+                ->connectTimeout(10)
+                ->post('https://api.openai.com/v1/chat/completions', [
                 'model' => 'gpt-4o-mini',
                 'messages' => $messages,
                 'temperature' => 0.7,
@@ -242,8 +262,16 @@ Current User Context:
             if ($response2->failed()) {
                 return response()->json(['error' => 'AI service unavailable during tool processing.'], 503);
             }
-            
-            return response()->json($response2->json()['choices'][0]['message']);
+
+            $message2 = $response2->json()['choices'][0]['message'] ?? null;
+            if (!is_array($message2) || !isset($message2['role'])) {
+                return response()->json(['error' => 'AI service returned an unexpected response during tool processing.'], 503);
+            }
+            if (!array_key_exists('content', $message2)) {
+                $message2['content'] = '';
+            }
+
+            return response()->json($message2);
         }
 
         // No tool call, just return text
@@ -252,7 +280,7 @@ Current User Context:
         } catch (\Exception $e) {
             Log::error('Chatbot error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
-                'user_id' => $user->id ?? null,
+                'user_id' => $authUser?->id,
             ]);
             return response()->json([
                 'error' => 'An error occurred while processing your request. Please try again.',
@@ -295,6 +323,10 @@ Current User Context:
     private function extractTextFromDocx(string $path): ?string
     {
         if (!is_readable($path)) {
+            return null;
+        }
+
+        if (!class_exists(\ZipArchive::class)) {
             return null;
         }
 
@@ -403,7 +435,7 @@ Current User Context:
                 'email' => $profile->user->email ?? 'N/A',
                 'headline' => $profile->headline ?? 'Healthcare Professional',
                 'specialization' => $profile->specialization ?? 'General',
-                'location' => trim(($profile->city ?? '') . ', ' . ($profile->state ?? '') . ' ' . ($profile->country_code ?? '')),
+                'location' => trim(($profile->city ?? '') . ', ' . ($profile->state ?? '') . ' ' . ($profile->country ?? '')),
                 'years_experience' => $profile->years_experience ?? 0,
                 'license_number' => $profile->license_number ?? null,
                 'skills' => $profile->skills ? (strlen($profile->skills) > 100 ? substr($profile->skills, 0, 100) . '...' : $profile->skills) : null,
@@ -455,7 +487,7 @@ Current User Context:
                 'title' => $job->title,
                 'employment_type' => $job->employment_type ?? 'Not specified',
                 'work_mode' => $job->work_mode ?? 'Not specified',
-                'location' => trim(($job->city ?? '') . ', ' . ($job->state ?? '') . ' ' . ($job->country_code ?? '')),
+                'location' => trim(($job->city ?? '') . ', ' . ($job->state ?? '') . ' ' . ($job->country ?? '')),
                 'salary_range' => $job->salary_min && $job->salary_max 
                     ? '$' . number_format($job->salary_min) . ' - $' . number_format($job->salary_max) 
                     : 'Not disclosed',

@@ -52,14 +52,30 @@ class NotificationsController extends ApiController
     public function preferencesGet(): JsonResponse
     {
         $u = $this->requireAuth();
-        $p = NotificationPreference::query()->firstOrCreate(['user_id' => $u->id]);
+        $p = NotificationPreference::query()->firstOrCreate(
+            ['user_id' => $u->id],
+            [
+                'email_enabled' => true,
+                'in_app_enabled' => true,
+                'frequency' => 'immediate',
+                'category_toggles' => null,
+            ]
+        );
         return $this->ok($p);
     }
 
     public function preferencesUpdate(Request $request): JsonResponse
     {
         $u = $this->requireAuth();
-        $p = NotificationPreference::query()->firstOrCreate(['user_id' => $u->id]);
+        $p = NotificationPreference::query()->firstOrCreate(
+            ['user_id' => $u->id],
+            [
+                'email_enabled' => true,
+                'in_app_enabled' => true,
+                'frequency' => 'immediate',
+                'category_toggles' => null,
+            ]
+        );
         $v = $request->validate([
             'email_enabled' => ['sometimes','boolean'],
             'in_app_enabled' => ['sometimes','boolean'],
@@ -75,7 +91,15 @@ class NotificationsController extends ApiController
     {
         $u = $this->requireAuth();
         $lastId = (int) ($request->headers->get('Last-Event-ID') ?: $request->query('last_id', 0));
-        $pref = NotificationPreference::query()->firstOrCreate(['user_id' => $u->id]);
+        $pref = NotificationPreference::query()->firstOrCreate(
+            ['user_id' => $u->id],
+            [
+                'email_enabled' => true,
+                'in_app_enabled' => true,
+                'frequency' => 'immediate',
+                'category_toggles' => null,
+            ]
+        );
         // Suppress real-time stream if in-app disabled or frequency is not immediate
         if (!$pref->in_app_enabled || ($pref->frequency && $pref->frequency !== 'immediate')) {
             return new StreamedResponse(function () {

@@ -16,14 +16,14 @@ class AuditLog extends Model
         'action',
         'entity_type',
         'entity_id',
-        'meta',
+        'metadata',
         'ip_address',
         'created_at',
     ];
 
     protected $casts = [
         'entity_id' => 'integer',
-        'meta' => 'array',
+        'metadata' => 'array',
         'created_at' => 'datetime',
     ];
 

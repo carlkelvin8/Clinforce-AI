@@ -77,7 +77,7 @@ class TalentSearchController extends ApiController
                 'headline' => $p->headline,
                 'summary' => $p->summary,
                 'city' => $p->city,
-                'country_code' => $p->country_code,
+                'country' => $p->country,
                 'years_experience' => $p->years_experience,
                 'avatar' => $avatar,
                 'updated_at' => $p->updated_at,

@@ -21,19 +21,20 @@ class CurrencyService
         return $user->employerProfile;
     }
 
-    public function getCountryData(?string $countryCode): ?array
+    public function getCountryData(?string $countryInput): ?array
     {
-        if (!$countryCode) {
+        if (!$countryInput) {
             return null;
         }
 
-        $code = strtoupper(trim($countryCode));
+        $input = trim($countryInput);
 
         $country = null;
 
         try {
             $country = Country::query()
-                ->where('country_code', $code)
+                ->where('country_code', $input)
+                ->orWhere('country_name', $input)
                 ->first();
         } catch (QueryException $e) {
             $codeStr = (string) $e->getCode();
@@ -53,7 +54,21 @@ class CurrencyService
             ];
         }
 
+        // Try static map (assuming input is code)
+        $code = strtoupper($input);
         $fallback = $this->staticCountryMap()[$code] ?? null;
+        
+        // If not found by code, try to find by name in static map
+        if (!$fallback) {
+            foreach ($this->staticCountryMap() as $c => $data) {
+                if (strcasecmp($data['name'], $input) === 0) {
+                    $fallback = $data;
+                    $code = $c;
+                    break;
+                }
+            }
+        }
+
         if ($fallback) {
             return [
                 'country_code' => $code,
@@ -71,8 +86,8 @@ class CurrencyService
     {
         $profile = $this->getEmployerProfile($user);
 
-        $countryCode = $profile?->country_code ?: null;
-        $country = $this->getCountryData($countryCode);
+        $countryInput = $profile?->country ?: null;
+        $country = $this->getCountryData($countryInput);
 
         $baseCurrency = strtoupper(config('billing.base_currency', 'USD'));
 
@@ -105,7 +120,7 @@ class CurrencyService
         $symbol = $country['currency_symbol'] ?? $this->fallbackSymbol($effectiveCurrency);
 
         return [
-            'country_code' => $countryCode,
+            'country_code' => $country['country_code'] ?? null,
             'country_name' => $country['country_name'] ?? null,
             'preferred_currency_code' => $preferredCurrency,
             'currency_code' => $effectiveCurrency,

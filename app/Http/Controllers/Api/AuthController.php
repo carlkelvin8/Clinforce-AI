@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Http\JsonResponse;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
+use App\Services\TrialService;
 
 class AuthController extends Controller
 {
@@ -105,6 +106,9 @@ class AuthController extends Controller
         $user->last_login_at = now();
         $user->save();
 
+        app(TrialService::class)->ensureActivated($user, $request);
+        $user->refresh();
+
         // Optional: revoke previous tokens to enforce single-session login
         // $user->tokens()->delete();
 
@@ -186,6 +190,9 @@ class AuthController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+
+        app(TrialService::class)->ensureActivated($user, $request);
+        $user->refresh();
 
         return response()->json([
             'data' => [
@@ -371,12 +378,31 @@ class AuthController extends Controller
             }
         }
 
+        $hasActiveSubscription = $user->subscription()->exists();
+        $accountStatus = 'active';
+        if ($user->status !== 'active') {
+            $accountStatus = 'suspended';
+        } elseif ($user->role === 'employer') {
+            if ($hasActiveSubscription) {
+                $accountStatus = 'subscribed';
+            } elseif (!$user->email_verified_at) {
+                $accountStatus = 'trial_pending';
+            } elseif ($user->onTrial()) {
+                $accountStatus = 'trial_active';
+            } elseif ($user->hasExpiredTrial() || $user->trial_consumed) {
+                $accountStatus = 'subscription_required';
+            } else {
+                $accountStatus = 'trial_pending';
+            }
+        }
+
         return [
             'id' => $user->id,
             'role' => $user->role,
             'email' => $user->email,
             'phone' => $user->phone,
             'status' => $user->status,
+            'account_status' => $accountStatus,
             'name' => $name,
             'avatar' => $avatar,
             'avatar_url' => $avatar,
@@ -384,6 +410,11 @@ class AuthController extends Controller
             'last_login_at' => optional($user->last_login_at)->toISOString(),
             'created_at' => optional($user->created_at)->toISOString(),
             'updated_at' => optional($user->updated_at)->toISOString(),
+            'trial_ends_at' => optional($user->trial_ends_at)->toISOString(),
+            'on_trial' => $user->onTrial(),
+            'has_expired_trial' => $user->hasExpiredTrial(),
+            'subscription_status' => $user->subscription_status, // From our new column or computed
+            'has_active_subscription' => $hasActiveSubscription,
         ];
     }
 }

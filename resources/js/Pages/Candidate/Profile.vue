@@ -200,13 +200,16 @@
                         />
                       </div>
                       <div class="flex flex-col gap-1.5">
-                        <label for="countryCode" class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Country code</label>
-                        <InputText
-                          id="countryCode"
-                          v-model="form.country_code"
-                          placeholder="PH"
-                          maxlength="2"
-                          class="!uppercase !tracking-wide !h-11 !px-3 !rounded-xl !border-none !bg-slate-50/80 hover:!bg-white focus:!ring-2 focus:!ring-sky-200 !text-sm transition-all"
+                        <label for="country" class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Country</label>
+                        <Select
+                          id="country"
+                          v-model="form.country"
+                          :options="countries"
+                          optionLabel="label"
+                          optionValue="value"
+                          filter
+                          placeholder="Select country"
+                          class="!h-11 !rounded-xl !border-none !bg-slate-50/80 hover:!bg-white focus:!ring-2 focus:!ring-sky-200 !text-sm transition-all"
                         />
                       </div>
                       <div class="flex flex-col gap-1.5 md:col-span-2">
@@ -406,6 +409,7 @@ import Tag from 'primevue/tag';
 import ProgressBar from 'primevue/progressbar';
 import Dialog from 'primevue/dialog';
 import Select from 'primevue/select';
+import { countries } from '@/lib/countries';
 
 const meName = ref("ME");
 
@@ -426,7 +430,7 @@ const form = ref({
   headline: "",
   summary: "",
   years_experience: null,
-  country_code: "",
+  country: "",
   state: "",
   city: "",
 });
@@ -480,7 +484,7 @@ const completeness = computed(() => {
     form.value.headline,
     form.value.summary,
     String(form.value.years_experience ?? ""),
-    form.value.country_code,
+    form.value.country,
     form.value.state,
     form.value.city,
   ];
@@ -553,7 +557,7 @@ async function fetchMe() {
     headline: ap?.headline ?? "",
     summary: ap?.summary ?? "",
     years_experience: ap?.years_experience ?? null,
-    country_code: ap?.country_code ?? "",
+    country: ap?.country ?? ap?.country_code ?? "",
     state: ap?.state ?? "",
     city: ap?.city ?? "",
   };
@@ -596,7 +600,7 @@ async function saveProfile() {
       headline: form.value.headline,
       summary: form.value.summary,
       years_experience: form.value.years_experience,
-      country_code: (form.value.country_code || "").toUpperCase(),
+      country: form.value.country,
       state: form.value.state,
       city: form.value.city,
     };

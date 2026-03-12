@@ -17,7 +17,7 @@ class EmployerProfileUpsertRequest extends ApiRequest
         return [
             'business_name' => ['required','string','min:2','max:190'],
             'business_type' => ['required', Rule::in(['clinic','hospital','medical_agency','other'])],
-            'country_code' => ['nullable','string','size:2','regex:/^[A-Z]{2}$/'],
+            'country' => ['nullable','string','max:200'],
             'state' => ['nullable','string','min:2','max:120'],
             'city' => ['nullable','string','min:2','max:120'],
             'zip_code' => ['nullable','string','min:2','max:20'],
@@ -35,9 +35,9 @@ class EmployerProfileUpsertRequest extends ApiRequest
                 $this->merge([$k => $val === '' ? null : $val]);
             }
         }
-        if ($this->has('country_code')) {
-            $code = strtoupper(trim((string)$this->input('country_code')));
-            $this->merge(['country_code' => $code === '' ? null : $code]);
+        if ($this->has('country')) {
+            $val = trim((string)$this->input('country'));
+            $this->merge(['country' => $val === '' ? null : $val]);
         }
     }
 }

@@ -194,7 +194,7 @@ class ApplicantsController extends ApiController
             'locked' => true,
             'initials' => $initials ?: 'Anonymous',
             'headline' => $profile->headline ?? null,
-            'location' => $profile->city ? ($profile->city . ', ' . $profile->country_code) : $profile->country_code,
+            'location' => $profile->city ? ($profile->city . ', ' . $profile->country) : $profile->country,
             'years_experience' => $profile->years_experience,
             'public_display_name' => $profile->public_display_name,
         ];
@@ -219,7 +219,7 @@ class ApplicantsController extends ApiController
             'summary' => $profile->summary ?? null,
             'years_experience' => $profile->years_experience,
             'location' => [
-                'country' => $profile->country_code,
+                'country' => $profile->country,
                 'state' => $profile->state,
                 'city' => $profile->city,
             ],

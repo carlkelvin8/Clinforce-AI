@@ -19,15 +19,15 @@ class JobStoreRequest extends ApiRequest
             'description' => ['required','string','min:30','max:20000'],
             'employment_type' => ['required', Rule::in(['full_time','part_time','contract','temporary','internship'])],
             'work_mode' => ['required', Rule::in(['on_site','remote','hybrid'])],
-            'country_code' => ['nullable','string','size:2','regex:/^[A-Z]{2}$/'],
+            'country' => ['nullable','string','max:200'],
             'city' => ['nullable','string','min:2','max:120'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
-        if ($this->has('country_code')) {
-            $this->merge(['country_code' => strtoupper(trim((string) $this->input('country_code')))]);
+        if ($this->has('country')) {
+            $this->merge(['country' => trim((string) $this->input('country'))]);
         }
         if ($this->has('city')) {
             $this->merge(['city' => trim((string) $this->input('city'))]);

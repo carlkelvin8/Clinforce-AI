@@ -27,6 +27,10 @@ use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\CandidatesController;
 use App\Http\Controllers\Api\ApplicantsController;
 use App\Http\Controllers\Api\SecureDocumentController;
+use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\ZoomWebhookController;
+use App\Http\Controllers\Api\ZoomSettingsController;
+
 /*
 |--------------------------------------------------------------------------
 | Public
@@ -34,6 +38,7 @@ use App\Http\Controllers\Api\SecureDocumentController;
 */
 Route::get('/health', [HealthController::class, 'index']);
 Route::get('/plans', [PlansController::class, 'index']);
+Route::post('/contact', [ContactController::class, 'store']);
 
 // Public job browsing
 Route::get('/public/jobs', [JobsController::class, 'publicIndex']);
@@ -41,6 +46,7 @@ Route::get('/public/jobs/{job}', [JobsController::class, 'publicShow']);
 
 // Stripe webhook (must be outside auth middleware)
 Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle']);
+Route::post('/webhooks/zoom', [ZoomWebhookController::class, 'handle']);
 
 /*
 |--------------------------------------------------------------------------
@@ -88,6 +94,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me/employer', [ProfilesController::class, 'meEmployer']);
     Route::post('/me/employer/logo', [ProfilesController::class, 'uploadEmployerLogo']);
 
+    // Zoom Settings
+    Route::get('/zoom/settings', [ZoomSettingsController::class, 'show']);
+    Route::put('/zoom/settings', [ZoomSettingsController::class, 'update']);
+
     // Documents
     Route::get('/documents', [DocumentsController::class, 'index']);
     Route::post('/documents', [DocumentsController::class, 'store']);
@@ -118,11 +128,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/invitations/{invitation}/accept', [App\Http\Controllers\Api\InvitationController::class, 'accept']);
 
     // Interviews
- // routes/api.php
-        Route::get('/interviews', [InterviewsController::class, 'index']);
+    Route::get('/interviews', [InterviewsController::class, 'index']);
+    Route::middleware(['require.sub'])->group(function () {
         Route::post('/applications/{application}/interviews', [InterviewsController::class, 'store']);
         Route::put('/interviews/{interview}', [InterviewsController::class, 'update']);
         Route::post('/interviews/{interview}/cancel', [InterviewsController::class, 'cancel']);
+    });
 
     // Subscriptions / Payments
     Route::get('/subscriptions/debug', function() {
@@ -171,11 +182,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/verification-requests', [VerificationRequestsController::class, 'store']);
     Route::post('/verification-requests/{verificationRequest}/review', [VerificationRequestsController::class, 'review']);
 
+    Route::middleware(['require.sub'])->group(function () {
         Route::get('/conversations', [MessagesController::class, 'index']);
-    Route::post('/conversations', [MessagesController::class, 'store']);
-    Route::get('/conversations/{conversation}', [MessagesController::class, 'show']);
-    Route::post('/conversations/{conversation}/messages', [MessagesController::class, 'send']);
-    Route::post('/conversations/{conversation}/read', [MessagesController::class, 'markRead']);
+        Route::post('/conversations', [MessagesController::class, 'store']);
+        Route::get('/conversations/{conversation}', [MessagesController::class, 'show']);
+        Route::post('/conversations/{conversation}/messages', [MessagesController::class, 'send']);
+        Route::post('/conversations/{conversation}/read', [MessagesController::class, 'markRead']);
+    });
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/users', [UsersController::class, 'index']);

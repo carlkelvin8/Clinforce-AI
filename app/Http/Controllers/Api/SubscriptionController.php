@@ -8,6 +8,7 @@ use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\CurrencyService;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -75,13 +76,7 @@ class SubscriptionController extends ApiController
         }
 
         $profile = $this->currency->getEmployerProfile($u instanceof User ? $u : User::find($u->id));
-        if (!$profile || !$profile->country_code) {
-            return $this->fail(
-                'Billing country is required before subscribing.',
-                ['country_code' => ['Billing country is required']],
-                422
-            );
-        }
+        // Country check removed - defaults to USD if not set
 
         // Check if user has payment method
         \Log::info('Subscription check', [
@@ -164,6 +159,14 @@ class SubscriptionController extends ApiController
                 'paid_at' => now(),
             ]);
         });
+
+        app(AuditLogger::class)->log($u, 'subscription_created', 'subscription', $sub->id, [
+            'plan_id' => $plan->id,
+            'currency_code' => $ctx['currency_code'] ?? null,
+            'amount_cents' => $amountCents,
+            'start_at' => $start->toIso8601String(),
+            'end_at' => $end->toIso8601String(),
+        ], request());
 
         return $this->ok($sub->load('plan'), 'Subscription created', 201);
     }

@@ -19,7 +19,7 @@ class EmployerProfile extends Model
         'logo',
         'business_name',
         'business_type',
-        'country_code',
+        'country',
         'state',
         'billing_currency_code',
         'city',

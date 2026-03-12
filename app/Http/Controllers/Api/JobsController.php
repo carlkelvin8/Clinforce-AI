@@ -105,7 +105,7 @@ class JobsController extends Controller
             'description'     => $request->description,
             'employment_type' => $request->employment_type,
             'work_mode'       => $request->work_mode,
-            'country_code'    => $request->country_code,
+            'country'         => $request->country,
             'city'            => $request->city,
             'status'          => 'draft',
         ]);

@@ -15,7 +15,7 @@ class AgencyProfile extends Model
     protected $fillable = [
         'user_id',
         'agency_name',
-        'country_code',
+        'country',
         'city',
         'address_line',
         'verification_status',

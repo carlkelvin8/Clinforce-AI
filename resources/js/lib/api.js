@@ -7,6 +7,7 @@ const api = axios.create({
 });
 
 const TOKEN_KEYS = ["auth_token", "CLINFORCE_TOKEN"];
+const DEVICE_KEY = "CLINFORCE_DEVICE_ID";
 
 export function setToken(token) {
   if (token) {
@@ -24,6 +25,18 @@ export function getToken() {
     if (v) return v;
   }
   return null;
+}
+
+export function getDeviceId() {
+  let v = localStorage.getItem(DEVICE_KEY);
+  if (v) return v;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    v = crypto.randomUUID();
+  } else {
+    v = `d_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+  }
+  localStorage.setItem(DEVICE_KEY, v);
+  return v;
 }
 
 function normalizeApiUrl(url) {
@@ -46,6 +59,8 @@ api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   else delete config.headers.Authorization;
+
+  config.headers["X-Device-Id"] = getDeviceId();
 
   // ✅ IMPORTANT:
   // If sending FormData, DO NOT set Content-Type manually.

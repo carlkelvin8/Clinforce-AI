@@ -25,24 +25,23 @@ class RequireActiveSubscription
             return $next($request);
         }
 
-        // Check for active subscription
-        $subscription = $user->subscription;
-
-        if (!$subscription) {
-            return $this->respondSubscriptionRequired($request);
+        // 1. Check for active trial (platform trial)
+        if ($user->onTrial()) {
+            return $next($request);
         }
 
-        // Validate subscription status
-        if ($subscription->status !== 'active') {
-            return $this->respondSubscriptionRequired($request);
+        // 2. Check for active subscription (paid/stripe)
+        // Use the subscription relationship or service logic
+        $subscription = $user->subscription; // This uses the model relation which checks for active status
+
+        if ($subscription && ($subscription->status === 'active' || $subscription->status === 'trialing')) {
+            // Also validate period end
+            if (!$subscription->current_period_end || $subscription->current_period_end->isFuture()) {
+                return $next($request);
+            }
         }
 
-        // Validate period end if set
-        if ($subscription->current_period_end && $subscription->current_period_end->isPast()) {
-            return $this->respondSubscriptionRequired($request);
-        }
-
-        return $next($request);
+        return $this->respondSubscriptionRequired($request);
     }
 
     /**

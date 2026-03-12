@@ -163,7 +163,13 @@ class CandidatesController extends ApiController
             ], 404);
         }
 
-        return Storage::disk('public')->download($filePath, $resume->file_name);
+        $fullPath = Storage::disk('public')->path($filePath);
+        $disposition = request()->query('download') ? 'attachment' : 'inline';
+
+        return response()->file($fullPath, [
+            'Content-Type' => $resume->mime_type ?: 'application/pdf',
+            'Content-Disposition' => $disposition . '; filename="' . $resume->file_name . '"'
+        ]);
     }
 
     /**
@@ -224,7 +230,7 @@ class CandidatesController extends ApiController
             'bio' => $profile->bio ?? '',
             'city' => $profile->city ?? '',
             'state' => $profile->state ?? '',
-            'country_code' => $profile->country_code ?? '',
+            'country' => $profile->country ?? '',
             'years_experience' => $profile->years_experience ?? null,
             'specialization' => $profile->specialization ?? '',
             'avatar_url' => $candidate->avatar_url,

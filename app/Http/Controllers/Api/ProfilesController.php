@@ -48,7 +48,7 @@ class ProfilesController extends ApiController
             'summary' => $p?->summary,
             'city' => $p?->city,
             'state' => $p?->state,
-            'country_code' => $p?->country_code,
+            'country' => $p?->country,
             'years_experience' => $p?->years_experience,
             'bio' => $p?->bio, // or summary?
             'avatar' => $avatarUrl,
@@ -80,7 +80,7 @@ class ProfilesController extends ApiController
             'logo_path' => null,
             'business_name' => $p->business_name,
             'business_type' => $p->business_type,
-            'country_code' => $p->country_code,
+            'country' => $p->country,
             'billing_currency_code' => $p->billing_currency_code,
             'state' => $p->state,
             'city' => $p->city,
@@ -158,17 +158,14 @@ class ProfilesController extends ApiController
         $existing = EmployerProfile::query()->where('user_id', $u->id)->first();
 
         $data = $request->validated();
-        $countryCode = $data['country_code'] ?? ($existing?->country_code ?? null);
-        if ($countryCode) {
-            $countryCode = strtoupper($countryCode);
-        }
+        $country = $data['country'] ?? ($existing?->country ?? null);
 
-        $billingCurrency = $countryCode === 'PH' ? 'PHP' : 'USD';
+        $billingCurrency = ($country && strtolower($country) === 'philippines') ? 'PHP' : 'USD';
 
         $payload = array_merge(
             $data,
             [
-                'country_code' => $countryCode,
+                'country' => $country,
                 'billing_currency_code' => $billingCurrency,
             ]
         );

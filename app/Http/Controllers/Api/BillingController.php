@@ -28,21 +28,10 @@ class BillingController extends ApiController
         
         \Log::info('Billing currency request', [
             'user_id' => $u->id,
-            'profile_country' => $profile?->country_code,
+            'profile_country' => $profile?->country,
         ]);
         
-        if (!$profile || !$profile->country_code) {
-            $countries = $this->currency->getCountriesList();
-
-            return $this->fail(
-                'Billing country is required before viewing localized prices.',
-                [
-                    'code' => 'billing_country_required',
-                    'countries' => $countries,
-                ],
-                422
-            );
-        }
+        // Country check removed - defaults to USD if not set
 
         $ctx = $this->currency->getEmployerCurrencyContext($u);
         

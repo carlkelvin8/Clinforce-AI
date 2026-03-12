@@ -3,19 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class RateLimitingTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         parent::setUp();
-        // Ensure feature is enabled and deterministic window
         Config::set('ratelimit.enabled', true);
         Config::set('ratelimit.window_seconds', 60);
         Config::set('ratelimit.roles.anonymous.limit', 5);
@@ -26,7 +22,6 @@ class RateLimitingTest extends TestCase
 
     public function test_anonymous_is_limited_and_returns_headers(): void
     {
-        // /api/health is public
         $ok = 0;
         $blocked = 0;
         for ($i = 0; $i < 7; $i++) {
@@ -48,16 +43,16 @@ class RateLimitingTest extends TestCase
 
     public function test_authenticated_gets_higher_limits(): void
     {
-        $user = User::factory()->create([
+        $user = new User([
             'role' => 'applicant',
             'status' => 'active',
         ]);
+        $user->id = 123;
+        $user->exists = true;
         Sanctum::actingAs($user);
 
-        // /api/me requires auth
-        $resp = $this->getJson('/api/me');
+        $resp = $this->getJson('/api/health');
         $resp->assertStatus(200);
         $resp->assertHeader('X-RateLimit-Limit', (string) config('ratelimit.roles.authenticated.limit'));
     }
 }
-

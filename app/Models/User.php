@@ -27,6 +27,13 @@ class User extends Authenticatable implements MustVerifyEmailContract
         'status',
         'email_verified_at',
         'last_login_at',
+        'trial_started_at',
+        'trial_ends_at',
+        'trial_consumed',
+        'trial_activated_ip',
+        'trial_activated_user_agent',
+        'trial_device_hash',
+        'subscription_status',
     ];
 
     protected $hidden = [
@@ -36,6 +43,9 @@ class User extends Authenticatable implements MustVerifyEmailContract
     protected $casts = [
         'email_verified_at' => 'datetime',
         'last_login_at' => 'datetime',
+        'trial_started_at' => 'datetime',
+        'trial_ends_at' => 'datetime',
+        'trial_consumed' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -46,6 +56,22 @@ class User extends Authenticatable implements MustVerifyEmailContract
     public function getAuthPassword()
     {
         return $this->password_hash;
+    }
+
+    /**
+     * Check if user is currently on an active trial.
+     */
+    public function onTrial(): bool
+    {
+        return $this->trial_ends_at && $this->trial_ends_at->isFuture();
+    }
+
+    /**
+     * Check if user has an expired trial.
+     */
+    public function hasExpiredTrial(): bool
+    {
+        return $this->trial_ends_at && $this->trial_ends_at->isPast();
     }
 
     protected $appends = ['avatar_url'];

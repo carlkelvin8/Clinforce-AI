@@ -22,7 +22,7 @@ class ApplicantProfileUpsertRequest extends FormRequest
             'headline'         => ['nullable','string','max:190'],
             'summary'          => ['nullable','string','max:5000'],
             'years_experience' => ['nullable','integer','min:0','max:80'],
-            'country_code'     => ['nullable','string','size:2','regex:/^[A-Z]{2}$/'],
+            'country'          => ['nullable','string','max:200'],
             'state'            => ['nullable','string','min:2','max:120'],
             'city'             => ['nullable','string','min:2','max:120'],
 
@@ -54,8 +54,8 @@ class ApplicantProfileUpsertRequest extends FormRequest
             if ($this->has($k)) $this->merge([$k => trim((string) $this->input($k))]);
         }
 
-        if ($this->has('country_code')) {
-            $this->merge(['country_code' => strtoupper(trim((string) $this->input('country_code')))]);
+        if ($this->has('country')) {
+            $this->merge(['country' => trim((string) $this->input('country'))]);
         }
     }
 }

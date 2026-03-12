@@ -11,6 +11,8 @@ import OverlayBadge from 'primevue/overlaybadge';
 import Popover from 'primevue/popover';
 import Drawer from 'primevue/drawer';
 import ChatbotWidget from '@/Components/ChatbotWidget.vue';
+import MarketingPopup from '@/Components/MarketingPopup.vue';
+import StickyMarketingCard from '@/Components/StickyMarketingCard.vue';
 import api from '@/lib/api';
 
 const router = useRouter();
@@ -45,6 +47,30 @@ const isEmployer = computed(() => {
 });
 
 const userInitials = computed(() => (user.value?.name || user.value?.email || 'U').charAt(0).toUpperCase());
+
+const trialStatus = computed(() => {
+    if (!user.value || user.value.role !== 'employer') return null;
+    
+    // Check if subscription is active
+    if (user.value.has_active_subscription) return 'subscribed';
+
+    if (user.value.on_trial) return 'trial_active';
+    if (user.value.has_expired_trial) return 'trial_expired';
+    
+    return null;
+});
+
+const trialDaysLeft = computed(() => {
+    if (!user.value?.trial_ends_at) return 0;
+    const end = new Date(user.value.trial_ends_at);
+    const now = new Date();
+    const diff = end - now;
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+});
+
+function goToBilling() {
+    router.push('/employer/billing');
+}
 
 onMounted(async () => {
     loadUser();
@@ -217,6 +243,14 @@ onMounted(() => {
 
         <!-- Authed View -->
         <div v-else class="flex flex-col min-h-screen">
+            <!-- Trial Banner -->
+            <div v-if="trialStatus === 'trial_active'" class="bg-indigo-600 text-white px-4 py-2 text-sm text-center font-medium z-50">
+              Your free trial ends in {{ trialDaysLeft }} days. <span class="underline cursor-pointer ml-1 font-bold" @click="goToBilling">Subscribe now</span> to keep access.
+            </div>
+            <div v-else-if="trialStatus === 'trial_expired'" class="bg-red-600 text-white px-4 py-2 text-sm text-center font-bold z-50">
+              Your free trial has expired. <span class="underline cursor-pointer ml-1 text-white hover:text-gray-100" @click="goToBilling">Subscribe now</span> to restore access.
+            </div>
+
              <!-- Sticky Topbar -->
             <header class="h-16 flex items-center justify-between px-4 sticky top-0 z-30 bg-surface card-glass">
                 <!-- Left: Logo & Toggle -->
@@ -257,7 +291,7 @@ onMounted(() => {
                     <div class="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
                     
                     <div class="flex items-center gap-2 cursor-pointer p-1 rounded-full hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100" @click="(e) => userMenu.toggle(e)">
-                        <Avatar :image="user.avatar_url || user.avatar" :label="!(user.avatar_url || user.avatar) ? userInitials : null" shape="circle" class="bg-blue-100 text-blue-700 font-bold border border-blue-200" />
+                       
                         <i class="pi pi-chevron-down text-gray-400 text-xs hidden lg:block"></i>
                     </div>
                 </div>
@@ -392,6 +426,8 @@ onMounted(() => {
                 </div>
             </Popover>
             <ChatbotWidget v-if="isEmployer" />
+            <MarketingPopup v-if="!isAuthed" />
+            <StickyMarketingCard v-if="!isAuthed" />
         </div>
     </div>
 </template>

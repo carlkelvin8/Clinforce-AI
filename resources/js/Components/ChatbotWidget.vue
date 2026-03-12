@@ -1,4 +1,4 @@
-<template>
+          <template>
   <div class="chatbot-root">
     <!-- Floating Toggle Button -->
     <button v-if="!isOpen" @click="toggle" class="chat-toggle">
@@ -124,20 +124,55 @@ const ttsSupported = ref(false)
 let recognition = null
 const micNotice = ref('')
 const uploadNotice = ref('')
+const currentUserId = ref(null)
 
 function getToken() {
   return localStorage.getItem("auth_token") || localStorage.getItem("CLINFORCE_TOKEN");
 }
 
-onMounted(() => {
-  const saved = localStorage.getItem('clinforce_chat_history')
+function getUser() {
+  try {
+    return JSON.parse(localStorage.getItem("auth_user"));
+  } catch {
+    return null;
+  }
+}
+
+function loadHistory() {
+  const user = getUser();
+  const newUserId = user?.id || 'guest';
+  
+  // If user changed, clear history
+  if (currentUserId.value && currentUserId.value !== newUserId) {
+    messages.value = [];
+  }
+  
+  currentUserId.value = newUserId;
+  const key = `clinforce_chat_history_${newUserId}`;
+  
+  const saved = localStorage.getItem(key);
   if (saved) {
     try {
-      messages.value = JSON.parse(saved)
+      messages.value = JSON.parse(saved);
     } catch (e) {
-      console.error('Failed to load chat history', e)
+      console.error('Failed to load chat history', e);
+      messages.value = [];
     }
+  } else {
+    messages.value = [];
   }
+}
+
+function saveHistory() {
+  const key = `clinforce_chat_history_${currentUserId.value}`;
+  localStorage.setItem(key, JSON.stringify(messages.value));
+}
+
+onMounted(() => {
+  loadHistory();
+  // Listen for auth changes to switch history
+  window.addEventListener('auth:changed', loadHistory);
+
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition
   const secure = window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1'
   micSupported.value = secure && Boolean(SR)
@@ -150,12 +185,13 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('auth:changed', loadHistory)
   window.removeEventListener('chatbot:toggle', toggle)
   window.removeEventListener('chatbot:open', () => { isOpen.value = true })
 })
 
-watch(messages, (newVal) => {
-  localStorage.setItem('clinforce_chat_history', JSON.stringify(newVal))
+watch(messages, () => {
+  saveHistory()
   scrollToBottom()
 }, { deep: true })
 

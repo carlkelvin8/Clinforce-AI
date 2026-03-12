@@ -9,7 +9,26 @@ use Carbon\Carbon;
 class SubscriptionService
 {
     /**
-     * Check if user has an active subscription
+     * Check if user has access (either active subscription or active trial)
+     */
+    public function hasAccess(int $userId): bool
+    {
+        // 1. Check paid subscription first (most robust)
+        if ($this->hasActiveSubscription($userId)) {
+            return true;
+        }
+
+        // 2. Check for active trial
+        $user = User::find($userId);
+        if ($user && $user->onTrial()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if user has an active subscription (paid)
      */
     public function hasActiveSubscription(int $userId): bool
     {
@@ -68,23 +87,38 @@ class SubscriptionService
      */
     public function getSubscriptionStatus(int $userId): array
     {
+        $user = User::find($userId);
         $subscription = $this->getActiveSubscription($userId);
 
-        if (!$subscription) {
-            return [
-                'has_subscription' => false,
-                'status' => 'none',
-                'plan_name' => null,
-                'expires_at' => null,
-            ];
+        $status = 'none';
+        $expiresAt = null;
+        $planName = null;
+
+        if ($subscription) {
+            $status = $subscription->status;
+            $planName = $subscription->plan->name ?? 'Standard Plan';
+            $expiresAt = $subscription->current_period_end?->toIso8601String();
+        } elseif ($user) {
+            if ($user->onTrial()) {
+                $status = 'trial_active';
+                $planName = 'Free Trial (7 Days)';
+                $expiresAt = $user->trial_ends_at?->toIso8601String();
+            } elseif ($user->hasExpiredTrial()) {
+                $status = 'trial_expired';
+                $planName = 'Trial Expired';
+                $expiresAt = $user->trial_ends_at?->toIso8601String();
+            }
         }
 
         return [
-            'has_subscription' => true,
-            'status' => $subscription->status,
-            'plan_name' => $subscription->plan->name ?? null,
-            'expires_at' => $subscription->current_period_end?->toIso8601String(),
-            'stripe_subscription_id' => $subscription->stripe_subscription_id,
+            'has_subscription' => (bool)$subscription,
+            'has_access' => (bool)$subscription || ($user && $user->onTrial()),
+            'on_trial' => $user ? $user->onTrial() : false,
+            'trial_ends_at' => $user?->trial_ends_at?->toIso8601String(),
+            'status' => $status,
+            'plan_name' => $planName,
+            'expires_at' => $expiresAt,
+            'stripe_subscription_id' => $subscription->stripe_subscription_id ?? null,
         ];
     }
 

@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -28,7 +29,10 @@ return new class extends Migration
         }
 
         // Make sure business_name is nullable
-        DB::statement("ALTER TABLE employer_profiles MODIFY business_name VARCHAR(200) NULL");
+        $driver = DB::connection()->getDriverName();
+        if ($driver === 'mysql') {
+            DB::statement("ALTER TABLE employer_profiles MODIFY business_name VARCHAR(200) NULL");
+        }
 
         // Also add business_type if it doesn't exist
         if (!Schema::hasColumn('employer_profiles', 'business_type')) {

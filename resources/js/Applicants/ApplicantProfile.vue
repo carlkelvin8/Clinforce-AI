@@ -381,7 +381,7 @@ async function previewResume() {
     })
     
     // Create blob URL for preview
-    const blob = new Blob([response.data], { type: 'application/pdf' })
+    const blob = new Blob([response.data], { type: response.data.type || 'application/pdf' })
     resumePreviewUrl.value = window.URL.createObjectURL(blob)
     showResumePreview.value = true
   } catch (e) {
@@ -423,6 +423,7 @@ async function downloadResume() {
   try {
     console.log('Downloading resume for application:', app.value.id)
     const response = await api.get(`/api/applications/${app.value.id}/resume`, {
+      params: { download: 1 },
       responseType: 'blob'
     })
     
