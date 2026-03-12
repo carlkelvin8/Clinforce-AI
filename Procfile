@@ -1,2 +1,2 @@
-web: sh -c "php-fpm -D && nginx -g 'daemon off;'"
+web: /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
 release: php artisan migrate --force

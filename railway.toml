@@ -3,8 +3,6 @@ builder = "dockerfile"
 dockerfile = "Dockerfile"
 
 [deploy]
-startCommand = "sh -c \"php-fpm -D && nginx -g 'daemon off;'\""
+startCommand = "/usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
 restartPolicyMaxRetries = 5
 restartPolicyWindowSeconds = 60
-healthcheckPath = "/api/health"
-healthcheckTimeout = 10
