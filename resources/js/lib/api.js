@@ -2,8 +2,9 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "",
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000/api",
   timeout: 20000,
+  withCredentials: true,
 });
 
 const TOKEN_KEYS = ["auth_token", "CLINFORCE_TOKEN"];
@@ -41,8 +42,10 @@ export function getDeviceId() {
 
 function normalizeApiUrl(url) {
   const u = String(url || "");
+  // If it's already a full URL, return as-is
   if (/^https?:\/\//i.test(u)) return u;
 
+  // Otherwise, it's a relative path
   const path = u.startsWith("/") ? u : `/${u}`;
   if (path === "/api" || path.startsWith("/api/")) return path;
   return `/api${path}`;
