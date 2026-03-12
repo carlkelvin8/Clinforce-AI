@@ -1,2 +1,2 @@
-web: frankenphp run --bind=0.0.0.0:80
+web: sh -c "php-fpm -D && nginx -g 'daemon off;'"
 release: php artisan migrate --force

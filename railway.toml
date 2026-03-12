@@ -3,8 +3,8 @@ builder = "dockerfile"
 dockerfile = "Dockerfile"
 
 [deploy]
-startCommand = "frankenphp run --bind=0.0.0.0:80"
+startCommand = "sh -c \"php-fpm -D && nginx -g 'daemon off;'\""
 restartPolicyMaxRetries = 5
 restartPolicyWindowSeconds = 60
-healthcheckPath = "/health"
+healthcheckPath = "/api/health"
 healthcheckTimeout = 10
