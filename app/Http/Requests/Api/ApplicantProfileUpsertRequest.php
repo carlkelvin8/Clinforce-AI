@@ -15,8 +15,8 @@ class ApplicantProfileUpsertRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'first_name' => ['required','string','min:2','max:80','regex:/^[\pL\s\.\-\'`]+$/u'],
-            'last_name'  => ['required','string','min:2','max:80','regex:/^[\pL\s\.\-\'`]+$/u'],
+            'first_name' => ['sometimes','required','string','min:2','max:80','regex:/^[\pL\s\.\-\'`]+$/u'],
+            'last_name'  => ['sometimes','required','string','min:2','max:80','regex:/^[\pL\s\.\-\'`]+$/u'],
 
             // OPTIONAL fields (align these with your DB columns)
             'headline'         => ['nullable','string','max:190'],
@@ -32,10 +32,11 @@ class ApplicantProfileUpsertRequest extends FormRequest
             'primary_role'        => ['nullable','string','max:190'],
 
             // Arrays (if your applicant_profiles columns are JSON)
-            'experiences' => ['nullable','array'],
-            'education'   => ['nullable','array'],
-            'licenses'    => ['nullable','array'],
-            'skills'      => ['nullable','array'],
+            'experiences'     => ['nullable','array'],
+            'education'       => ['nullable','array'],
+            'work_experience' => ['nullable','array'],
+            'licenses'        => ['nullable','array'],
+            'skills'          => ['nullable','array'],
 
             'preferred_shift' => ['nullable','in:any,day,night,rotational'],
             'start_date'      => ['nullable','date'],

@@ -22,6 +22,9 @@ class Job extends Model
         'status',
         'published_at',
         'archived_at',
+        'salary_min',
+        'salary_max',
+        'salary_currency',
     ];
 
     protected $casts = [

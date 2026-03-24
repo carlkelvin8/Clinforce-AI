@@ -131,14 +131,25 @@ class SecureDocumentController extends ApiController
     }
 
     /**
-     * Extract file path from storage URL
+     * Extract file path relative to the public storage disk from any URL format.
+     *
+     * Handles:
+     *   http://127.0.0.1:8000/storage/documents/9005/file.pdf  -> documents/9005/file.pdf
+     *   /storage/documents/9005/file.pdf                        -> documents/9005/file.pdf
+     *   documents/9005/file.pdf                                 -> documents/9005/file.pdf
+     *   /resumes/2001.pdf                                       -> resumes/2001.pdf
      */
     protected function getFilePathFromUrl(string $url): string
     {
-        // Remove domain and /storage/ prefix
-        $path = parse_url($url, PHP_URL_PATH);
-        $path = str_replace('/storage/', '', $path);
-        
+        // Strip scheme + host if present
+        $path = parse_url($url, PHP_URL_PATH) ?? $url;
+
+        // Remove leading /storage/ prefix (Laravel public disk symlink)
+        $path = preg_replace('#^/storage/#', '', $path);
+
+        // Remove any remaining leading slash
+        $path = ltrim($path, '/');
+
         return $path;
     }
 }

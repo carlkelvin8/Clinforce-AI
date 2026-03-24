@@ -49,8 +49,6 @@
               <template #title>Summary</template>
               <template #content>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2">
-                  <div class="text-xs text-slate-500 font-semibold">Application ID</div>
-                  <div class="text-sm font-bold text-slate-900 text-right break-words">#{{ app.id }}</div>
                   <div class="text-xs text-slate-500 font-semibold">Applicant</div>
                   <div class="text-sm font-bold text-slate-900 text-right break-words">{{ applicantDisplayName(app) }}</div>
                   <div class="text-xs text-slate-500 font-semibold">Submitted</div>
@@ -216,6 +214,36 @@
                 <div v-else class="text-slate-500">No interview scheduled.</div>
               </template>
             </Card>
+
+            <!-- Notes -->
+            <Card class="!border-0 !shadow-none">
+              <template #title>
+                <div class="text-base font-bold text-slate-900">Internal Notes</div>
+                <div class="text-sm text-slate-500">Private notes visible only to your team</div>
+              </template>
+              <template #content>
+                <div class="space-y-3">
+                  <div class="flex gap-2">
+                    <Textarea v-model="newNote" rows="2" placeholder="Add a note..." class="flex-1 !rounded-xl !text-sm" />
+                    <Button icon="pi pi-send" :loading="savingNote" @click="addNote" class="self-end" />
+                  </div>
+                  <div v-if="notesLoading" class="text-center py-4 text-slate-400">
+                    <i class="pi pi-spin pi-spinner"></i>
+                  </div>
+                  <div v-else-if="!notes.length" class="text-slate-400 text-sm py-2">No notes yet.</div>
+                  <div v-else class="space-y-2">
+                    <div v-for="note in notes" :key="note.id"
+                      class="flex items-start justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm text-slate-800 whitespace-pre-wrap">{{ note.note }}</p>
+                        <p class="text-xs text-slate-400 mt-1">{{ new Date(note.created_at).toLocaleString() }}</p>
+                      </div>
+                      <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="deleteNote(note.id)" />
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </Card>
           </div>
         </div>
 
@@ -240,6 +268,7 @@ import Tag from 'primevue/tag'
 import Message from 'primevue/message'
 import Avatar from 'primevue/avatar'
 import Dialog from 'primevue/dialog'
+import Textarea from 'primevue/textarea'
 import Swal from 'sweetalert2'
 
 const props = defineProps({
@@ -258,6 +287,41 @@ const downloadingResume = ref(false)
 const hasResume = ref(false)
 const showResumePreview = ref(false)
 const resumePreviewUrl = ref(null)
+
+// Notes
+const notes = ref([])
+const notesLoading = ref(false)
+const newNote = ref('')
+const savingNote = ref(false)
+
+async function loadNotes() {
+  if (!props.id) return
+  notesLoading.value = true
+  try {
+    const res = await api.get(`/applications/${props.id}/notes`)
+    notes.value = res.data?.data ?? res.data ?? []
+  } catch {}
+  finally { notesLoading.value = false }
+}
+
+async function addNote() {
+  if (!newNote.value.trim()) return
+  savingNote.value = true
+  try {
+    const res = await api.post(`/applications/${props.id}/notes`, { note: newNote.value.trim() })
+    notes.value.unshift(res.data?.data ?? res.data)
+    newNote.value = ''
+  } catch (e) {
+    await Swal.fire({ icon: 'error', title: 'Failed', text: e?.response?.data?.message || 'Could not save note' })
+  } finally { savingNote.value = false }
+}
+
+async function deleteNote(noteId) {
+  try {
+    await api.delete(`/applications/${props.id}/notes/${noteId}`)
+    notes.value = notes.value.filter(n => n.id !== noteId)
+  } catch {}
+}
 
 function formatDate(v) {
   if (!v) return 'N/A'
@@ -333,7 +397,7 @@ async function fetchOne() {
   loading.value = true
   error.value = ''
   try {
-    const res = await api.get(`/api/applications/${props.id}`)
+    const res = await api.get(`/applications/${props.id}`)
     app.value = res.data?.data ?? res.data
     
     // Set resume availability from backend
@@ -354,7 +418,7 @@ async function fetchOne() {
 async function checkDocumentAccess(applicantId) {
   try {
     console.log('Checking document access for applicant:', applicantId)
-    const res = await api.get('/api/document-access/check', {
+    const res = await api.get('/document-access/check', {
       params: { applicant_id: applicantId }
     })
     console.log('Document access response:', res.data)
@@ -376,7 +440,7 @@ async function previewResume() {
   
   try {
     // Get the resume URL for preview
-    const response = await api.get(`/api/applications/${app.value.id}/resume`, {
+    const response = await api.get(`/applications/${app.value.id}/resume`, {
       responseType: 'blob'
     })
     
@@ -422,7 +486,7 @@ async function downloadResume() {
   downloadingResume.value = true
   try {
     console.log('Downloading resume for application:', app.value.id)
-    const response = await api.get(`/api/applications/${app.value.id}/resume`, {
+    const response = await api.get(`/applications/${app.value.id}/resume`, {
       params: { download: 1 },
       responseType: 'blob'
     })
@@ -529,7 +593,7 @@ async function doStatus(to, titleText) {
   try {
     const body = { status: to }
     if (formValues && String(formValues).trim()) body.note = String(formValues).trim()
-    const res = await api.post(`/api/applications/${app.value.id}/status`, body)
+    const res = await api.post(`/applications/${app.value.id}/status`, body)
     app.value = res.data?.data ?? res.data ?? app.value
     await Swal.fire({ icon: 'success', title: 'Updated', text: 'Application status updated.' })
   } catch (e) {
@@ -587,7 +651,7 @@ async function goMessages() {
     }
 
     try {
-      await api.post('/api/conversations', payload)
+      await api.post('/conversations', payload)
     } catch {
       await api.post('/conversations', payload)
     }
@@ -628,6 +692,7 @@ async function goMessages() {
 
 onMounted(async () => {
   await fetchOne()
+  loadNotes()
   try {
     const u = await me()
     role.value = u?.role || ''

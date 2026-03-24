@@ -44,6 +44,13 @@ Route::post('/contact', [ContactController::class, 'store']);
 Route::get('/public/jobs', [JobsController::class, 'publicIndex']);
 Route::get('/public/jobs/{job}', [JobsController::class, 'publicShow']);
 
+// Public employer profiles
+Route::get('/public/employers/{slug}', [\App\Http\Controllers\Api\PublicEmployerController::class, 'show']);
+Route::get('/employers/{slug}', [\App\Http\Controllers\Api\PublicEmployerController::class, 'show']);
+
+// Share tracking redirect (web)
+Route::get('/share/{token}', [\App\Http\Controllers\Api\JobShareController::class, 'track']);
+
 // Stripe webhook (must be outside auth middleware)
 Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle']);
 Route::post('/webhooks/zoom', [ZoomWebhookController::class, 'handle']);
@@ -54,10 +61,25 @@ Route::post('/webhooks/zoom', [ZoomWebhookController::class, 'handle']);
 |--------------------------------------------------------------------------
 */
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login',    [AuthController::class, 'login']);
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+    // Rate limited auth endpoints
+    Route::middleware('throttle:5,1')->group(function () {
+        Route::post('/register', [AuthController::class, 'register']);
+        Route::post('/login',    [AuthController::class, 'login']);
+        Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+        Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+    });
+    
+    // Email Verification
+    Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+        ->middleware(['signed'])
+        ->name('verification.verify');
+    Route::post('/email/resend', [AuthController::class, 'resendVerificationEmail'])
+        ->middleware(['auth:sanctum', 'throttle:3,1']);
+    
+    // Google OAuth
+    Route::get('/google/redirect', [AuthController::class, 'googleRedirect']);
+    Route::get('/google/callback', [AuthController::class, 'googleCallback']);
+    Route::post('/google/complete', [AuthController::class, 'googleCompleteRegistration']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me',      [AuthController::class, 'me']);
@@ -72,23 +94,12 @@ Route::prefix('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/debug/whoami', function (\Illuminate\Http\Request $request) {
-        $u = $request->user();
-        return response()->json([
-            'authed' => (bool) $u,
-            'id' => $u?->id,
-            'role' => $u?->role,
-            'email' => $u?->email,
-            'token_id' => $u?->currentAccessToken()?->id,
-            'token_name' => $u?->currentAccessToken()?->name,
-        ]);
-    });
-    
     // Profile (me)
     Route::get('/me', [ProfilesController::class, 'me']);
     Route::get('/profiles/{userId}', [ProfilesController::class, 'show']);
     Route::put('/user/settings', [UsersController::class, 'updateSettings']);
     Route::put('/me/applicant', [ProfilesController::class, 'upsertApplicant']);
+    Route::get('/me/applicant', [ProfilesController::class, 'meApplicant']);
     Route::put('/me/employer', [ProfilesController::class, 'upsertEmployer']);
     Route::put('/me/agency', [ProfilesController::class, 'upsertAgency']);
     Route::get('/me/employer', [ProfilesController::class, 'meEmployer']);
@@ -103,14 +114,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/documents', [DocumentsController::class, 'store']);
     Route::delete('/documents/{document}', [DocumentsController::class, 'destroy']);
 
-    // Jobs (owner)
+    // Jobs (owner) — posting requires active subscription
     Route::get('/jobs', [JobsController::class, 'index']);
-    Route::post('/jobs', [JobsController::class, 'store']);
     Route::get('/jobs/{job}', [JobsController::class, 'show']);
-    Route::put('/jobs/{job}', [JobsController::class, 'update']);
-    Route::post('/jobs/{job}/publish', [JobsController::class, 'publish']);
-    Route::post('/jobs/{job}/archive', [JobsController::class, 'archive']);
-    Route::delete('/jobs/{job}', [JobsController::class, 'destroy']);
+    Route::middleware('subscription:jobs')->group(function () {
+        Route::post('/jobs', [JobsController::class, 'store']);
+        Route::put('/jobs/{job}', [JobsController::class, 'update']);
+        Route::post('/jobs/{job}/publish', [JobsController::class, 'publish']);
+        Route::post('/jobs/{job}/archive', [JobsController::class, 'archive']);
+        Route::delete('/jobs/{job}', [JobsController::class, 'destroy']);
+    });
+
+    // Job templates
+    Route::get('/job-templates', [\App\Http\Controllers\Api\JobTemplatesController::class, 'index']);
+    Route::post('/job-templates', [\App\Http\Controllers\Api\JobTemplatesController::class, 'store']);
+    Route::put('/job-templates/{jobTemplate}', [\App\Http\Controllers\Api\JobTemplatesController::class, 'update']);
+    Route::delete('/job-templates/{jobTemplate}', [\App\Http\Controllers\Api\JobTemplatesController::class, 'destroy']);
+    Route::post('/job-templates/{jobTemplate}/use', [\App\Http\Controllers\Api\JobTemplatesController::class, 'useTemplate']);
 
     // Applications
     Route::post('/jobs/{job}/apply', [JobApplicationsController::class, 'apply']);
@@ -119,49 +139,46 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/applications/{application}/status', [JobApplicationsController::class, 'updateStatus']);
     Route::get('/applications/{application}/resume', [JobApplicationsController::class, 'viewResume']);
 
-    // Talent Search
-    Route::get('/talent-search', [TalentSearchController::class, 'index']);
+    // Bulk application actions
+    Route::post('/applications/bulk-action', [\App\Http\Controllers\Api\BulkApplicationsController::class, 'bulkAction']);
 
-    // Invitations
+    // Application notes
+    Route::get('/applications/{application}/notes', [\App\Http\Controllers\Api\ApplicationNotesController::class, 'index']);
+    Route::post('/applications/{application}/notes', [\App\Http\Controllers\Api\ApplicationNotesController::class, 'store']);
+    Route::delete('/applications/{application}/notes/{note}', [\App\Http\Controllers\Api\ApplicationNotesController::class, 'destroy']);
+
+    // Talent Search — requires subscription
+    Route::middleware('subscription')->group(function () {
+        Route::get('/talent-search', [TalentSearchController::class, 'index']);
+    });
+
+    // Invitations — requires active subscription
     Route::get('/invitations', [App\Http\Controllers\Api\InvitationController::class, 'index']);
-    Route::post('/invitations', [App\Http\Controllers\Api\InvitationController::class, 'store']);
     Route::post('/invitations/{invitation}/accept', [App\Http\Controllers\Api\InvitationController::class, 'accept']);
+    Route::middleware('subscription:invite')->group(function () {
+        Route::post('/invitations', [App\Http\Controllers\Api\InvitationController::class, 'store']);
+    });
 
     // Interviews
     Route::get('/interviews', [InterviewsController::class, 'index']);
+    Route::get('/interviews/{interview}', [InterviewsController::class, 'show']);
+    Route::get('/interviews/{interview}/ics', [InterviewsController::class, 'exportIcs']);
     Route::middleware(['require.sub'])->group(function () {
         Route::post('/applications/{application}/interviews', [InterviewsController::class, 'store']);
         Route::put('/interviews/{interview}', [InterviewsController::class, 'update']);
         Route::post('/interviews/{interview}/cancel', [InterviewsController::class, 'cancel']);
     });
 
+    // Interview feedback
+    Route::get('/interviews/{interview}/feedback', [\App\Http\Controllers\Api\InterviewFeedbackController::class, 'show']);
+    Route::post('/interviews/{interview}/feedback', [\App\Http\Controllers\Api\InterviewFeedbackController::class, 'store']);
+
     // Subscriptions / Payments
-    Route::get('/subscriptions/debug', function() {
-        $user = auth('sanctum')->user();
-        return response()->json([
-            'authenticated' => $user ? true : false,
-            'user' => $user ? $user->only(['id', 'email', 'role']) : null,
-            'subscriptions' => $user ? \App\Models\Subscription::where('user_id', $user->id)->with('plan')->get() : [],
-        ]);
-    });
-    
-    Route::get('/billing/test-currency', function() {
-        $user = \App\Models\User::find(9006);
-        $service = app(\App\Services\CurrencyService::class);
-        $ctx = $service->getEmployerCurrencyContext($user);
-        $plan = \App\Models\Plan::find(4);
-        $conversion = $service->convertPlanPriceForUser($plan, $ctx);
-        
-        return response()->json([
-            'context' => $ctx,
-            'plan' => $plan->only(['id', 'name', 'price_cents', 'currency']),
-            'conversion' => $conversion,
-        ]);
-    });
-    
     Route::get('/subscriptions', [SubscriptionController::class, 'index']);
+    Route::get('/subscriptions/usage', [SubscriptionController::class, 'usage']);
     
     Route::get('/invoices', [SubscriptionController::class, 'invoices']);
+    Route::get('/invoices/{invoiceId}/download', [SubscriptionController::class, 'downloadInvoice']);
     
     // Document Access (separate from subscription)
     Route::get('/document-access/check', [App\Http\Controllers\Api\DocumentAccessController::class, 'checkAccess']);
@@ -182,6 +199,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/verification-requests', [VerificationRequestsController::class, 'store']);
     Route::post('/verification-requests/{verificationRequest}/review', [VerificationRequestsController::class, 'review']);
 
+    Route::get('/conversations/unread-count', [MessagesController::class, 'unreadCount']);
     Route::middleware(['require.sub'])->group(function () {
         Route::get('/conversations', [MessagesController::class, 'index']);
         Route::post('/conversations', [MessagesController::class, 'store']);
@@ -193,14 +211,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/users', [UsersController::class, 'index']);
     });
-    // AI screenings (read-only)
-    Route::get('/ai-screenings', [AiScreeningsController::class, 'index']);
+    // AI screenings — read requires subscription, trigger requires AI feature
+    Route::middleware('subscription')->group(function () {
+        Route::get('/ai-screenings', [AiScreeningsController::class, 'index']);
+    });
+    Route::middleware('subscription:ai')->group(function () {
+        Route::post('/applications/{application}/ai-screening', [AiScreeningsController::class, 'store']);
+        Route::post('/ai-screenings', [AiScreeningsController::class, 'store']);
+    });
 
     // Audit logs (admin-only)
     Route::get('/audit-logs', [AuditLogsController::class, 'index']);
 
     // Billing currency
     Route::get('/billing/currency', [BillingController::class, 'currency']);
+    Route::get('/billing/countries', [BillingController::class, 'countries']);
     Route::post('/billing/profile', [BillingController::class, 'updateProfile']);
 
     // Payment Methods
@@ -224,12 +249,6 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Applicants (with subscription gates for employers)
-    Route::get('/applicants/test', function() {
-        return response()->json([
-            'message' => 'Applicants endpoint is working',
-            'user' => auth('sanctum')->user() ? auth('sanctum')->user()->only(['id', 'email', 'role']) : null,
-        ]);
-    });
     Route::get('/applicants', [ApplicantsController::class, 'index']);
     Route::get('/applicants/{userId}', [ApplicantsController::class, 'show']);
     Route::get('/applications/{applicationId}/applicant', [ApplicantsController::class, 'showFromApplication']);
@@ -237,6 +256,31 @@ Route::middleware('auth:sanctum')->group(function () {
     // Secure document downloads (with subscription gates)
     Route::get('/documents/{documentId}/download', [SecureDocumentController::class, 'download']);
     Route::get('/documents/{documentId}/stream', [SecureDocumentController::class, 'stream']);
+
+    // Saved Jobs (candidates)
+    Route::get('/saved-jobs', [\App\Http\Controllers\Api\SavedJobsController::class, 'index']);
+    Route::post('/jobs/{job}/save', [\App\Http\Controllers\Api\SavedJobsController::class, 'store']);
+    Route::delete('/jobs/{job}/save', [\App\Http\Controllers\Api\SavedJobsController::class, 'destroy']);
+
+    // Job share / referral tracking
+    Route::post('/jobs/{job}/share', [\App\Http\Controllers\Api\JobShareController::class, 'store']);
+    Route::get('/jobs/{job}/share-analytics', [\App\Http\Controllers\Api\JobShareController::class, 'analytics']);
+
+    // Job alerts
+    Route::get('/job-alerts', [\App\Http\Controllers\Api\JobAlertsController::class, 'index']);
+    Route::post('/job-alerts', [\App\Http\Controllers\Api\JobAlertsController::class, 'store']);
+    Route::put('/job-alerts/{jobAlert}', [\App\Http\Controllers\Api\JobAlertsController::class, 'update']);
+    Route::delete('/job-alerts/{jobAlert}', [\App\Http\Controllers\Api\JobAlertsController::class, 'destroy']);
+
+    // Analytics
+    Route::get('/analytics/dashboard', [\App\Http\Controllers\Api\AnalyticsController::class, 'dashboard']);
+
+    // 2FA
+    Route::get('/2fa/status', [\App\Http\Controllers\Api\TwoFactorController::class, 'status']);
+    Route::post('/2fa/setup', [\App\Http\Controllers\Api\TwoFactorController::class, 'setup']);
+    Route::post('/2fa/enable', [\App\Http\Controllers\Api\TwoFactorController::class, 'enable']);
+    Route::post('/2fa/disable', [\App\Http\Controllers\Api\TwoFactorController::class, 'disable']);
+    Route::post('/auth/verify-2fa', [\App\Http\Controllers\Api\TwoFactorController::class, 'verify']);
 
     // Notifications
     Route::get('/notifications', [NotificationsController::class, 'index'])->name('notifications.index');
@@ -246,17 +290,46 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications/stream', [NotificationsController::class, 'stream'])->name('notifications.stream');
     Route::get('/notifications/preferences', [NotificationsController::class, 'preferencesGet'])->name('notifications.preferences.get');
     Route::put('/notifications/preferences', [NotificationsController::class, 'preferencesUpdate'])->name('notifications.preferences.update');
-});
 
-
-
-
-Route::get('/debug/whoami', function (\Illuminate\Http\Request $request) {
-    $u = $request->user();
-    return response()->json([
-        'id' => $u?->id,
-        'role' => $u?->role,
-        'email' => $u?->email,
-        'x_user_id' => $request->header('X-User-Id'),
-    ]);
+    // ── Admin ────────────────────────────────────────────────────────────
+    Route::prefix('admin')->group(function () {
+        Route::get('/stats',                    [\App\Http\Controllers\Api\AdminController::class, 'stats']);
+        Route::get('/analytics',                [\App\Http\Controllers\Api\AdminController::class, 'analytics']);
+        Route::get('/mrr',                      [\App\Http\Controllers\Api\AdminController::class, 'mrrStats']);
+        Route::get('/search',                   [\App\Http\Controllers\Api\AdminController::class, 'globalSearch']);
+        Route::get('/users',                    [\App\Http\Controllers\Api\AdminController::class, 'users']);
+        Route::patch('/users/{id}',             [\App\Http\Controllers\Api\AdminController::class, 'updateUser']);
+        Route::post('/users/{id}/reset-password', [\App\Http\Controllers\Api\AdminController::class, 'resetUserPassword']);
+        Route::get('/users/{id}/detail',        [\App\Http\Controllers\Api\AdminController::class, 'userDetail']);
+        Route::post('/users/{id}/email',        [\App\Http\Controllers\Api\AdminController::class, 'emailUser']);
+        Route::post('/users/{id}/impersonate',  [\App\Http\Controllers\Api\AdminController::class, 'impersonate']);
+        Route::post('/users/bulk',              [\App\Http\Controllers\Api\AdminController::class, 'bulkUsers']);
+        Route::get('/jobs',                     [\App\Http\Controllers\Api\AdminController::class, 'jobs']);
+        Route::patch('/jobs/{id}',              [\App\Http\Controllers\Api\AdminController::class, 'updateJob']);
+        Route::get('/subscriptions',            [\App\Http\Controllers\Api\AdminController::class, 'subscriptions']);
+        Route::get('/plans',                    [\App\Http\Controllers\Api\AdminController::class, 'plans']);
+        Route::patch('/plans/{id}',             [\App\Http\Controllers\Api\AdminController::class, 'updatePlan']);
+        Route::get('/system-status',            [\App\Http\Controllers\Api\AdminController::class, 'systemStatus']);
+        Route::get('/error-logs',               [\App\Http\Controllers\Api\AdminController::class, 'errorLogs']);
+        Route::get('/contacts',                 [\App\Http\Controllers\Api\AdminController::class, 'contacts']);
+        Route::get('/ai-screenings',            [\App\Http\Controllers\Api\AdminController::class, 'aiScreenings']);
+        Route::get('/export',                   [\App\Http\Controllers\Api\AdminController::class, 'exportCsv']);
+        // New routes
+        Route::get('/users/{id}/notes',         [\App\Http\Controllers\Api\AdminController::class, 'userNotes']);
+        Route::post('/users/{id}/notes',        [\App\Http\Controllers\Api\AdminController::class, 'addUserNote']);
+        Route::delete('/users/{userId}/notes/{noteId}', [\App\Http\Controllers\Api\AdminController::class, 'deleteUserNote']);
+        Route::get('/users/{id}/login-history', [\App\Http\Controllers\Api\AdminController::class, 'userLoginHistory']);
+        Route::post('/users/{id}/grant-subscription', [\App\Http\Controllers\Api\AdminController::class, 'grantSubscription']);
+        Route::get('/feature-flags',            [\App\Http\Controllers\Api\AdminController::class, 'featureFlags']);
+        Route::put('/feature-flags/{name}',     [\App\Http\Controllers\Api\AdminController::class, 'updateFeatureFlag']);
+        Route::get('/maintenance',              [\App\Http\Controllers\Api\AdminController::class, 'maintenanceStatus']);
+        Route::post('/maintenance',             [\App\Http\Controllers\Api\AdminController::class, 'setMaintenance']);
+        Route::post('/cache/flush',             [\App\Http\Controllers\Api\AdminController::class, 'flushCache']);
+        Route::get('/queue-monitor',            [\App\Http\Controllers\Api\AdminController::class, 'queueMonitor']);
+        Route::post('/queue/retry',             [\App\Http\Controllers\Api\AdminController::class, 'retryJob']);
+        Route::get('/webhook-logs',             [\App\Http\Controllers\Api\AdminController::class, 'webhookLogs']);
+        Route::get('/funnel',                   [\App\Http\Controllers\Api\AdminController::class, 'applicationFunnel']);
+        Route::get('/revenue-by-country',       [\App\Http\Controllers\Api\AdminController::class, 'revenueByCountry']);
+        Route::get('/db-table-sizes',           [\App\Http\Controllers\Api\AdminController::class, 'dbTableSizes']);
+    });
 });

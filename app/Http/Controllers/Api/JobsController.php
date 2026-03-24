@@ -94,6 +94,32 @@ class JobsController extends Controller
     {
         $user = $request->user();
 
+        // Enforce job_post_limit from active subscription plan
+        if (in_array($user->role, ['employer', 'agency'], true)) {
+            $sub = \App\Models\Subscription::query()
+                ->with('plan')
+                ->where('user_id', $user->id)
+                ->whereIn('status', ['active', 'past_due'])
+                ->where('end_at', '>', now())
+                ->latest('id')
+                ->first();
+
+            if ($sub && $sub->plan && $sub->plan->job_post_limit !== null) {
+                $activeCount = Job::query()
+                    ->where('owner_user_id', $user->id)
+                    ->whereIn('status', ['published', 'draft'])
+                    ->count();
+
+                if ($activeCount >= $sub->plan->job_post_limit) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "You have reached your plan limit of {$sub->plan->job_post_limit} job posting(s). Archive existing jobs or upgrade your plan.",
+                        'errors' => ['job_post_limit' => ['Plan limit reached']],
+                    ], 422);
+                }
+            }
+        }
+
         $ownerType = in_array($user->role, ['employer', 'agency'], true)
             ? $user->role
             : 'employer';
@@ -107,6 +133,9 @@ class JobsController extends Controller
             'work_mode'       => $request->work_mode,
             'country'         => $request->country,
             'city'            => $request->city,
+            'salary_min'      => $request->salary_min,
+            'salary_max'      => $request->salary_max,
+            'salary_currency' => $request->salary_currency,
             'status'          => 'draft',
         ]);
 
@@ -148,6 +177,7 @@ class JobsController extends Controller
 
         try {
             $this->notifyApplicantsForJob($job);
+            $this->fireJobAlerts($job);
         } catch (\Throwable $e) {
         }
         return response()->json(['data' => $job]);
@@ -181,13 +211,25 @@ class JobsController extends Controller
                 'body' => $job->title,
                 'data' => [
                     'job_id' => $job->id,
-                    'match' => [
-                        'score' => 0.7,
-                    ],
+                    'match' => ['score' => 0.7],
                 ],
                 'url' => "/candidate/jobs/{$job->id}",
                 'batch_key' => "applicant:{$u->id}:job_reco",
             ]);
+        }
+    }
+
+    protected function fireJobAlerts(Job $job): void
+    {
+        $alerts = \App\Models\JobAlert::where('active', true)->with('user')->get();
+        foreach ($alerts as $alert) {
+            if (!$alert->matches($job)) continue;
+            try {
+                \Illuminate\Support\Facades\Mail::to($alert->user->email)
+                    ->send(new \App\Mail\JobAlertMail($job, $alert));
+            } catch (\Throwable $e) {
+                \Log::warning('Job alert email failed', ['error' => $e->getMessage()]);
+            }
         }
     }
     /**
@@ -236,6 +278,20 @@ class JobsController extends Controller
 
         if ($request->filled('work_mode')) {
             $q->where('work_mode', $request->work_mode);
+        }
+
+        if ($request->filled('salary_min')) {
+            $q->where(function ($sq) use ($request) {
+                $sq->whereNull('salary_max')
+                   ->orWhere('salary_max', '>=', (float) $request->salary_min);
+            });
+        }
+
+        if ($request->filled('salary_max')) {
+            $q->where(function ($sq) use ($request) {
+                $sq->whereNull('salary_min')
+                   ->orWhere('salary_min', '<=', (float) $request->salary_max);
+            });
         }
 
         $q->orderByDesc('published_at');

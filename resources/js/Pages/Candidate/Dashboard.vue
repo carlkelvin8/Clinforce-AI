@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="min-h-screen bg-slate-50 font-sans pb-12">
+    <div class="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans pb-12">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <!-- Header -->
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
@@ -28,52 +28,90 @@
 
         <!-- Stats Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          <template v-if="!apps.length && jobsLoading">
+            <SkeletonCard v-for="n in 4" :key="n" type="kpi" />
+          </template>
+          <template v-else>
           <!-- Stat 1 -->
-          <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-300">
             <div class="flex items-start justify-between mb-4">
-              <div class="p-2 bg-blue-50 rounded-lg text-blue-600">
+              <div class="p-2 bg-blue-50 dark:bg-blue-900/40 rounded-lg text-blue-600">
                 <i class="pi pi-briefcase text-xl"></i>
               </div>
               <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Applications</span>
             </div>
-            <div class="text-3xl font-bold text-slate-900 mb-1">{{ stats.active }}</div>
-            <div class="text-sm text-slate-500">Active applications</div>
+            <div class="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">{{ stats.active }}</div>
+            <div class="text-sm text-slate-500 dark:text-slate-400">Active applications</div>
           </div>
 
           <!-- Stat 2 -->
-          <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-300">
             <div class="flex items-start justify-between mb-4">
-              <div class="p-2 bg-purple-50 rounded-lg text-purple-600">
+              <div class="p-2 bg-purple-50 dark:bg-purple-900/40 rounded-lg text-purple-600">
                 <i class="pi pi-calendar text-xl"></i>
               </div>
               <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Interviews</span>
             </div>
-            <div class="text-3xl font-bold text-slate-900 mb-1">{{ stats.upcomingInterviews }}</div>
-            <div class="text-sm text-slate-500">Upcoming events</div>
+            <div class="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">{{ stats.upcomingInterviews }}</div>
+            <div class="text-sm text-slate-500 dark:text-slate-400">Upcoming events</div>
           </div>
 
           <!-- Stat 3 -->
-          <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-300">
             <div class="flex items-start justify-between mb-4">
-              <div class="p-2 bg-green-50 rounded-lg text-green-600">
+              <div class="p-2 bg-green-50 dark:bg-green-900/40 rounded-lg text-green-600">
                 <i class="pi pi-check-circle text-xl"></i>
               </div>
               <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Profile</span>
             </div>
-            <div class="text-3xl font-bold text-slate-900 mb-1">{{ stats.profileCompleteness }}%</div>
-            <div class="text-sm text-slate-500">Completion rate</div>
+            <div class="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">{{ stats.profileCompleteness }}%</div>
+            <div class="text-sm text-slate-500 dark:text-slate-400">Completion rate</div>
           </div>
 
           <!-- Stat 4 -->
-          <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+          <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-300">
             <div class="flex items-start justify-between mb-4">
-              <div class="p-2 bg-orange-50 rounded-lg text-orange-600">
+              <div class="p-2 bg-orange-50 dark:bg-orange-900/40 rounded-lg text-orange-600">
                 <i class="pi pi-bolt text-xl"></i>
               </div>
               <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Match</span>
             </div>
-            <div class="text-3xl font-bold text-slate-900 mb-1">{{ stats.matchStrength }}</div>
-            <div class="text-sm text-slate-500">AI Score</div>
+            <div class="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">{{ stats.matchStrength }}</div>
+            <div class="text-sm text-slate-500 dark:text-slate-400">AI Score</div>
+          </div>
+          </template>
+        </div>
+
+        <!-- Pipeline Progress -->
+        <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6 mb-10">
+          <div class="flex items-center justify-between mb-5">
+            <h2 class="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <i class="pi pi-chart-bar text-slate-400"></i>
+              Application Pipeline
+            </h2>
+            <RouterLink :to="{ name: 'candidate.myapplications' }" class="text-xs font-semibold text-blue-600 hover:text-blue-700">
+              View all <i class="pi pi-arrow-right text-xs ml-1"></i>
+            </RouterLink>
+          </div>
+          <div v-if="!apps.length" class="text-center py-6">
+            <div class="w-12 h-12 bg-slate-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-3">
+              <i class="pi pi-send text-slate-300 dark:text-slate-500 text-xl"></i>
+            </div>
+            <p class="text-slate-500 text-sm">No applications yet. Start applying!</p>
+            <RouterLink :to="{ name: 'candidate.jobs' }">
+              <Button label="Browse Jobs" text class="mt-2 !text-blue-600" size="small" />
+            </RouterLink>
+          </div>
+          <div v-else class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div v-for="stage in pipeline" :key="stage.key" class="flex flex-col gap-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">{{ stage.label }}</span>
+                <span :class="['text-xs font-bold px-2 py-0.5 rounded-full', stage.light, stage.text]">{{ stage.count }}</span>
+              </div>
+              <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                <div :class="['h-full rounded-full transition-all duration-700', stage.color]" :style="{ width: stage.pct + '%' }"></div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -96,8 +134,8 @@
                 <p>Finding matches...</p>
               </div>
 
-              <div v-else-if="jobs.length === 0" class="py-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-100">
-                <i class="pi pi-search text-3xl mb-3 text-slate-300"></i>
+              <div v-else-if="jobs.length === 0" class="py-12 text-center text-slate-500 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+                <i class="pi pi-search text-3xl mb-3 text-slate-300 dark:text-slate-600"></i>
                 <p>No specific recommendations yet.</p>
                 <RouterLink :to="{ name: 'candidate.jobs' }">
                   <Button label="Browse all jobs" text class="mt-2 !text-blue-600" />
@@ -111,15 +149,15 @@
                   :to="{ name: 'candidate.jobs.view', params: { id: j.id } }"
                   class="block group"
                 >
-                  <div class="bg-white p-5 rounded-xl border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all duration-300 relative overflow-hidden">
+                  <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all duration-300 relative overflow-hidden">
                     <div class="flex justify-between items-start">
                       <div class="flex gap-4">
-                        <div class="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg border border-blue-100 shrink-0">
+                        <div class="w-12 h-12 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 flex items-center justify-center font-bold text-lg border border-blue-100 dark:border-blue-800 shrink-0">
                           {{ (j.title || 'J')[0] }}
                         </div>
                         <div>
-                          <h3 class="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{{ j.title }}</h3>
-                          <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-sm text-slate-500">
+                          <h3 class="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">{{ j.title }}</h3>
+                          <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-sm text-slate-500 dark:text-slate-400">
                             <span class="flex items-center gap-1">
                               <i class="pi pi-map-marker text-xs"></i>
                               {{ [j.city, j.country_code].filter(Boolean).join(', ') || 'Remote' }}
@@ -140,20 +178,20 @@
 
             <!-- Recent Activity -->
             <section>
-              <h2 class="text-xl font-bold text-slate-900 mb-6">Recent Activity</h2>
-              <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                <div v-if="apps.length === 0" class="p-8 text-center text-slate-500">
+              <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6">Recent Activity</h2>
+              <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div v-if="apps.length === 0" class="p-8 text-center text-slate-500 dark:text-slate-400">
                   No recent applications. Start applying!
                 </div>
-                <div v-else class="divide-y divide-slate-100">
-                  <div v-for="a in apps.slice(0, 3)" :key="a.id" class="p-5 hover:bg-slate-50 transition-colors flex items-center justify-between group">
+                <div v-else class="divide-y divide-slate-100 dark:divide-slate-700">
+                  <div v-for="a in apps.slice(0, 3)" :key="a.id" class="p-5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-between group">
                     <div class="flex items-center gap-4">
-                      <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-white group-hover:shadow-sm transition-all">
+                      <div class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 group-hover:bg-white dark:group-hover:bg-slate-600 group-hover:shadow-sm transition-all">
                         <i class="pi pi-file"></i>
                       </div>
                       <div>
-                        <div class="font-bold text-slate-900">{{ a.job?.title || 'Unknown Job' }}</div>
-                        <div class="text-xs text-slate-500 mt-0.5">Applied {{ relativeTime(a.created_at) }}</div>
+                        <div class="font-bold text-slate-900 dark:text-slate-100">{{ a.job?.title || 'Unknown Job' }}</div>
+                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Applied {{ relativeTime(a.created_at) }}</div>
                       </div>
                     </div>
                     <Tag :value="a.status" :severity="getStatusSeverity(a.status)" rounded></Tag>
@@ -167,28 +205,28 @@
           <div class="space-y-8">
             
             <!-- Upcoming Interviews -->
-            <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <section class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
               <div class="flex items-center justify-between mb-6">
-                <h3 class="font-bold text-slate-900">Upcoming Interviews</h3>
-                <RouterLink :to="{ name: 'candidate.interviews' }" class="text-xs font-bold text-blue-600 uppercase tracking-wide hover:text-blue-700">View All</RouterLink>
+                <h3 class="font-bold text-slate-900 dark:text-slate-100">Upcoming Interviews</h3>
+                <RouterLink :to="{ name: 'candidate.interviews' }" class="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide hover:text-blue-700">View All</RouterLink>
               </div>
 
-              <div v-if="upcomingInterviewRows.length === 0" class="text-center py-6">
-                <div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <i class="pi pi-calendar-times text-slate-400"></i>
+              <div v-if="interviews.length === 0" class="text-center py-6">
+                <div class="w-12 h-12 bg-slate-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <i class="pi pi-calendar-times text-slate-400 dark:text-slate-500"></i>
                 </div>
-                <p class="text-sm text-slate-500">No interviews scheduled yet.</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">No interviews scheduled yet.</p>
               </div>
 
               <div v-else class="space-y-3">
-                <div v-for="i in upcomingInterviewRows" :key="i.id" class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div class="w-10 h-10 rounded-lg bg-white flex flex-col items-center justify-center text-xs font-bold shadow-sm text-slate-900 border border-slate-100">
-                    <span>{{ new Date().getDate() }}</span>
-                    <span class="text-[10px] text-slate-400 uppercase">Feb</span>
+                <div v-for="i in interviews" :key="i.id" class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
+                  <div class="w-10 h-10 rounded-lg bg-white dark:bg-slate-800 flex flex-col items-center justify-center text-xs font-bold shadow-sm text-slate-900 dark:text-slate-100 border border-slate-100 dark:border-slate-700 shrink-0">
+                    <span>{{ new Date(i.scheduled_start).getDate() }}</span>
+                    <span class="text-[10px] text-slate-400 uppercase">{{ new Date(i.scheduled_start).toLocaleDateString('en-US', { month: 'short' }) }}</span>
                   </div>
                   <div class="min-w-0 flex-1">
-                    <div class="text-sm font-bold text-slate-900 truncate">{{ i.title }}</div>
-                    <div class="text-xs text-slate-500">Online Meeting</div>
+                    <div class="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{{ i.application?.job?.title || 'Interview' }}</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400">{{ new Date(i.scheduled_start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) }} · {{ i.mode || 'Online' }}</div>
                   </div>
                 </div>
               </div>
@@ -260,6 +298,7 @@ import { me, getCachedUser } from "@/lib/auth";
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
 import Avatar from 'primevue/avatar';
+import SkeletonCard from '@/Components/SkeletonCard.vue';
 
 const meName = ref("ME");
 const firstName = computed(() => (meName.value || "").split(" ")[0] || "");
@@ -389,6 +428,34 @@ async function fetchApps() {
   apps.value = unwrapPaginated(res.data);
 }
 
+const interviews = ref([])
+async function fetchInterviews() {
+  try {
+    const res = await api.get("/interviews")
+    const list = unwrapPaginated(res.data)
+    const now = new Date()
+    interviews.value = list
+      .filter(i => i.scheduled_start && new Date(i.scheduled_start) >= now)
+      .sort((a, b) => new Date(a.scheduled_start) - new Date(b.scheduled_start))
+      .slice(0, 3)
+  } catch {}
+}
+
+const pipeline = computed(() => {
+  const stages = [
+    { key: 'submitted', label: 'Applied', color: 'bg-blue-500', light: 'bg-blue-50', text: 'text-blue-700' },
+    { key: 'review', label: 'In Review', color: 'bg-yellow-500', light: 'bg-yellow-50', text: 'text-yellow-700' },
+    { key: 'interview', label: 'Interview', color: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-700' },
+    { key: 'hired', label: 'Hired', color: 'bg-emerald-500', light: 'bg-emerald-50', text: 'text-emerald-700' },
+  ]
+  const total = apps.value.length || 1
+  return stages.map(s => ({
+    ...s,
+    count: apps.value.filter(a => a.status === s.key || (s.key === 'submitted' && a.status === 'new')).length,
+    pct: Math.round((apps.value.filter(a => a.status === s.key || (s.key === 'submitted' && a.status === 'new')).length / total) * 100),
+  }))
+})
+
 async function fetchJobs() {
   jobsLoading.value = true;
   try {
@@ -417,6 +484,7 @@ onMounted(async () => {
   await fetchMe();
   await fetchApps();
   await fetchJobs();
+  await fetchInterviews();
 });
 </script>
 

@@ -16,6 +16,8 @@ class JobApplication extends Model
         'applicant_user_id',
         'status',
         'cover_letter',
+        'resume_document_id',
+        'cover_letter_document_id',
         'submitted_at',
     ];
 

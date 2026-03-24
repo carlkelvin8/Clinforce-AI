@@ -16,20 +16,72 @@
       </div>
 
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 -mt-8">
-        <!-- Search Filters -->
+        <!-- Tabs -->
+        <div class="flex gap-2 mb-6">
+          <button
+            @click="switchTab('browse')"
+            class="px-5 py-2 rounded-full text-sm font-semibold transition-all"
+            :class="activeTab === 'browse' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'"
+          >Browse Jobs</button>
+          <button
+            @click="switchTab('saved')"
+            class="px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-1.5"
+            :class="activeTab === 'saved' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'"
+          >
+            <i class="pi pi-bookmark text-xs"></i>
+            Saved Jobs
+            <span v-if="savedJobs.length" class="ml-1 bg-white/30 text-current rounded-full px-1.5 text-xs">{{ savedJobs.length }}</span>
+          </button>
+        </div>
+
+        <!-- Saved Jobs Tab -->
+        <div v-if="activeTab === 'saved'">
+          <div v-if="savedLoading" class="py-12 text-center">
+            <i class="pi pi-spin pi-spinner text-4xl text-blue-600 mb-4"></i>
+          </div>
+          <div v-else-if="savedJobs.length === 0" class="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-300">
+            <i class="pi pi-bookmark text-4xl text-gray-300 mb-3 block"></i>
+            <h3 class="text-lg font-bold text-gray-900 mb-1">No saved jobs</h3>
+            <p class="text-gray-500">Jobs you bookmark will appear here.</p>
+          </div>
+          <div v-else class="grid gap-4 md:gap-6">
+            <div
+              v-for="j in savedJobs"
+              :key="j.id"
+              class="group bg-white rounded-xl border border-gray-200 p-5 md:p-6 hover:shadow-xl hover:border-blue-200 transition-all duration-300 cursor-pointer"
+              @click="viewJob(j)"
+            >
+              <div class="flex flex-col md:flex-row gap-4 md:items-start justify-between">
+                <div class="flex-1 min-w-0">
+                  <h3 class="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{{ j.title || 'Untitled job' }}</h3>
+                  <div class="flex flex-wrap gap-2 mt-3">
+                    <span v-if="pickLocation(j)" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-600 text-xs font-medium border border-gray-200">
+                      <MapPin class="w-3 h-3" />{{ pickLocation(j) }}
+                    </span>
+                    <span v-if="j.employment_type" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
+                      <Clock class="w-3 h-3" />{{ formatEnum(j.employment_type) }}
+                    </span>
+                  </div>
+                </div>
+                <Button label="View" size="small" outlined class="!rounded-lg !text-sm !font-semibold !px-4 !border-gray-300 !text-gray-700 hover:!bg-gray-50" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Browse Tab -->
+        <div v-if="activeTab === 'browse'">
         <div class="bg-white rounded-xl shadow-lg border border-gray-100 p-4 md:p-6 mb-8 relative z-10">
           <div class="grid md:grid-cols-12 gap-4 items-end">
-            <div class="md:col-span-5 space-y-1.5">
+            <div class="md:col-span-4 space-y-1.5">
               <label for="search" class="block text-sm font-semibold text-gray-700">Search</label>
-              <div class="relative">
-                <InputText 
-                  id="search" 
-                  v-model="q" 
-                  placeholder="Job title, keywords, or company" 
-                  @keydown.enter.prevent="fetchJobs(1)" 
-                  class="w-full !py-2.5 !pl-4 !rounded-lg !bg-gray-50 !border-gray-200 focus:!bg-white focus:!border-blue-500 focus:!ring-blue-500 transition-all"
-                />
-              </div>
+              <InputText 
+                id="search" 
+                v-model="q" 
+                placeholder="Job title, keywords, or company" 
+                @keydown.enter.prevent="fetchJobs(1)" 
+                class="w-full !py-2.5 !pl-4 !rounded-lg !bg-gray-50 !border-gray-200 focus:!bg-white focus:!border-blue-500 focus:!ring-blue-500 transition-all"
+              />
             </div>
             <div class="md:col-span-2 space-y-1.5">
               <label class="block text-sm font-semibold text-gray-700">Location</label>
@@ -39,7 +91,7 @@
                 optionLabel="label" 
                 optionValue="value" 
                 placeholder="Any location" 
-                class="w-full !rounded-lg !bg-gray-50 !border-gray-200 focus:!bg-white focus:!border-blue-500"
+                class="w-full !rounded-lg !bg-gray-50 !border-gray-200"
                 @change="fetchJobs(1)"
               />
             </div>
@@ -51,11 +103,23 @@
                 optionLabel="label" 
                 optionValue="value" 
                 placeholder="Any type" 
-                class="w-full !rounded-lg !bg-gray-50 !border-gray-200 focus:!bg-white focus:!border-blue-500"
+                class="w-full !rounded-lg !bg-gray-50 !border-gray-200"
                 @change="fetchJobs(1)"
               />
             </div>
-            <div class="md:col-span-3 flex gap-2">
+            <div class="md:col-span-2 space-y-1.5">
+              <label class="block text-sm font-semibold text-gray-700">Work mode</label>
+              <Select 
+                v-model="workMode" 
+                :options="workModeOptions" 
+                optionLabel="label" 
+                optionValue="value" 
+                placeholder="Any mode" 
+                class="w-full !rounded-lg !bg-gray-50 !border-gray-200"
+                @change="fetchJobs(1)"
+              />
+            </div>
+            <div class="md:col-span-2 flex gap-2 items-end">
                <Button 
                 label="Search" 
                 @click="fetchJobs(1)" 
@@ -69,6 +133,36 @@
                 :disabled="loading" 
                 class="!text-gray-600 hover:!bg-gray-50 !rounded-lg"
               />
+            </div>
+          </div>
+          <!-- Salary range row -->
+          <div class="grid md:grid-cols-12 gap-4 items-end mt-4 pt-4 border-t border-gray-100">
+            <div class="md:col-span-3 space-y-1.5">
+              <label class="block text-sm font-semibold text-gray-700">Min salary</label>
+              <InputNumber 
+                v-model="salaryMin" 
+                placeholder="e.g. 30000" 
+                :min="0"
+                :useGrouping="true"
+                class="w-full"
+                inputClass="!rounded-lg !bg-gray-50 !border-gray-200 !py-2.5 w-full"
+                @blur="fetchJobs(1)"
+              />
+            </div>
+            <div class="md:col-span-3 space-y-1.5">
+              <label class="block text-sm font-semibold text-gray-700">Max salary</label>
+              <InputNumber 
+                v-model="salaryMax" 
+                placeholder="e.g. 80000" 
+                :min="0"
+                :useGrouping="true"
+                class="w-full"
+                inputClass="!rounded-lg !bg-gray-50 !border-gray-200 !py-2.5 w-full"
+                @blur="fetchJobs(1)"
+              />
+            </div>
+            <div class="md:col-span-6 flex items-end">
+              <p class="text-xs text-gray-400">Leave blank to show all salary ranges. Filters jobs where salary overlaps your range.</p>
             </div>
           </div>
         </div>
@@ -172,6 +266,7 @@
             </Button>
           </div>
         </div>
+        </div><!-- end browse tab -->
       </div>
     </div>
   </AppLayout>
@@ -185,6 +280,7 @@ import api from "@/lib/api";
 
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
+import InputNumber from 'primevue/inputnumber';
 import Select from 'primevue/select';
 import Message from 'primevue/message';
 import { Search, MapPin, Briefcase, Clock, Monitor, Building, ChevronLeft, ChevronRight } from 'lucide-vue-next';
@@ -197,12 +293,34 @@ const loading = ref(false);
 const error = ref("");
 
 const payload = ref(null);
+const savedJobs = ref([]);
+const activeTab = ref('browse'); // 'browse' | 'saved'
+const savedLoading = ref(false);
+
+async function fetchSavedJobs() {
+  savedLoading.value = true;
+  try {
+    const res = await api.get('/saved-jobs');
+    savedJobs.value = res.data?.data || [];
+  } catch {
+    savedJobs.value = [];
+  } finally {
+    savedLoading.value = false;
+  }
+}
+
+function switchTab(tab) {
+  activeTab.value = tab;
+  if (tab === 'saved') fetchSavedJobs();
+}
 
 const q = ref("");
 const city = ref(null);
 const dept = ref(null);
 const employmentType = ref(null);
 const workMode = ref(null);
+const salaryMin = ref(null);
+const salaryMax = ref(null);
 const employerIdFilter = ref(route.query.employer_id ? String(route.query.employer_id) : "");
 
 const locationOptions = [
@@ -346,6 +464,8 @@ async function fetchJobs(page = 1) {
 
     if (employmentType.value) params.employment_type = employmentType.value;
     if (workMode.value) params.work_mode = workMode.value;
+    if (salaryMin.value != null && salaryMin.value > 0) params.salary_min = salaryMin.value;
+    if (salaryMax.value != null && salaryMax.value > 0) params.salary_max = salaryMax.value;
     if (employerIdFilter.value) params.employer_id = employerIdFilter.value;
 
     const res = await api.get("/public/jobs", { params });
@@ -364,6 +484,8 @@ function resetFilters() {
   dept.value = "";
   employmentType.value = "";
   workMode.value = "";
+  salaryMin.value = null;
+  salaryMax.value = null;
   employerIdFilter.value = "";
   router.replace({ name: 'candidate.jobs', query: {} });
   fetchJobs(1);

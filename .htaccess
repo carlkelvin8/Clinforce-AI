@@ -1,13 +1,18 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-  
-  # Don't rewrite real files or directories
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  
-  # Rewrite all requests to index.html for Vue Router
-  RewriteRule ^ index.html [QSA,L]
+
+  # Handle Authorization Header
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+  # Real files and directories pass through (build/, banners/, storage/, etc.)
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Everything else → Laravel index.php (handles /api/*, /auth/*, and serves the Vue SPA)
+  RewriteRule ^ index.php [L]
 </IfModule>
 
 # Gzip Compression

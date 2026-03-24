@@ -15,6 +15,60 @@ import { countries } from '@/lib/countries'
 
 import ToggleSwitch from 'primevue/toggleswitch';
 
+// 2FA
+const twoFa = ref({ enabled: false, qr_code_url: null, secret: null })
+const twoFaLoading = ref(false)
+const twoFaSaving = ref(false)
+const twoFaCode = ref('')
+const twoFaStep = ref('status') // 'status' | 'setup' | 'verify'
+
+async function load2Fa() {
+  twoFaLoading.value = true
+  try {
+    const res = await api.get('/2fa/status')
+    twoFa.value = res.data?.data ?? res.data
+  } catch {}
+  finally { twoFaLoading.value = false }
+}
+
+async function setup2Fa() {
+  twoFaSaving.value = true
+  try {
+    const res = await api.post('/2fa/setup')
+    twoFa.value = { ...twoFa.value, ...(res.data?.data ?? res.data) }
+    twoFaStep.value = 'verify'
+  } catch (e) {
+    await Swal.fire({ icon: 'error', title: 'Failed', text: e?.response?.data?.message || 'Could not set up 2FA' })
+  } finally { twoFaSaving.value = false }
+}
+
+async function enable2Fa() {
+  twoFaSaving.value = true
+  try {
+    await api.post('/2fa/enable', { code: twoFaCode.value })
+    twoFa.value.enabled = true
+    twoFaStep.value = 'status'
+    twoFaCode.value = ''
+    await Swal.fire({ icon: 'success', title: '2FA Enabled', text: 'Two-factor authentication is now active.', timer: 2000, showConfirmButton: false })
+  } catch (e) {
+    await Swal.fire({ icon: 'error', title: 'Invalid code', text: e?.response?.data?.message || 'Verification failed' })
+  } finally { twoFaSaving.value = false }
+}
+
+async function disable2Fa() {
+  const { isConfirmed } = await Swal.fire({ icon: 'warning', title: 'Disable 2FA?', text: 'This will remove two-factor authentication from your account.', showCancelButton: true })
+  if (!isConfirmed) return
+  twoFaSaving.value = true
+  try {
+    await api.post('/2fa/disable')
+    twoFa.value.enabled = false
+    twoFaStep.value = 'status'
+    await Swal.fire({ icon: 'success', title: 'Disabled', timer: 1500, showConfirmButton: false })
+  } catch (e) {
+    await Swal.fire({ icon: 'error', title: 'Failed', text: e?.response?.data?.message || 'Could not disable 2FA' })
+  } finally { twoFaSaving.value = false }
+}
+
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -241,6 +295,7 @@ onMounted(async () => {
   await loadMe()
   loadProfile()
   loadNotificationPrefs()
+  load2Fa()
   ensureBillingContext()
 })
 </script>
@@ -356,6 +411,53 @@ onMounted(async () => {
                 </div>
                 <div class="flex justify-end">
                   <Button label="Save preferences" icon="pi pi-save" :loading="notifSaving" @click="saveNotificationPrefs" />
+                </div>
+              </div>
+            </template>
+          </Card>
+
+          <!-- 2FA Card -->
+          <Card class="h-full">
+            <template #title>Two-Factor Authentication</template>
+            <template #content>
+              <div v-if="twoFaLoading" class="py-4 text-center text-slate-400">
+                <i class="pi pi-spin pi-spinner"></i>
+              </div>
+              <div v-else class="space-y-4">
+                <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <div>
+                    <div class="font-semibold text-slate-900">{{ twoFa.enabled ? '2FA is enabled' : '2FA is disabled' }}</div>
+                    <div class="text-xs text-slate-500 mt-0.5">{{ twoFa.enabled ? 'Your account is protected with an authenticator app.' : 'Add an extra layer of security to your account.' }}</div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs" :class="twoFa.enabled ? 'text-emerald-600' : 'text-slate-400'">{{ twoFa.enabled ? 'Active' : 'Inactive' }}</span>
+                    <span class="w-2.5 h-2.5 rounded-full" :class="twoFa.enabled ? 'bg-emerald-500' : 'bg-slate-300'"></span>
+                  </div>
+                </div>
+
+                <!-- Setup flow -->
+                <div v-if="twoFaStep === 'verify' && twoFa.qr_code_url" class="space-y-4">
+                  <p class="text-sm text-slate-700">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.):</p>
+                  <div class="flex justify-center">
+                    <img :src="twoFa.qr_code_url" alt="2FA QR Code" class="w-48 h-48 border border-slate-200 rounded-xl p-2 bg-white" />
+                  </div>
+                  <div v-if="twoFa.secret" class="text-center">
+                    <p class="text-xs text-slate-500 mb-1">Or enter this key manually:</p>
+                    <code class="text-xs bg-slate-100 px-3 py-1.5 rounded-lg font-mono">{{ twoFa.secret }}</code>
+                  </div>
+                  <div class="space-y-1.5">
+                    <label class="text-sm font-semibold text-slate-700">Enter 6-digit code to verify</label>
+                    <InputText v-model="twoFaCode" placeholder="000000" maxlength="6" class="w-full text-center tracking-widest text-lg" />
+                  </div>
+                  <div class="flex gap-2">
+                    <Button label="Cancel" text severity="secondary" @click="twoFaStep = 'status'" />
+                    <Button label="Enable 2FA" icon="pi pi-shield" :loading="twoFaSaving" @click="enable2Fa" />
+                  </div>
+                </div>
+
+                <div v-else class="flex gap-2">
+                  <Button v-if="!twoFa.enabled" label="Set up 2FA" icon="pi pi-shield" :loading="twoFaSaving" @click="setup2Fa" />
+                  <Button v-else label="Disable 2FA" icon="pi pi-shield" severity="danger" outlined :loading="twoFaSaving" @click="disable2Fa" />
                 </div>
               </div>
             </template>

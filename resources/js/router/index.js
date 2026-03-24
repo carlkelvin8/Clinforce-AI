@@ -15,6 +15,19 @@ const Privacy = () => import("@/Pages/Privacy.vue");
 const Terms = () => import("@/Pages/Terms.vue");
 const NotFound = () => import("@/Pages/NotFound.vue");
 
+// --- Admin pages ---
+const AdminDashboard    = () => import("@/Pages/Admin/Dashboard.vue");
+const AdminAnalytics    = () => import("@/Pages/Admin/Analytics.vue");
+const AdminUsers        = () => import("@/Pages/Admin/Users.vue");
+const AdminJobs         = () => import("@/Pages/Admin/Jobs.vue");
+const AdminSubscriptions= () => import("@/Pages/Admin/Subscriptions.vue");
+const AdminPlans        = () => import("@/Pages/Admin/Plans.vue");
+const AdminVerifications= () => import("@/Pages/Admin/Verifications.vue");
+const AdminAuditLogs    = () => import("@/Pages/Admin/AuditLogs.vue");
+const AdminSystemStatus = () => import("@/Pages/Admin/SystemStatus.vue");
+const AdminContacts     = () => import("@/Pages/Admin/Contacts.vue");
+const AdminAiScreenings = () => import("@/Pages/Admin/AiScreenings.vue");
+
 // --- Staff pages ---
 const EmployerDashboard = () => import("@/Pages/Employer/Dashboard.vue");
 const EmployerJobs = () => import("@/Pages/Employer/Jobs/JobsIndex.vue");
@@ -28,6 +41,11 @@ const EmployerBilling = () => import("@/Pages/Employer/Billing.vue");
 const EmployerPaymentMethod = () => import("@/Pages/Billing/PaymentMethod.vue");
 const EmployerCandidateProfile = () => import("@/Pages/Employer/CandidateProfile.vue");
 const EmployerSettings = () => import("@/Pages/Employer/Settings.vue");
+const EmployerAnalytics = () => import("@/Pages/Employer/Analytics.vue");
+const PublicEmployerProfile = () => import("@/Pages/Public/EmployerProfile.vue");
+const EmployerKanbanBoard = () => import("@/Pages/Employer/KanbanBoard.vue");
+const EmployerJobTemplates = () => import("@/Pages/Employer/JobTemplates.vue");
+const EmployerApplicantComparison = () => import("@/Pages/Employer/ApplicantComparison.vue");
 
 // --- Applicants (staff side) ---
 const ApplicantsList = () => import("@/Applicants/ApplicantsList.vue");
@@ -45,6 +63,8 @@ const CandidateInvitations = () => import("@/Pages/Candidate/Invitations.vue");
 const CandidateProfile = () => import("@/Pages/Candidate/Profile.vue");
 const CandidateMessages = () => import("@/Pages/Candidate/Messages.vue");
 const CandidateSettings = () => import("@/Pages/Candidate/Settings.vue");
+const CandidateResumeBuilder = () => import("@/Pages/Candidate/ResumeBuilder.vue");
+const CandidateJobAlerts = () => import("@/Pages/Candidate/JobAlerts.vue");
 
 // ---------- helpers ----------
 function safeParse(raw) {
@@ -80,6 +100,7 @@ function isStaff(user) {
 }
 
 function homeRouteFor(user) {
+  if (user?.role === 'admin') return { name: 'admin.dashboard' };
   return isStaff(user) ? { name: "employer.dashboard" } : { name: "candidate.dashboard" };
 }
 
@@ -150,7 +171,11 @@ const routes = [
   { path: "/employer/billing", name: "employer.billing", component: EmployerBilling, meta: staffMeta },
   { path: "/employer/payment-method", name: "employer.payment-method", component: EmployerPaymentMethod, meta: staffMeta },
   { path: "/employer/settings", name: "employer.settings", component: EmployerSettings, meta: staffMeta },
+  { path: "/employer/analytics", name: "employer.analytics", component: EmployerAnalytics, meta: staffMeta },
   { path: "/employer/candidates/:id", name: "employer.candidates.view", component: EmployerCandidateProfile, props: true, meta: staffMeta },
+  { path: "/employer/pipeline", name: "employer.pipeline", component: EmployerKanbanBoard, meta: staffMeta },
+  { path: "/employer/job-templates", name: "employer.job-templates", component: EmployerJobTemplates, meta: staffMeta },
+  { path: "/employer/compare", name: "employer.compare", component: EmployerApplicantComparison, meta: staffMeta },
 
   // Applicants (staff side)
   { path: "/applicants", name: "applicants.list", component: ApplicantsList, meta: staffMeta },
@@ -180,6 +205,24 @@ const routes = [
   { path: "/candidate/profile", name: "candidate.profile", component: CandidateProfile, meta: candidateMeta },
   { path: "/candidate/messages", name: "candidate.messages", component: CandidateMessages, meta: candidateMeta },
   { path: "/candidate/settings", name: "candidate.settings", component: CandidateSettings, meta: candidateMeta },
+  { path: "/candidate/resume-builder", name: "candidate.resume-builder", component: CandidateResumeBuilder, meta: candidateMeta },
+  { path: "/candidate/job-alerts", name: "candidate.job-alerts", component: CandidateJobAlerts, meta: candidateMeta },
+
+  // Admin (role=admin only)
+  { path: "/admin",                name: "admin.dashboard",     component: AdminDashboard,     meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/analytics",      name: "admin.analytics",     component: AdminAnalytics,     meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/users",          name: "admin.users",         component: AdminUsers,         meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/jobs",           name: "admin.jobs",          component: AdminJobs,          meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/subscriptions",  name: "admin.subscriptions", component: AdminSubscriptions, meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/plans",          name: "admin.plans",         component: AdminPlans,         meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/verifications",  name: "admin.verifications", component: AdminVerifications, meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/audit-logs",     name: "admin.audit-logs",    component: AdminAuditLogs,     meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/system",         name: "admin.system",        component: AdminSystemStatus,  meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/contacts",       name: "admin.contacts",      component: AdminContacts,      meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/ai-screenings",  name: "admin.ai-screenings", component: AdminAiScreenings,  meta: { requiresAuth: true, roles: ['admin'] } },
+
+  // Public pages
+  { path: "/employer/:slug", name: "public.employer", component: PublicEmployerProfile },
 
   { path: "/:pathMatch(.*)*", name: "notfound", component: NotFound },
 ];

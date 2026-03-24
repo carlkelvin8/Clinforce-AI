@@ -7,16 +7,40 @@ use App\Http\Requests\Api\InterviewStoreRequest;
 use App\Http\Requests\Api\InterviewUpdateRequest;
 use App\Models\Interview;
 use App\Models\JobApplication;
-use App\Models\ZoomFilterSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use App\Mail\InterviewScheduled;
 
 class InterviewsController extends ApiController
 {
+    public function show(Interview $interview): JsonResponse
+    {
+        $u = $this->requireAuth();
+
+        $interview->load(['application.job', 'application.applicant.applicantProfile']);
+
+        $job = $interview->application?->job;
+
+        $isOwner = $job
+            && in_array($u->role, ['employer', 'agency'], true)
+            && $job->owner_user_id === $u->id
+            && $job->owner_type === $u->role;
+
+        $isApplicant = $interview->application
+            && $interview->application->applicant_user_id === $u->id;
+
+        if ($u->role !== 'admin' && !$isOwner && !$isApplicant) {
+            return $this->fail('Forbidden', null, 403);
+        }
+
+        return $this->ok($interview);
+    }
+
     public function index(): JsonResponse
     {
         $u = $this->requireAuth();
@@ -132,6 +156,17 @@ class InterviewsController extends ApiController
             ]);
         });
 
+        // Email the applicant about the scheduled interview
+        try {
+            $interview->load(['application.job', 'application.applicant']);
+            $applicantEmail = $interview->application?->applicant?->email;
+            if ($applicantEmail) {
+                Mail::to($applicantEmail)->send(new InterviewScheduled($interview));
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Failed to send interview scheduled email', ['error' => $e->getMessage()]);
+        }
+
         return $this->ok($interview, 'Interview scheduled', 201);
     }
 
@@ -212,6 +247,59 @@ class InterviewsController extends ApiController
         });
 
         return $this->ok($interview->fresh(), 'Updated');
+    }
+
+    /** GET /interviews/{interview}/ics — download .ics calendar file */
+    public function exportIcs(Interview $interview): \Illuminate\Http\Response
+    {
+        $u = $this->requireAuth();
+        $interview->load(['application.job', 'application.applicant']);
+
+        $job = $interview->application?->job;
+
+        $isOwner = $job
+            && in_array($u->role, ['employer', 'agency'], true)
+            && $job->owner_user_id === $u->id
+            && $job->owner_type === $u->role;
+
+        $isApplicant = $interview->application
+            && $interview->application->applicant_user_id === $u->id;
+
+        if ($u->role !== 'admin' && !$isOwner && !$isApplicant) {
+            abort(403);
+        }
+
+        $title   = 'Interview: ' . ($job?->title ?? 'Job Interview');
+        $start   = $interview->scheduled_start->format('Ymd\THis\Z');
+        $end     = $interview->scheduled_end->format('Ymd\THis\Z');
+        $now     = now()->format('Ymd\THis\Z');
+        $uid     = 'interview-' . $interview->id . '@clinforce';
+        $loc     = $interview->meeting_link ?: ($interview->location_text ?: '');
+        $desc    = $interview->meeting_link ? "Join: {$interview->meeting_link}" : ($interview->location_text ?? '');
+
+        $ics = implode("\r\n", [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//Clinforce//Interview//EN',
+            'CALSCALE:GREGORIAN',
+            'METHOD:REQUEST',
+            'BEGIN:VEVENT',
+            "UID:{$uid}",
+            "DTSTAMP:{$now}",
+            "DTSTART:{$start}",
+            "DTEND:{$end}",
+            "SUMMARY:{$title}",
+            "DESCRIPTION:{$desc}",
+            "LOCATION:{$loc}",
+            'STATUS:CONFIRMED',
+            'END:VEVENT',
+            'END:VCALENDAR',
+        ]);
+
+        return response($ics, 200, [
+            'Content-Type'        => 'text/calendar; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="interview-' . $interview->id . '.ics"',
+        ]);
     }
 
     public function cancel(InterviewCancelRequest $request, Interview $interview): JsonResponse
@@ -295,32 +383,27 @@ class InterviewsController extends ApiController
 
         $duration = max(15, $start->diffInMinutes($end));
 
+        // Only valid per-meeting settings (Zoom API v2)
         $settings = [
-            'join_before_host' => true,
-            'waiting_room' => false,
-            'host_video' => true,
-            'participant_video' => true,
-            'mute_upon_entry' => false,
-            'auto_recording' => 'none',
-            'enforce_login' => false,
+            'host_video'         => true,
+            'participant_video'  => true,
+            'join_before_host'   => true,
+            'mute_upon_entry'    => false,
+            'waiting_room'       => false,
+            'approval_type'      => 2,   // no registration required
+            'auto_recording'     => 'none',
         ];
-
-        $u = request()->user();
-        if ($u) {
-            $filter = ZoomFilterSetting::where('user_id', $u->id)->first();
-            if ($filter && $filter->lock_name) {
-                $settings['allow_participants_to_rename'] = false;
-            }
-        }
 
         $payload = [
-            'topic' => $topic ?: ('Interview ' . Str::upper(Str::random(6))),
-            'type' => 2,
+            'topic'      => $topic ?: ('Interview ' . Str::upper(Str::random(6))),
+            'type'       => 2,
             'start_time' => $start->toIso8601String(),
-            'duration' => $duration,
-            'timezone' => $tz,
-            'settings' => $settings,
+            'duration'   => $duration,
+            'timezone'   => $tz,
+            'settings'   => $settings,
         ];
+
+        \Log::info('Zoom create meeting payload', $payload);
 
         $res = Http::withoutVerifying()
             ->withToken($token)
@@ -329,21 +412,25 @@ class InterviewsController extends ApiController
             ->post("https://api.zoom.us/v2/users/{$userId}/meetings", $payload);
 
         if (!$res->successful()) {
-            return [
-                'ok' => false,
+            \Log::error('Zoom create meeting failed', [
                 'status' => $res->status(),
-                'error' => $res->json() ?: $res->body(),
+                'body'   => $res->json() ?: $res->body(),
+            ]);
+            return [
+                'ok'     => false,
+                'status' => $res->status(),
+                'error'  => $res->json() ?: $res->body(),
             ];
         }
 
         $j = $res->json();
 
         return [
-            'ok' => true,
-            'id' => (string)($j['id'] ?? ''),
-            'join_url' => (string)($j['join_url'] ?? ''),
-            'start_url' => (string)($j['start_url'] ?? ''),
-            'raw' => $j,
+            'ok'        => true,
+            'id'        => (string) ($j['id'] ?? ''),
+            'join_url'  => (string) ($j['join_url'] ?? ''),
+            'start_url' => (string) ($j['start_url'] ?? ''),
+            'raw'       => $j,
         ];
     }
 }

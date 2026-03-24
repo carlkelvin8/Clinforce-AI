@@ -4,8 +4,8 @@
             <!-- Header -->
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900">Application Details</h1>
-                    <p class="text-sm text-gray-500 mt-1">Pulled from <span class="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded">GET /api/applications/:id</span></p>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Application Details</h1>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Track your application status and history</p>
                 </div>
                 <div class="flex gap-2">
                     <Button label="Refresh" icon="pi pi-refresh" :loading="loading" @click="fetchData" severity="secondary" outlined />
@@ -42,12 +42,8 @@
                                     <span class="block text-gray-900 font-semibold">{{ app.job?.title || "Job" }}</span>
                                 </div>
                                 <div>
-                                    <span class="block text-sm font-medium text-gray-500">Job ID</span>
-                                    <span class="block text-gray-900 font-semibold">{{ app.job_id }}</span>
-                                </div>
-                                <div>
-                                    <span class="block text-sm font-medium text-gray-500">Applicant User ID</span>
-                                    <span class="block text-gray-900 font-semibold">{{ app.applicant_user_id }}</span>
+                                    <span class="block text-sm font-medium text-gray-500">Status</span>
+                                    <span class="block text-gray-900 font-semibold capitalize">{{ app.status }}</span>
                                 </div>
                             </div>
 
@@ -69,19 +65,31 @@
                         <template #title>Status History</template>
                         <template #subtitle>Updates over time</template>
                         <template #content>
-                            <div v-if="history.length === 0" class="text-sm text-gray-500">No status history.</div>
-                            <Timeline v-else :value="history">
+                            <div v-if="history.length === 0" class="text-sm text-gray-500 italic">No status history yet.</div>
+                            <Timeline v-else :value="history" class="app-timeline">
+                                <template #marker="slotProps">
+                                    <span
+                                        class="flex w-8 h-8 items-center justify-center rounded-full border-2 shadow-sm"
+                                        :class="timelineDotClass(slotProps.item.to_status)"
+                                    >
+                                        <i :class="timelineDotIcon(slotProps.item.to_status)" class="text-xs"></i>
+                                    </span>
+                                </template>
                                 <template #opposite="slotProps">
-                                    <small class="text-surface-500 dark:text-surface-400">{{ formatDate(slotProps.item.created_at) }}</small>
+                                    <small class="text-gray-400 text-xs whitespace-nowrap">{{ formatDate(slotProps.item.created_at) }}</small>
                                 </template>
                                 <template #content="slotProps">
-                                    <div class="flex flex-col">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-sm font-mono text-gray-500">{{ slotProps.item.from_status || "—" }}</span>
-                                            <i class="pi pi-arrow-right text-xs text-gray-400"></i>
-                                            <span class="text-sm font-mono font-bold text-gray-900">{{ slotProps.item.to_status }}</span>
+                                    <div class="flex flex-col gap-1 pb-4">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span v-if="slotProps.item.from_status" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                                {{ formatStatus(slotProps.item.from_status) }}
+                                            </span>
+                                            <i v-if="slotProps.item.from_status" class="pi pi-arrow-right text-xs text-gray-400"></i>
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold" :class="statusBadgeClass(slotProps.item.to_status)">
+                                                {{ formatStatus(slotProps.item.to_status) }}
+                                            </span>
                                         </div>
-                                        <span v-if="slotProps.item.note" class="text-xs text-gray-600 mt-1 italic">{{ slotProps.item.note }}</span>
+                                        <span v-if="slotProps.item.note" class="text-xs text-gray-500 italic">{{ slotProps.item.note }}</span>
                                     </div>
                                 </template>
                             </Timeline>
@@ -115,11 +123,34 @@
                             </div>
                         </template>
                     </Card>
+
+                    <!-- Resume Preview Card -->
+                    <Card v-if="app.has_resume">
+                        <template #title>Resume</template>
+                        <template #content>
+                            <Button label="Preview Resume" icon="pi pi-eye" class="w-full" outlined @click="openResumePreview" :loading="previewLoading" />
+                        </template>
+                    </Card>
                 </div>
             </div>
         </div>
         <ConfirmDialog />
         <Toast />
+
+        <!-- Resume Preview Dialog -->
+        <Dialog v-model:visible="showPreview" modal header="Resume Preview" :style="{ width: '90vw', maxWidth: '900px' }" :contentStyle="{ padding: 0 }">
+            <div v-if="previewLoading" class="flex justify-center items-center h-64">
+                <ProgressSpinner />
+            </div>
+            <div v-else-if="previewError" class="p-6 text-center text-red-500">{{ previewError }}</div>
+            <iframe
+                v-else-if="previewBlobUrl"
+                :src="previewBlobUrl"
+                class="w-full"
+                style="height: 80vh; border: none;"
+                title="Resume Preview"
+            ></iframe>
+        </Dialog>
     </AppLayout>
 </template>
 
@@ -136,6 +167,7 @@ import Timeline from 'primevue/timeline';
 import ProgressSpinner from 'primevue/progressspinner';
 import ConfirmDialog from 'primevue/confirmdialog';
 import Toast from 'primevue/toast';
+import Dialog from 'primevue/dialog';
 import { useConfirm } from "primevue/useconfirm";
 import { useToast } from "primevue/usetoast";
 
@@ -173,6 +205,47 @@ function getSeverity(status) {
         case 'withdrawn': return 'secondary';
         default: return 'secondary';
     }
+}
+
+function formatStatus(s) {
+    if (!s) return '—';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function timelineDotClass(status) {
+    const map = {
+        submitted:   'bg-blue-50 border-blue-400 text-blue-600',
+        shortlisted: 'bg-indigo-50 border-indigo-400 text-indigo-600',
+        interview:   'bg-amber-50 border-amber-400 text-amber-600',
+        hired:       'bg-green-50 border-green-500 text-green-600',
+        rejected:    'bg-red-50 border-red-400 text-red-600',
+        withdrawn:   'bg-gray-100 border-gray-400 text-gray-500',
+    };
+    return map[status] || 'bg-gray-100 border-gray-300 text-gray-500';
+}
+
+function timelineDotIcon(status) {
+    const map = {
+        submitted:   'pi pi-send',
+        shortlisted: 'pi pi-star',
+        interview:   'pi pi-calendar',
+        hired:       'pi pi-check-circle',
+        rejected:    'pi pi-times-circle',
+        withdrawn:   'pi pi-minus-circle',
+    };
+    return map[status] || 'pi pi-circle';
+}
+
+function statusBadgeClass(status) {
+    const map = {
+        submitted:   'bg-blue-100 text-blue-700',
+        shortlisted: 'bg-indigo-100 text-indigo-700',
+        interview:   'bg-amber-100 text-amber-700',
+        hired:       'bg-green-100 text-green-700',
+        rejected:    'bg-red-100 text-red-700',
+        withdrawn:   'bg-gray-100 text-gray-600',
+    };
+    return map[status] || 'bg-gray-100 text-gray-600';
 }
 
 const canWithdraw = computed(() => {
@@ -242,6 +315,35 @@ async function withdraw() {
     }
 }
 
+// Resume preview
+const showPreview = ref(false);
+const previewLoading = ref(false);
+const previewError = ref('');
+const previewBlobUrl = ref('');
+
+async function openResumePreview() {
+    showPreview.value = true;
+    previewLoading.value = true;
+    previewError.value = '';
+    if (previewBlobUrl.value) {
+        previewLoading.value = false;
+        return;
+    }
+    try {
+        const token = localStorage.getItem('auth_token') || '';
+        const res = await fetch(`/api/applications/${app.value.id}/resume`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Could not load resume');
+        const blob = await res.blob();
+        previewBlobUrl.value = URL.createObjectURL(blob);
+    } catch (e) {
+        previewError.value = e?.message || 'Failed to load resume preview.';
+    } finally {
+        previewLoading.value = false;
+    }
+}
+
 onMounted(() => fetchData());
 </script>
 
@@ -250,5 +352,18 @@ onMounted(() => fetchData());
   border: 1px solid #e2e8f0 !important;
   box-shadow: none !important;
   background-color: #ffffff !important;
+}
+.dark :deep(.p-card) {
+  border-color: #374151 !important;
+  background-color: #111827 !important;
+  color: #f9fafb !important;
+}
+.dark :deep(.p-card .p-card-title),
+.dark :deep(.p-card .p-card-subtitle),
+.dark :deep(.p-card .p-card-content) {
+  color: #f9fafb !important;
+}
+:deep(.app-timeline .p-timeline-event-connector) {
+  background-color: #e2e8f0;
 }
 </style>

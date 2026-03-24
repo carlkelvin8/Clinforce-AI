@@ -9,155 +9,105 @@ use Carbon\Carbon;
 class SubscriptionService
 {
     /**
-     * Check if user has access (either active subscription or active trial)
+     * Check if a user (employer/agency) has active access.
+     * Includes a 24-hour grace period after expiry.
+     * Admins and applicants are always allowed.
      */
     public function hasAccess(int $userId): bool
     {
-        // 1. Check paid subscription first (most robust)
-        if ($this->hasActiveSubscription($userId)) {
-            return true;
-        }
-
-        // 2. Check for active trial
         $user = User::find($userId);
-        if ($user && $user->onTrial()) {
-            return true;
-        }
+        if (!$user) return false;
 
-        return false;
+        // Non-paying roles always pass
+        if (in_array($user->role, ['admin', 'applicant'], true)) return true;
+
+        return $this->hasActiveSubscription($userId) || $this->isInGracePeriod($userId);
     }
 
     /**
-     * Check if user has an active subscription (paid)
+     * 24-hour grace period after subscription expires.
+     * Allows mid-session work to continue without abrupt lockout.
+     */
+    public function isInGracePeriod(int $userId): bool
+    {
+        return Subscription::where('user_id', $userId)
+            ->whereIn('status', ['active', 'expired'])
+            ->where(function ($q) {
+                $graceEnd = now()->subHours(24);
+                $q->where(function ($inner) use ($graceEnd) {
+                    $inner->whereNotNull('end_at')
+                          ->where('end_at', '<=', now())
+                          ->where('end_at', '>', $graceEnd);
+                })->orWhere(function ($inner) use ($graceEnd) {
+                    $inner->whereNotNull('current_period_end')
+                          ->where('current_period_end', '<=', now())
+                          ->where('current_period_end', '>', $graceEnd);
+                });
+            })
+            ->exists();
+    }
+
+    /**
+     * Check for a currently active paid subscription.
+     * Uses end_at (our column) — falls back to current_period_end for Stripe-synced rows.
      */
     public function hasActiveSubscription(int $userId): bool
     {
-        $subscription = Subscription::where('user_id', $userId)
+        return Subscription::where('user_id', $userId)
             ->whereIn('status', ['active', 'trialing'])
-            ->where(function ($query) {
-                $query->whereNull('current_period_end')
-                    ->orWhere('current_period_end', '>', Carbon::now());
+            ->where(function ($q) {
+                $q->where(function ($inner) {
+                    // Our column
+                    $inner->whereNotNull('end_at')->where('end_at', '>', now());
+                })->orWhere(function ($inner) {
+                    // Stripe-synced column
+                    $inner->whereNotNull('current_period_end')->where('current_period_end', '>', now());
+                })->orWhere(function ($inner) {
+                    // Both null = no expiry set yet, treat as active
+                    $inner->whereNull('end_at')->whereNull('current_period_end');
+                });
             })
-            ->first();
-
-        return $subscription !== null;
+            ->exists();
     }
 
-    /**
-     * Get active subscription for user
-     */
+    /** Get the active subscription with plan loaded. */
     public function getActiveSubscription(int $userId): ?Subscription
     {
         return Subscription::where('user_id', $userId)
             ->whereIn('status', ['active', 'trialing'])
-            ->where(function ($query) {
-                $query->whereNull('current_period_end')
-                    ->orWhere('current_period_end', '>', Carbon::now());
+            ->where(function ($q) {
+                $q->where(function ($inner) {
+                    $inner->whereNotNull('end_at')->where('end_at', '>', now());
+                })->orWhere(function ($inner) {
+                    $inner->whereNotNull('current_period_end')->where('current_period_end', '>', now());
+                })->orWhere(function ($inner) {
+                    $inner->whereNull('end_at')->whereNull('current_period_end');
+                });
             })
             ->with('plan')
             ->first();
     }
 
-    /**
-     * Check if user can access applicant details
-     */
-    public function canAccessApplicantDetails(int $userId): bool
+    /** Check if employer can post jobs (needs active subscription). */
+    public function canPostJobs(int $userId): bool
     {
         $user = User::find($userId);
-        
-        if (!$user) {
-            return false;
-        }
-
-        // Applicants and agencies can always access
-        if (in_array($user->role, ['applicant', 'agency', 'admin'])) {
-            return true;
-        }
-
-        // Employers need active subscription
-        if ($user->role === 'employer') {
-            return $this->hasActiveSubscription($userId);
-        }
-
-        return false;
+        if (!$user) return false;
+        if (in_array($user->role, ['admin'], true)) return true;
+        return $this->hasActiveSubscription($userId);
     }
 
-    /**
-     * Get subscription status details
-     */
-    public function getSubscriptionStatus(int $userId): array
+    /** Check if employer can use AI screening. */
+    public function canUseAiScreening(int $userId): bool
     {
-        $user = User::find($userId);
-        $subscription = $this->getActiveSubscription($userId);
-
-        $status = 'none';
-        $expiresAt = null;
-        $planName = null;
-
-        if ($subscription) {
-            $status = $subscription->status;
-            $planName = $subscription->plan->name ?? 'Standard Plan';
-            $expiresAt = $subscription->current_period_end?->toIso8601String();
-        } elseif ($user) {
-            if ($user->onTrial()) {
-                $status = 'trial_active';
-                $planName = 'Free Trial (7 Days)';
-                $expiresAt = $user->trial_ends_at?->toIso8601String();
-            } elseif ($user->hasExpiredTrial()) {
-                $status = 'trial_expired';
-                $planName = 'Trial Expired';
-                $expiresAt = $user->trial_ends_at?->toIso8601String();
-            }
-        }
-
-        return [
-            'has_subscription' => (bool)$subscription,
-            'has_access' => (bool)$subscription || ($user && $user->onTrial()),
-            'on_trial' => $user ? $user->onTrial() : false,
-            'trial_ends_at' => $user?->trial_ends_at?->toIso8601String(),
-            'status' => $status,
-            'plan_name' => $planName,
-            'expires_at' => $expiresAt,
-            'stripe_subscription_id' => $subscription->stripe_subscription_id ?? null,
-        ];
+        $sub = $this->getActiveSubscription($userId);
+        if (!$sub) return false;
+        return (bool) ($sub->plan?->ai_screening_enabled ?? false);
     }
 
-    /**
-     * Update subscription from Stripe webhook
-     */
-    public function updateFromStripe(array $stripeData): Subscription
+    /** Check if employer can send invitations. */
+    public function canSendInvitations(int $userId): bool
     {
-        $subscription = Subscription::where('stripe_subscription_id', $stripeData['id'])->first();
-
-        if (!$subscription) {
-            throw new \Exception('Subscription not found');
-        }
-
-        $subscription->update([
-            'status' => $stripeData['status'],
-            'current_period_end' => Carbon::createFromTimestamp($stripeData['current_period_end']),
-            'stripe_price_id' => $stripeData['items']['data'][0]['price']['id'] ?? null,
-        ]);
-
-        return $subscription;
-    }
-
-    /**
-     * Cancel subscription
-     */
-    public function cancelSubscription(int $subscriptionId): bool
-    {
-        $subscription = Subscription::find($subscriptionId);
-
-        if (!$subscription) {
-            return false;
-        }
-
-        $subscription->update([
-            'status' => 'canceled',
-            'cancelled_at' => Carbon::now(),
-        ]);
-
-        return true;
+        return $this->hasActiveSubscription($userId);
     }
 }

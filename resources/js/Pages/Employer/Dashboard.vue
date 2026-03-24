@@ -2,11 +2,13 @@
 import { computed, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
+import SkeletonCard from "@/Components/SkeletonCard.vue";
 import { http } from "../../lib/http";
 import { getCachedUser, me } from "@/lib/auth";
+import { useDarkMode } from "@/composables/useDarkMode";
 
 // PrimeVue
-import Dropdown from "primevue/dropdown";
+import Select from "primevue/select";
 import Tag from "primevue/tag";
 import DataTable from "primevue/datatable";
 import Column from "primevue/column";
@@ -34,6 +36,8 @@ const rangeOptions = ref([
   { label: "Last 30 days", value: "30" },
   { label: "Last 90 days", value: "90" },
 ]);
+
+const { isDark } = useDarkMode();
 
 // View mode for the bar chart
 const groupBy = ref("monthly"); // 'daily' | 'monthly'
@@ -308,6 +312,7 @@ const chartKey = computed(() => {
   return [
     range.value,
     groupBy.value,
+    isDark.value ? 'dark' : 'light',
     applicantsSeries.value.join(','),
     newSeries.value.join(','),
     inProcessSeries.value.join(','),
@@ -453,6 +458,10 @@ const barChartOptions = computed(() => {
   const suggestedMax = Math.max(4, Math.ceil(maxVal * 1.2));
   const bucketCount = axisBuckets.value.length;
   const step = bucketCount > 24 ? 5 : (bucketCount > 12 ? 3 : 1);
+  const gridColor = isDark.value ? '#1e293b' : '#f1f5f9';
+  const tickColor = isDark.value ? '#64748b' : '#64748b';
+  const legendColor = isDark.value ? '#94a3b8' : '#334155';
+  const tooltipBg = isDark.value ? '#0f172a' : '#0f172a';
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -472,14 +481,14 @@ const barChartOptions = computed(() => {
           usePointStyle: true,
           boxWidth: 6,
           padding: 16,
-          color: '#334155',
+          color: legendColor,
           font: { size: 11 }
         }
       }, 
       tooltip: { 
         mode: "index", 
         intersect: false,
-        backgroundColor: '#0f172a',
+        backgroundColor: tooltipBg,
         titleColor: '#e2e8f0',
         bodyColor: '#cbd5e1',
         padding: 12,
@@ -502,9 +511,9 @@ const barChartOptions = computed(() => {
         beginAtZero: true, 
         suggestedMax,
         stacked: true,
-        grid: { color: '#f1f5f9', drawBorder: false, borderDash: [3, 3] },
+        grid: { color: gridColor, drawBorder: false, borderDash: [3, 3] },
         ticks: { 
-          color: '#64748b', 
+          color: tickColor, 
           font: { size: 11 },
           precision: 0,
           callback: (v) => Number.isInteger(v) ? v : '',
@@ -514,7 +523,7 @@ const barChartOptions = computed(() => {
         grid: { display: false, drawBorder: false },
         stacked: true,
         ticks: { 
-          color: '#64748b', 
+          color: tickColor, 
           font: { size: 11, weight: '500' }, 
           maxRotation: 0,
           callback: (v, i) => (i % step === 0 ? this?.getLabelForValue?.(v) ?? v : ''),
@@ -540,12 +549,12 @@ const donutChartOptions = computed(() => ({
                 usePointStyle: true, 
                 boxWidth: 6,
                 padding: 20,
-                color: '#64748b',
+                color: isDark.value ? '#94a3b8' : '#64748b',
                 font: { size: 11 }
             } 
         },
         tooltip: {
-            backgroundColor: '#1e293b',
+            backgroundColor: isDark.value ? '#0f172a' : '#1e293b',
             bodyColor: '#f1f5f9',
             callbacks: {
                 label: function(context) {
@@ -566,7 +575,7 @@ const donutChartOptions = computed(() => ({
           <p class="text-slate-600 text-sm">Monitor roles, candidates, and pipeline health at a glance.</p>
         </div>
         <div class="flex items-center gap-3">
-          <Dropdown
+          <Select
             v-model="range"
             :options="rangeOptions"
             optionLabel="label"
@@ -574,7 +583,7 @@ const donutChartOptions = computed(() => ({
             class="w-44 !border !border-slate-200 !rounded-xl !bg-white !text-sm"
             :disabled="loading"
           />
-          <Dropdown
+          <Select
             v-model="groupBy"
             :options="groupByOptions"
             optionLabel="label"
@@ -617,96 +626,105 @@ const donutChartOptions = computed(() => ({
 
       <!-- Minimal KPIs -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <template v-if="loading">
+          <SkeletonCard v-for="n in 4" :key="n" type="kpi" />
+        </template>
+        <template v-else>
         <!-- Open roles -->
-        <div class="flex flex-col bg-gradient-to-b from-white to-slate-50 p-5 rounded-2xl border border-slate-200/70 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <span class="text-sm text-slate-600 font-medium mb-2 flex items-center gap-2">
-                <i class="pi pi-briefcase text-indigo-600 bg-indigo-50 p-1.5 rounded-lg text-xs"></i>
+        <div class="flex flex-col bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 p-5 rounded-2xl border border-slate-200/70 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-300">
+            <span class="text-sm text-slate-600 dark:text-slate-400 font-medium mb-2 flex items-center gap-2">
+                <i class="pi pi-briefcase text-indigo-600 bg-indigo-50 dark:bg-indigo-900/40 p-1.5 rounded-lg text-xs"></i>
                 Open Roles
             </span>
             <div class="flex items-baseline gap-2">
-                <span class="text-3xl font-bold text-slate-900 tracking-tight">{{ kpis.openJobs }}</span>
-                <span class="text-xs text-slate-500">active</span>
+                <span class="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{{ kpis.openJobs }}</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400">active</span>
             </div>
         </div>
 
         <!-- Applicants -->
-        <div class="flex flex-col bg-gradient-to-b from-white to-slate-50 p-5 rounded-2xl border border-slate-200/70 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <span class="text-sm text-slate-600 font-medium mb-2 flex items-center gap-2">
-                <i class="pi pi-users text-blue-600 bg-blue-50 p-1.5 rounded-lg text-xs"></i>
+        <div class="flex flex-col bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 p-5 rounded-2xl border border-slate-200/70 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-300">
+            <span class="text-sm text-slate-600 dark:text-slate-400 font-medium mb-2 flex items-center gap-2">
+                <i class="pi pi-users text-blue-600 bg-blue-50 dark:bg-blue-900/40 p-1.5 rounded-lg text-xs"></i>
                 Total Applicants
             </span>
              <div class="flex items-baseline gap-2">
-                <span class="text-3xl font-bold text-slate-900 tracking-tight">{{ kpis.totalApps }}</span>
-                <span class="text-xs text-slate-500">candidates</span>
+                <span class="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{{ kpis.totalApps }}</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400">candidates</span>
             </div>
         </div>
 
         <!-- Upcoming interviews -->
-        <div class="flex flex-col bg-gradient-to-b from-white to-slate-50 p-5 rounded-2xl border border-slate-200/70 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <span class="text-sm text-slate-600 font-medium mb-2 flex items-center gap-2">
-                <i class="pi pi-calendar text-purple-600 bg-purple-50 p-1.5 rounded-lg text-xs"></i>
+        <div class="flex flex-col bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 p-5 rounded-2xl border border-slate-200/70 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-300">
+            <span class="text-sm text-slate-600 dark:text-slate-400 font-medium mb-2 flex items-center gap-2">
+                <i class="pi pi-calendar text-purple-600 bg-purple-50 dark:bg-purple-900/40 p-1.5 rounded-lg text-xs"></i>
                 Interviews
             </span>
              <div class="flex items-baseline gap-2">
-                <span class="text-3xl font-bold text-slate-900 tracking-tight">{{ kpis.upcomingInterviews }}</span>
-                <span class="text-xs text-purple-700 font-medium bg-purple-50 px-2 py-0.5 rounded-full">Next 7 days</span>
+                <span class="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{{ kpis.upcomingInterviews }}</span>
+                <span class="text-xs text-purple-700 dark:text-purple-300 font-medium bg-purple-50 dark:bg-purple-900/40 px-2 py-0.5 rounded-full">Next 7 days</span>
             </div>
         </div>
 
         <!-- New Applications -->
-        <div class="flex flex-col bg-gradient-to-b from-white to-slate-50 p-5 rounded-2xl border border-slate-200/70 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <span class="text-sm text-slate-600 font-medium mb-2 flex items-center gap-2">
-                <i class="pi pi-chart-bar text-emerald-600 bg-emerald-50 p-1.5 rounded-lg text-xs"></i>
+        <div class="flex flex-col bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 p-5 rounded-2xl border border-slate-200/70 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-300">
+            <span class="text-sm text-slate-600 dark:text-slate-400 font-medium mb-2 flex items-center gap-2">
+                <i class="pi pi-chart-bar text-emerald-600 bg-emerald-50 dark:bg-emerald-900/40 p-1.5 rounded-lg text-xs"></i>
                 New Applications
             </span>
              <div class="flex items-baseline gap-2">
-                <span class="text-3xl font-bold text-slate-900 tracking-tight">{{ applicantsSeries.reduce((a, b) => a + b, 0) }}</span>
-                <span class="text-xs text-slate-500">last {{ rangeDays }} days</span>
+                <span class="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{{ applicantsSeries.reduce((a, b) => a + b, 0) }}</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400">last {{ rangeDays }} days</span>
             </div>
         </div>
+        </template>
       </div>
 
       <!-- Charts Grid -->
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
         
         <!-- Main Chart: Applications (Bar) -->
-        <div class="xl:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/70 shadow-sm">
+        <div class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200/70 dark:border-slate-700 shadow-sm">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <i class="pi pi-chart-bar text-slate-400"></i>
                     Application Activity
                 </h3>
             </div>
-            <div v-if="loading" class="h-[300px] flex items-center justify-center bg-gray-50 rounded-lg">
-                <i class="pi pi-spin pi-spinner text-slate-300 text-2xl"></i>
-            </div>
+            <div v-if="loading" class="h-[300px] animate-pulse bg-gray-100 dark:bg-slate-700 rounded-xl"></div>
             <div v-else class="h-[320px]">
-                <div v-if="!hasApplicantData" class="h-full flex items-center justify-center bg-gray-50 rounded-lg text-gray-400 text-sm">
-                  No activity in selected range
+                <div v-if="!hasApplicantData" class="h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 rounded-xl gap-3">
+                  <div class="w-14 h-14 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
+                    <i class="pi pi-chart-bar text-slate-300 dark:text-slate-500 text-2xl"></i>
+                  </div>
+                  <p class="text-slate-400 dark:text-slate-500 text-sm">No activity in selected range</p>
                 </div>
                 <Chart v-else type="bar" :data="applicantsChartData" :options="barChartOptions" :key="chartKey" class="w-full h-full" />
             </div>
         </div>
 
         <!-- Side Chart: Pipeline (Donut) -->
-        <div class="bg-white rounded-2xl p-6 border border-slate-200/70 shadow-sm">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200/70 dark:border-slate-700 shadow-sm">
             <div class="flex justify-between items-center mb-6">
-                <h3 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+                <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                     <i class="pi pi-circle text-slate-400"></i>
                     Pipeline Status
                 </h3>
             </div>
-            <div v-if="loading" class="h-[300px] flex items-center justify-center bg-gray-50 rounded-lg">
-                 <i class="pi pi-spin pi-spinner text-slate-300 text-2xl"></i>
-            </div>
+            <div v-if="loading" class="h-[300px] animate-pulse bg-gray-100 dark:bg-slate-700 rounded-xl"></div>
             <div v-else class="h-[300px] flex items-center justify-center relative">
-                 <div v-if="!apps.length" class="text-slate-400 text-sm">No data</div>
+                 <div v-if="!apps.length" class="flex flex-col items-center gap-3">
+                   <div class="w-14 h-14 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
+                     <i class="pi pi-circle text-slate-300 dark:text-slate-500 text-2xl"></i>
+                   </div>
+                   <p class="text-slate-400 dark:text-slate-500 text-sm">No pipeline data yet</p>
+                 </div>
                  <template v-else>
-                     <Chart type="doughnut" :data="pipelineChartData" :options="donutChartOptions" class="w-full h-full" />
+                     <Chart type="doughnut" :data="pipelineChartData" :options="donutChartOptions" :key="'donut-' + chartKey" class="w-full h-full" />
                      <!-- Center Text -->
                      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-8">
-                        <span class="text-3xl font-bold text-slate-900">{{ kpis.totalApps }}</span>
-                        <span class="text-xs text-slate-500 uppercase tracking-wider">Total</span>
+                        <span class="text-3xl font-bold text-slate-900 dark:text-slate-100">{{ kpis.totalApps }}</span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total</span>
                      </div>
                  </template>
             </div>
@@ -714,19 +732,19 @@ const donutChartOptions = computed(() => ({
       </div>
 
       <!-- Recent Applications (Minimal Table) -->
-      <div class="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
-          <div class="p-6 border-b border-slate-200/70 flex justify-between items-center">
-            <h3 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/70 dark:border-slate-700 shadow-sm overflow-hidden">
+          <div class="p-6 border-b border-slate-200/70 dark:border-slate-700 flex justify-between items-center">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <i class="pi pi-list text-slate-400"></i>
                 Recent Candidates
             </h3>
-            <RouterLink :to="{ name: 'applicants.list' }" class="text-sm text-indigo-600 font-semibold hover:text-indigo-700 no-underline flex items-center gap-1 transition-colors">
+            <RouterLink :to="{ name: 'applicants.list' }" class="text-sm text-indigo-600 dark:text-indigo-400 font-semibold hover:text-indigo-700 no-underline flex items-center gap-1 transition-colors">
                  View All <i class="pi pi-arrow-right text-xs"></i>
             </RouterLink>
           </div>
           <DataTable :value="apps.slice(0, 5)" class="text-sm" :pt="{ 
-              headerRow: { class: 'text-xs uppercase text-slate-400 font-medium bg-white border-b border-slate-50' },
-              bodyRow: { class: 'hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0' }
+              headerRow: { class: 'text-xs uppercase text-slate-400 font-medium bg-white dark:bg-slate-800 border-b border-slate-50 dark:border-slate-700' },
+              bodyRow: { class: 'hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-50 dark:border-slate-700 last:border-0' }
           }">
               <Column field="applicant_name" header="Candidate">
                 <template #body="{ data }">
@@ -737,7 +755,7 @@ const donutChartOptions = computed(() => ({
                         shape="circle"
                         class="bg-slate-100 text-slate-600 font-bold w-9 h-9 text-xs border border-slate-200"
                       />
-                      <span class="font-medium text-slate-900">
+                      <span class="font-medium text-slate-900 dark:text-slate-100">
                         {{ data?.applicant_name || data?.user?.name || ('Applicant #' + (data?.applicant_user_id ?? '')) || 'Candidate' }}
                       </span>
                   </div>
@@ -745,7 +763,7 @@ const donutChartOptions = computed(() => ({
               </Column>
               <Column field="job.title" header="Role" class="text-gray-600">
                   <template #body="{ data }">
-                      <span class="text-slate-700">{{ data?.job?.title || data?.job_title || 'Role' }}</span>
+                      <span class="text-slate-700 dark:text-slate-300">{{ data?.job?.title || data?.job_title || 'Role' }}</span>
                   </template>
               </Column>
               <Column field="status" header="Stage">
@@ -758,13 +776,13 @@ const donutChartOptions = computed(() => ({
                            'bg-red-500': normalizeAppStage(data) === 'rejected',
                            'bg-purple-500': normalizeAppStage(data) === 'hired',
                        }"></div>
-                       <span class="capitalize text-slate-700">{{ normalizeAppStage(data) }}</span>
+                       <span class="capitalize text-slate-700 dark:text-slate-300">{{ normalizeAppStage(data) }}</span>
                    </div>
                 </template>
               </Column>
                <Column field="created_at" header="Applied">
                 <template #body="{ data }">
-                  <span class="text-slate-400 text-xs">{{ safeDate(data?.created_at)?.toLocaleDateString() }}</span>
+                  <span class="text-slate-400 dark:text-slate-500 text-xs">{{ safeDate(data?.created_at)?.toLocaleDateString() }}</span>
                 </template>
               </Column>
           </DataTable>

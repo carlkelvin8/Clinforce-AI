@@ -46,6 +46,9 @@ class JobUpdateRequest extends ApiRequest
             'work_mode' => ['sometimes','required', Rule::in(['on_site','remote','hybrid'])],
             'country' => ['sometimes','nullable','string','max:200'],
             'city' => ['sometimes','nullable','string','min:2','max:120'],
+            'salary_min' => ['sometimes','nullable','numeric','min:0'],
+            'salary_max' => ['sometimes','nullable','numeric','min:0','gte:salary_min'],
+            'salary_currency' => ['sometimes','nullable','string','size:3'],
 
             // forbid sensitive fields
             'status' => ['prohibited'],

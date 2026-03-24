@@ -14,11 +14,17 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'api.rate_limit' => \App\Http\Middleware\ApiRateLimit::class,
-            'require.sub' => \App\Http\Middleware\RequireActiveSubscription::class,
+            'require.sub'    => \App\Http\Middleware\RequireActiveSubscription::class,
             'require.doc_access' => \App\Http\Middleware\RequireDocumentAccess::class,
+            'subscription'   => \App\Http\Middleware\EnforceSubscription::class,
         ]);
         // Apply to API group by default
         $middleware->appendToGroup('api', \App\Http\Middleware\ApiRateLimit::class);
+        
+        // Add CORS middleware to API
+        $middleware->api(prepend: [
+            \Illuminate\Http\Middleware\HandleCors::class,
+        ]);
         
         // Fix API authentication to return JSON instead of redirecting
         $middleware->redirectGuestsTo(fn ($request) => 

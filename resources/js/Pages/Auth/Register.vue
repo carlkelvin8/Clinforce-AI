@@ -88,7 +88,6 @@ const roleForApi = computed(() => {
   
   function signupWithGoogle() {
     if (loading.value) return;
-    // Don't pass role - let the backend redirect to role selection for new users
     window.location.href = "/auth/google/redirect";
   }
   </script>
@@ -103,10 +102,7 @@ const roleForApi = computed(() => {
         
         <div class="absolute inset-0 z-20 flex flex-col justify-between p-12 text-white">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm grid place-content-center border border-white/10 shadow-lg">
-                <span class="font-bold">AC</span>
-            </div>
-            <div class="text-lg font-bold tracking-tight">AI Clinforce Partners</div>
+            <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-48 w-auto brightness-0 invert" />
           </div>
           
           <div class="mb-10">
@@ -148,10 +144,7 @@ const roleForApi = computed(() => {
         <div class="w-full max-w-[520px]">
           <!-- Mobile Header -->
           <div class="mb-8 text-center lg:hidden">
-            <div class="inline-flex items-center justify-center bg-blue-600 text-white rounded-xl w-12 h-12 mb-4 shadow-lg shadow-blue-200">
-                <span class="font-bold text-lg">AC</span>
-            </div>
-            <h2 class="text-2xl font-bold text-slate-900">AI Clinforce Partners</h2>
+            <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-40 w-auto mx-auto mb-4" />
           </div>
 
           <div class="mb-8">
@@ -165,11 +158,11 @@ const roleForApi = computed(() => {
              <div class="grid md:grid-cols-2 gap-5">
                 <div class="space-y-1.5">
                    <label for="fullName" class="block text-sm font-semibold text-slate-700">Full Name</label>
-                   <InputText id="fullName" v-model="fullName" placeholder="Dr. Jane Doe" :disabled="loading" class="w-full !rounded-lg !py-2.5" @input="clearErrorOnType" />
+                   <InputText id="fullName" v-model="fullName" :disabled="loading" class="w-full !rounded-lg !py-2.5" @input="clearErrorOnType" />
                 </div>
                 <div class="space-y-1.5">
                    <label for="email" class="block text-sm font-semibold text-slate-700">Email Address</label>
-                   <InputText id="email" v-model="email" type="email" placeholder="you@example.com" :disabled="loading" class="w-full !rounded-lg !py-2.5" @input="clearErrorOnType" />
+                   <InputText id="email" v-model="email" type="email" :disabled="loading" class="w-full !rounded-lg !py-2.5" @input="clearErrorOnType" />
                 </div>
              </div>
 
@@ -181,11 +174,11 @@ const roleForApi = computed(() => {
              <div class="grid md:grid-cols-2 gap-5">
                 <div class="space-y-1.5">
                    <label for="password" class="block text-sm font-semibold text-slate-700">Password</label>
-                   <Password id="password" v-model="password" placeholder="••••••••" :disabled="loading" toggleMask :feedback="false" inputClass="!w-full !rounded-lg !py-2.5" class="w-full" @input="clearErrorOnType" />
+                   <Password id="password" v-model="password" :disabled="loading" toggleMask :feedback="false" inputClass="!w-full !rounded-lg !py-2.5" class="w-full" @input="clearErrorOnType" />
                 </div>
                 <div class="space-y-1.5">
                    <label for="passwordConfirm" class="block text-sm font-semibold text-slate-700">Confirm Password</label>
-                   <Password id="passwordConfirm" v-model="passwordConfirm" placeholder="••••••••" :disabled="loading" toggleMask :feedback="false" inputClass="!w-full !rounded-lg !py-2.5" class="w-full" @input="clearErrorOnType" />
+                   <Password id="passwordConfirm" v-model="passwordConfirm" :disabled="loading" toggleMask :feedback="false" inputClass="!w-full !rounded-lg !py-2.5" class="w-full" @input="clearErrorOnType" />
                 </div>
              </div>
 

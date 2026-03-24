@@ -14,6 +14,15 @@ class ChatbotController extends Controller
 {
     public function chat(Request $request)
     {
+        // Validate input
+        $request->validate([
+            'messages' => 'required|array|min:1|max:50',
+            'messages.*.role' => 'required|string|in:user,assistant,system',
+            'messages.*.content' => 'required|string|max:10000',
+            'files' => 'nullable|array|max:5',
+            'files.*' => 'file|mimes:pdf,doc,docx,txt|max:10240', // 10MB max
+        ]);
+
         $authUser = $request->user();
         try {
             // Normalize messages from JSON or multipart form

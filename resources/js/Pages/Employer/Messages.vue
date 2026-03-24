@@ -129,7 +129,7 @@ async function loadConversation(id, silent = false) {
   try {
     let res;
     try {
-      res = await api.get(`/api/conversations/${id}`);
+      res = await api.get(`/conversations/${id}`);
     } catch {
       res = await api.get(`/conversations/${id}`);
     }
@@ -250,7 +250,7 @@ async function send() {
     }
 
     try {
-        await api.post(`/api/conversations/${active.value.id}/messages`, { body: bodyToSend });
+        await api.post(`/conversations/${active.value.id}/messages`, { body: bodyToSend });
     } catch {
         await api.post(`/conversations/${active.value.id}/messages`, { body: bodyToSend });
     }
@@ -415,7 +415,7 @@ async function startConversationFor(candidate) {
     };
 
     try {
-      await api.post("/api/conversations", payload);
+      await api.post("/conversations", payload);
     } catch (err) {
       try {
         await api.post("/conversations", payload);

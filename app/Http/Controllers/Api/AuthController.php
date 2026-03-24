@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Password;
@@ -14,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
 use App\Services\TrialService;
+use App\Rules\StrongPassword;
 
 class AuthController extends Controller
 {
@@ -26,7 +28,7 @@ class AuthController extends Controller
             'email' => ['nullable', 'email', 'max:190', 'required_without:phone'],
             'phone' => ['nullable', 'string', 'max:30', 'required_without:email'],
 
-            'password' => ['required', 'string', 'min:8', 'max:72'],
+            'password' => ['required', 'string', 'min:8', 'max:72', new StrongPassword()],
         ], [
             'email.required_without' => 'Email or phone is required.',
             'phone.required_without' => 'Email or phone is required.',
@@ -82,13 +84,31 @@ class AuthController extends Controller
         $identifier = trim((string) $request->input('identifier'));
         $password   = (string) $request->input('password');
 
+        // Rate limit: 5 attempts per minute per identifier+IP
+        $throttleKey = 'login:' . strtolower($identifier) . '|' . $request->ip();
+        $maxAttempts = 5;
+        $decaySeconds = 60;
+
+        if (RateLimiter::tooManyAttempts($throttleKey, $maxAttempts)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            return response()->json([
+                'message' => "Too many login attempts. Please try again in {$seconds} seconds.",
+                'errors'  => ['identifier' => ["Account temporarily locked. Try again in {$seconds}s."]],
+            ], 429);
+        }
+
         $user = User::query()
             ->where('email', $identifier)
             ->orWhere('phone', $identifier)
             ->first();
 
-        if (!$user) {
-            return response()->json(['message' => 'Invalid credentials.'], 401);
+        if (!$user || !Hash::check($password, (string) $user->password_hash)) {
+            RateLimiter::hit($throttleKey, $decaySeconds);
+            $remaining = $maxAttempts - RateLimiter::attempts($throttleKey);
+            return response()->json([
+                'message' => 'Invalid credentials.' . ($remaining > 0 ? " {$remaining} attempt(s) remaining." : ''),
+                'errors'  => ['identifier' => ['Invalid credentials.']],
+            ], 401);
         }
 
         if ($user->status !== 'active') {
@@ -99,9 +119,8 @@ class AuthController extends Controller
             return response()->json(['message' => 'Please verify your email address before logging in.'], 403);
         }
 
-        if (!Hash::check($password, (string) $user->password_hash)) {
-            return response()->json(['message' => 'Invalid credentials.'], 401);
-        }
+        // Successful login — clear the rate limiter
+        RateLimiter::clear($throttleKey);
 
         $user->last_login_at = now();
         $user->save();
@@ -109,10 +128,7 @@ class AuthController extends Controller
         app(TrialService::class)->ensureActivated($user, $request);
         $user->refresh();
 
-        // Optional: revoke previous tokens to enforce single-session login
-        // $user->tokens()->delete();
-
-        $token = $user->createToken('clinforce')->plainTextToken;
+        $token = $user->createToken('clinforce', ['*'], now()->addMinutes(config('sanctum.expiration', 10080)))->plainTextToken;
 
         return response()->json([
             'message' => 'Logged in successfully.',
@@ -233,25 +249,143 @@ class AuthController extends Controller
         ]);
     }
 
+    public function verifyEmail(Request $request, $id, $hash): JsonResponse
+    {
+        $user = User::findOrFail($id);
+
+        if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+            return response()->json(['message' => 'Invalid verification link.'], 403);
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json([
+                'message' => 'Email already verified.',
+                'data' => ['verified' => true],
+            ]);
+        }
+
+        $user->markEmailAsVerified();
+
+        return response()->json([
+            'message' => 'Email verified successfully!',
+            'data' => ['verified' => true],
+        ]);
+    }
+
+    public function resendVerificationEmail(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        
+        if (!$user || !$user->email) {
+            return response()->json(['message' => 'No email to verify.'], 400);
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Email already verified.'], 400);
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return response()->json([
+            'message' => 'Verification email sent successfully.',
+        ]);
+    }
+
+    public function googleCompleteRegistration(Request $request)
+    {
+        $v = Validator::make($request->all(), [
+            'data' => ['required', 'string'],
+            'role' => ['required', Rule::in(['employer', 'applicant', 'agency'])],
+        ]);
+
+        if ($v->fails()) {
+            return response()->json(['message' => 'Validation failed.', 'errors' => $v->errors()], 422);
+        }
+
+        try {
+            $decoded = json_decode(base64_decode($request->input('data')), true);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Invalid registration data.'], 422);
+        }
+
+        $email = $decoded['email'] ?? null;
+        $googleId = $decoded['google_id'] ?? null;
+        $avatarUrl = $decoded['avatar'] ?? null;
+
+        if (!$email || !$googleId) {
+            return response()->json(['message' => 'Invalid registration data.'], 422);
+        }
+
+        // Guard: if user already exists just log them in
+        $user = User::where('email', $email)->first();
+        if (!$user) {
+            $user = User::create([
+                'role' => $request->input('role'),
+                'email' => $email,
+                'phone' => null,
+                'status' => 'active',
+                'password_hash' => Hash::make(Str::random(40)),
+                'email_verified_at' => now(),
+            ]);
+        }
+
+        // Save avatar for applicants
+        if ($avatarUrl && $user->role === 'applicant') {
+            try {
+                $binary = @file_get_contents($avatarUrl);
+                if ($binary !== false) {
+                    $destDir = public_path('uploads/avatars');
+                    if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+                    $pathPart = parse_url($avatarUrl, PHP_URL_PATH) ?: '';
+                    $ext = strtolower(pathinfo($pathPart, PATHINFO_EXTENSION) ?: 'jpg');
+                    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) $ext = 'jpg';
+                    $name = 'u' . $user->id . '_google_' . time() . '_' . bin2hex(random_bytes(3)) . '.' . $ext;
+                    file_put_contents($destDir . DIRECTORY_SEPARATOR . $name, $binary);
+                    $profile = $user->applicantProfile;
+                    if (!$profile) {
+                        $display = trim(explode('@', $user->email)[0]);
+                        $profile = $user->applicantProfile()->create([
+                            'first_name' => '', 'last_name' => '', 'public_display_name' => $display,
+                        ]);
+                    }
+                    $profile->avatar = 'uploads/avatars/' . $name;
+                    $profile->save();
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        app(TrialService::class)->ensureActivated($user, $request);
+        $user->refresh();
+
+        $token = $user->createToken('clinforce')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Registration complete.',
+            'data' => [
+                'token' => $token,
+                'user' => $this->userPayload($user),
+            ],
+        ]);
+    }
+
     public function googleRedirect(Request $request)
     {
         $redirect = $request->query('redirect');
-        if ($redirect) {
-            $request->session()->put('social_redirect', $redirect);
-        }
-
         $role = $request->query('role');
-        if ($role && in_array($role, ['employer', 'applicant', 'agency'], true)) {
-            $request->session()->put('social_role', $role);
-        }
 
-        return Socialite::driver('google')->redirect();
+        $state = base64_encode(json_encode(array_filter([
+            'redirect' => $redirect,
+            'role' => ($role && in_array($role, ['employer', 'applicant', 'agency'], true)) ? $role : null,
+        ])));
+
+        return Socialite::driver('google')->stateless()->with(['state' => $state])->redirect();
     }
 
     public function googleCallback(Request $request)
     {
         try {
-            $googleUser = Socialite::driver('google')->user();
+            $googleUser = Socialite::driver('google')->stateless()->user();
         } catch (\Throwable $e) {
             return redirect('/login?social=error');
         }
@@ -261,14 +395,21 @@ class AuthController extends Controller
             return redirect('/login?social=error');
         }
 
+        // Decode state passed through OAuth flow
+        $stateRaw = $request->query('state');
+        $stateData = [];
+        if ($stateRaw) {
+            try {
+                $stateData = json_decode(base64_decode($stateRaw), true) ?? [];
+            } catch (\Throwable $e) {}
+        }
+        $role = $stateData['role'] ?? null;
+        $redirect = $stateData['redirect'] ?? null;
+
         $user = User::where('email', $email)->first();
 
         if (!$user) {
-            // New user - check if role was provided
-            $role = $request->session()->pull('social_role');
-            
             if (!$role) {
-                // No role selected - redirect to role selection page
                 $tempData = base64_encode(json_encode([
                     'email' => $email,
                     'google_id' => $googleUser->getId(),
@@ -334,8 +475,6 @@ class AuthController extends Controller
             'user' => $this->userPayload($user),
         ]));
 
-        $redirect = $request->session()->pull('social_redirect');
-
         $query = http_build_query(array_filter([
             'payload' => $payload,
             'redirect' => $redirect,
@@ -379,6 +518,10 @@ class AuthController extends Controller
         }
 
         $hasActiveSubscription = $user->subscription()->exists();
+        $inGracePeriod = false;
+        if (in_array($user->role, ['employer', 'agency'], true)) {
+            $inGracePeriod = app(\App\Services\SubscriptionService::class)->isInGracePeriod($user->id);
+        }
         $accountStatus = 'active';
         if ($user->status !== 'active') {
             $accountStatus = 'suspended';
@@ -415,6 +558,7 @@ class AuthController extends Controller
             'has_expired_trial' => $user->hasExpiredTrial(),
             'subscription_status' => $user->subscription_status, // From our new column or computed
             'has_active_subscription' => $hasActiveSubscription,
+            'in_grace_period' => $inGracePeriod,
         ];
     }
 }
