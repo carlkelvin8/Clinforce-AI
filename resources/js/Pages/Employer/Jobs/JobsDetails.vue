@@ -115,9 +115,12 @@ async function destroyJob() {
 }
 
 async function copyShareLink() {
-  // if you have a public route, replace this
   const url = `${window.location.origin}/candidate/jobs/${id.value}`;
   try {
+    // Track the share via API
+    try {
+      await http.post(`/jobs/${id.value}/share`, { channel: 'link' })
+    } catch {}
     await navigator.clipboard.writeText(url);
     alert("Link copied.");
   } catch {

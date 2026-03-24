@@ -126,8 +126,8 @@ class MessagesController extends ApiController
                 ConversationParticipant::query()->create([
                     'conversation_id' => $conversation->id,
                     'user_id' => (int)$pid,
-                    'role' => $target?->role,
-                    'last_read_message_id' => null,
+                    'role_at_join' => $target?->role,
+                    'last_read_at' => null,
                     'created_at' => now(),
                 ]);
             }
@@ -136,15 +136,14 @@ class MessagesController extends ApiController
                 'conversation_id' => $conversation->id,
                 'sender_user_id' => $u->id,
                 'body' => $v['first_message'],
-                'attachments_json' => null,
                 'created_at' => now(),
             ]);
 
-            // mark creator as read up to first message
+            // mark creator as read
             ConversationParticipant::query()
                 ->where('conversation_id', $conversation->id)
                 ->where('user_id', $u->id)
-                ->update(['last_read_message_id' => $msg->id]);
+                ->update(['last_read_at' => now()]);
         });
 
         $conversation->load([
@@ -212,7 +211,7 @@ class MessagesController extends ApiController
             ConversationParticipant::query()
                 ->where('conversation_id', $conversation->id)
                 ->where('user_id', $u->id)
-                ->update(['last_read_message_id' => $msg->id]);
+                ->update(['last_read_at' => now()]);
         });
 
         $msg->load(['sender.applicantProfile', 'sender.employerProfile', 'sender.agencyProfile']);
@@ -232,22 +231,10 @@ class MessagesController extends ApiController
             return $this->fail('Forbidden', null, 403);
         }
 
-        $v = $request->validated();
-
-        // ensure message belongs to same conversation
-        $exists = Message::query()
-            ->where('conversation_id', $conversation->id)
-            ->where('id', (int)$v['last_read_message_id'])
-            ->exists();
-
-        if (!$exists) {
-            return $this->fail('Invalid last_read_message_id', null, 422);
-        }
-
         ConversationParticipant::query()
             ->where('conversation_id', $conversation->id)
             ->where('user_id', $u->id)
-            ->update(['last_read_message_id' => (int)$v['last_read_message_id']]);
+            ->update(['last_read_at' => now()]);
 
         return $this->ok(['ok' => true], 'Read updated');
     }
@@ -258,5 +245,46 @@ class MessagesController extends ApiController
             ->where('conversation_id', $conversationId)
             ->where('user_id', $userId)
             ->exists();
+    }
+
+    /**
+     * GET /api/conversations/unread-count
+     * Returns total unread message count for the current user.
+     */
+    public function unreadCount(): JsonResponse
+    {
+        $u = $this->requireAuth();
+
+        $count = ConversationParticipant::query()
+            ->where('user_id', $u->id)
+            ->whereHas('conversation.messages', function ($q) use ($u) {
+                $q->where('sender_user_id', '!=', $u->id)
+                  ->where(function ($inner) use ($u) {
+                      $inner->whereHas('conversation.participants', function ($p) use ($u) {
+                          $p->where('user_id', $u->id)
+                            ->where(function ($pp) {
+                                $pp->whereNull('last_read_at')
+                                   ->orWhereColumn('messages.created_at', '>', 'conversation_participants.last_read_at');
+                            });
+                      });
+                  });
+            })
+            ->count();
+
+        // Simpler approach: count conversations where last message is newer than last_read_at
+        $unreadConversations = ConversationParticipant::query()
+            ->where('user_id', $u->id)
+            ->with(['conversation.lastMessage'])
+            ->get()
+            ->filter(function ($participant) use ($u) {
+                $lastMsg = $participant->conversation?->lastMessage;
+                if (!$lastMsg) return false;
+                if ((int)$lastMsg->sender_user_id === (int)$u->id) return false;
+                if (!$participant->last_read_at) return true;
+                return $lastMsg->created_at > $participant->last_read_at;
+            })
+            ->count();
+
+        return $this->ok(['count' => $unreadConversations]);
     }
 }

@@ -82,6 +82,15 @@
                                <RouterLink :to="{ name: 'candidate.applications.view', params: { id: String(row.application_id) } }">
                                   <Button label="View Application" size="small" text class="!px-0 hover:bg-transparent hover:underline" />
                                </RouterLink>
+                               <Button
+                                  icon="pi pi-calendar-plus"
+                                  size="small"
+                                  severity="secondary"
+                                  outlined
+                                  v-tooltip.top="'Add to calendar (.ics)'"
+                                  @click="downloadIcs(row)"
+                                  aria-label="Download calendar"
+                               />
                             </div>
                          </div>
                       </div>
@@ -126,6 +135,22 @@ import api from "@/lib/api";
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
 import ProgressSpinner from 'primevue/progressspinner';
+
+async function downloadIcs(interview) {
+  try {
+    const res = await api.get(`/interviews/${interview.id}/ics`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `interview-${interview.id}.ics`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+  } catch {
+    alert('Failed to download calendar file')
+  }
+}
 
 const meName = ref("ME");
 const loading = ref(false);

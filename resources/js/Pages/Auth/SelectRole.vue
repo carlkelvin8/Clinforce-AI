@@ -4,13 +4,14 @@ import { useRouter, useRoute } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
 import Button from "primevue/button";
 import Message from "primevue/message";
+import api, { setToken } from "@/lib/api";
 
 const router = useRouter();
 const route = useRoute();
 
 const loading = ref(false);
 const error = ref("");
-const userData = ref(null);
+const dataParam = ref(null);
 const selectedRole = ref("");
 
 const year = new Date().getFullYear();
@@ -31,17 +32,12 @@ const roleOptions = [
 ];
 
 onMounted(() => {
-  const dataParam = route.query.data;
-  if (!dataParam) {
+  const param = route.query.data;
+  if (!param) {
     error.value = "Missing registration data. Please try signing in again.";
     return;
   }
-
-  try {
-    userData.value = JSON.parse(atob(String(dataParam)));
-  } catch (e) {
-    error.value = "Invalid registration data. Please try signing in again.";
-  }
+  dataParam.value = param;
 });
 
 async function continueWithRole() {
@@ -49,16 +45,35 @@ async function continueWithRole() {
     error.value = "Please select your account type.";
     return;
   }
+  if (!dataParam.value) {
+    error.value = "Missing registration data. Please try signing in again.";
+    return;
+  }
 
   loading.value = true;
   error.value = "";
 
-  // Redirect back to Google OAuth with role parameter
-  const params = new URLSearchParams({
-    role: selectedRole.value
-  });
+  try {
+    const res = await api.post('/auth/google/complete', {
+      data: dataParam.value,
+      role: selectedRole.value,
+    });
 
-  window.location.href = `/auth/google/redirect?${params.toString()}`;
+    const { token, user } = res.data.data;
+    setToken(token);
+    localStorage.setItem('auth_user', JSON.stringify(user));
+    window.dispatchEvent(new Event('auth:changed'));
+
+    if (user.role === 'employer' || user.role === 'agency') {
+      router.push({ name: 'employer.dashboard' });
+    } else {
+      router.push({ name: 'candidate.dashboard' });
+    }
+  } catch (err) {
+    error.value = err?.response?.data?.message || "Registration failed. Please try again.";
+  } finally {
+    loading.value = false;
+  }
 }
 
 function goBack() {
@@ -72,9 +87,7 @@ function goBack() {
       <div class="w-full max-w-2xl">
         <!-- Header -->
         <div class="text-center mb-8">
-          <div class="inline-flex items-center justify-center bg-blue-600 text-white rounded-xl w-14 h-14 mb-4 shadow-lg shadow-blue-200">
-            <span class="font-bold text-xl">AC</span>
-          </div>
+          <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-32 w-auto mx-auto mb-4" />
           <h1 class="text-3xl font-bold text-slate-900 mb-2">Choose your account type</h1>
           <p class="text-slate-600">Select how you'll be using AI Clinforce Partners</p>
         </div>

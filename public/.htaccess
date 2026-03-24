@@ -13,6 +13,10 @@
     RewriteCond %{HTTP:x-xsrf-token} .
     RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
+    # ── CORS preflight: return 204 immediately ──────────────────────────────
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule .* - [R=204,L]
+
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
@@ -24,6 +28,16 @@
     RewriteRule ^ index.php [L]
 </IfModule>
 
+# ── CORS Headers (Apache level, fires before PHP) ───────────────────────────
+<IfModule mod_headers.c>
+    SetEnvIf Origin "^https://(aiclinforce\.com|www\.aiclinforce\.com|app\.aiclinforce\.com)$" CORS_ORIGIN=$0
+    Header always set Access-Control-Allow-Origin "%{CORS_ORIGIN}e" env=CORS_ORIGIN
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Authorization, Content-Type, X-Requested-With, X-Device-Id, Accept, Origin"
+    Header always set Access-Control-Allow-Credentials "true"
+    Header always set Access-Control-Max-Age "86400"
+</IfModule>
+
 # PHP Upload Settings
 <IfModule mod_php.c>
     php_value upload_max_filesize 20M
@@ -31,4 +45,9 @@
     php_value max_execution_time 300
     php_value max_input_time 300
     php_value memory_limit 256M
+</IfModule>
+
+# Gzip
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json
 </IfModule>

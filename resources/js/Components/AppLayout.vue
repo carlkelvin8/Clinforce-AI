@@ -13,7 +13,12 @@ import Drawer from 'primevue/drawer';
 import ChatbotWidget from '@/Components/ChatbotWidget.vue';
 import MarketingPopup from '@/Components/MarketingPopup.vue';
 import StickyMarketingCard from '@/Components/StickyMarketingCard.vue';
+import DarkModeToggle from '@/components/DarkModeToggle.vue';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
 import api from '@/lib/api';
+
+const toastService = useToast();
 
 const router = useRouter();
 const sidebarCollapsed = ref(false);
@@ -22,6 +27,7 @@ const userMenu = ref();
 const notificationPanel = ref();
 const notifications = ref([]);
 const unreadCount = ref(0);
+const unreadMessages = ref(0);
 let sse = null;
 
 const props = defineProps({
@@ -75,13 +81,34 @@ function goToBilling() {
 onMounted(async () => {
     loadUser();
     window.addEventListener('auth:changed', loadUser);
+    window.addEventListener('app:toast', (e) => {
+        const { severity, summary, detail, life } = e.detail || {};
+        toastService.add({ severity, summary, detail, life: life ?? 3500 });
+    });
     if (isAuthed.value) {
         try {
             await me();
         } catch {}
         initNotifications();
+        loadSeatUsage();
+        loadUnreadMessages();
     }
     document.documentElement.classList.remove('app-dark');
+
+    // Global subscription gate handler
+    window.addEventListener('subscription:required', async (e) => {
+        const { message } = e.detail || {};
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: 'Subscription Required',
+            text: message || 'An active subscription is required to use this feature.',
+            confirmButtonText: 'View Plans',
+            showCancelButton: true,
+            cancelButtonText: 'Not now',
+            confirmButtonColor: '#2563eb',
+        });
+        if (result.isConfirmed) router.push({ name: 'employer.billing' });
+    });
 });
 
 onBeforeUnmount(() => {
@@ -102,17 +129,7 @@ async function initNotifications() {
     } catch {}
     try {
         if (sse) sse.close();
-        const origin = window.location.origin;
-        const ev = new EventSource(`${origin}/api/notifications/stream`);
-        ev.addEventListener('notification', (e) => {
-            try {
-                const payload = JSON.parse(e.data);
-                notifications.value.unshift(payload);
-                unreadCount.value++;
-            } catch {}
-        });
-        ev.onerror = () => {};
-        sse = ev;
+        // SSE disabled - not supported on shared hosting
     } catch {}
 }
 
@@ -131,9 +148,32 @@ async function markAllRead() {
         unreadCount.value = 0;
     } catch {}
 }
+const seatUsage = ref(null);
+
+async function loadSeatUsage() {
+    if (!isEmployer.value) return;
+    try {
+        const res = await api.get('/subscriptions/usage');
+        seatUsage.value = res?.data?.data || null;
+    } catch {}
+}
+
+async function loadUnreadMessages() {
+    try {
+        const res = await api.get('/conversations/unread-count');
+        unreadMessages.value = res?.data?.data?.count || 0;
+    } catch {}
+}
+
+const seatPercent = computed(() => {
+    if (!seatUsage.value?.job_post_limit) return 0;
+    return Math.min(100, Math.round((seatUsage.value.jobs_used / seatUsage.value.job_post_limit) * 100));
+});
+
 const menuItems = [
     { label: 'Profile', icon: 'pi pi-user', command: () => router.push(isEmployer.value ? { name: 'employer.settings' } : { name: 'candidate.profile' }) },
     { label: 'Account', icon: 'pi pi-cog', command: () => router.push(isEmployer.value ? { name: 'employer.settings' } : { name: 'candidate.settings' }) },
+    ...(user.value?.role === 'admin' ? [{ label: 'Admin Panel', icon: 'pi pi-shield', command: () => router.push({ name: 'admin.dashboard' }) }] : []),
     { separator: true },
     { label: 'Logout', icon: 'pi pi-sign-out', command: logout }
 ];
@@ -178,10 +218,13 @@ const employerNavGroups = [
         title: 'Hiring',
         items: [
             { label: 'Jobs', icon: 'pi pi-briefcase', to: { name: 'employer.jobs' } },
+            { label: 'Pipeline', icon: 'pi pi-th-large', to: { name: 'employer.pipeline' } },
             { label: 'Candidates', icon: 'pi pi-users', to: { name: 'applicants.list' } },
+            { label: 'Compare', icon: 'pi pi-sliders-h', to: { name: 'employer.compare' } },
             { label: 'Interviews', icon: 'pi pi-calendar', to: { name: 'employer.interviews' } },
             { label: 'Invitations', icon: 'pi pi-send', to: { name: 'employer.invitations' } },
             { label: 'Sourcing', icon: 'pi pi-search', to: { name: 'employer.talentsearch' } },
+            { label: 'Job Templates', icon: 'pi pi-copy', to: { name: 'employer.job-templates' } },
         ]
     },
     {
@@ -193,7 +236,7 @@ const employerNavGroups = [
     }
 ];
 
-const candidateNavGroups = [
+const candidateNavGroups = computed(() => [
     {
         title: 'Menu',
         items: [
@@ -202,7 +245,8 @@ const candidateNavGroups = [
             { label: 'Applications', icon: 'pi pi-file', to: { name: 'candidate.myapplications' } },
             { label: 'Interviews', icon: 'pi pi-calendar', to: { name: 'candidate.interviews' } },
             { label: 'Invitations', icon: 'pi pi-envelope', to: { name: 'candidate.invitations' } },
-            { label: 'Messages', icon: 'pi pi-comments', to: { name: 'candidate.messages' } },
+            { label: 'Messages', icon: 'pi pi-comments', to: { name: 'candidate.messages' }, badge: unreadMessages.value > 0 ? unreadMessages.value : null },
+            { label: 'Job Alerts', icon: 'pi pi-bell', to: { name: 'candidate.job-alerts' } },
         ]
     },
     {
@@ -212,9 +256,9 @@ const candidateNavGroups = [
             { label: 'Account', icon: 'pi pi-cog', to: { name: 'candidate.settings' } },
         ]
     }
-];
+]);
 
-const navGroups = computed(() => isEmployer.value ? employerNavGroups : candidateNavGroups);
+const navGroups = computed(() => isEmployer.value ? employerNavGroups : candidateNavGroups.value);
 
 function toggleSidebar() {
     sidebarCollapsed.value = !sidebarCollapsed.value;
@@ -250,6 +294,9 @@ onMounted(() => {
             <div v-else-if="trialStatus === 'trial_expired'" class="bg-red-600 text-white px-4 py-2 text-sm text-center font-bold z-50">
               Your free trial has expired. <span class="underline cursor-pointer ml-1 text-white hover:text-gray-100" @click="goToBilling">Subscribe now</span> to restore access.
             </div>
+            <div v-else-if="user.in_grace_period" class="bg-amber-500 text-white px-4 py-2 text-sm text-center font-medium z-50">
+              Your subscription has expired. You have a 24-hour grace period. <span class="underline cursor-pointer ml-1 font-bold" @click="goToBilling">Renew now</span> to avoid interruption.
+            </div>
 
              <!-- Sticky Topbar -->
             <header class="h-16 flex items-center justify-between px-4 sticky top-0 z-30 bg-surface card-glass">
@@ -263,7 +310,9 @@ onMounted(() => {
                         @click="mobileSidebarOpen = true" 
                         class="lg:hidden text-gray-500"
                     />
-                    <div class="flex items-center gap-2"></div>
+                    <RouterLink :to="{ name: isEmployer ? 'employer.dashboard' : 'candidate.dashboard' }" class="flex items-center">
+                        <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-24 w-auto" />
+                    </RouterLink>
                 </div>
 
                 <!-- Center: Search (Employer only for now) -->
@@ -282,6 +331,7 @@ onMounted(() => {
                 <!-- Right: Actions -->
                 <div class="flex items-center gap-2">
                     <Button label="AI Clinforce" class="!bg-indigo-600 !text-white !rounded-xl" @click="() => window.dispatchEvent(new Event('chatbot:toggle'))" />
+                    <DarkModeToggle />
                     <Button icon="pi pi-question-circle" text rounded severity="secondary" class="text-gray-500" />
                     <OverlayBadge :value="unreadCount" severity="danger" v-if="unreadCount > 0">
                         <Button icon="pi pi-bell" text rounded severity="secondary" @click="(e) => notificationPanel.toggle(e)" class="text-gray-500" />
@@ -349,11 +399,14 @@ onMounted(() => {
 
                     <!-- Footer area -->
                     <div class="p-4">
-                         <div v-if="!sidebarCollapsed && isEmployer" class="p-3 bg-blue-50 rounded-lg border border-blue-100 mb-2">
-                            <div class="text-xs font-semibold text-blue-900">Pro Plan</div>
-                            <div class="text-xs text-blue-700 mt-1">2/5 Seats Used</div>
-                            <div class="w-full bg-blue-200 h-1 mt-2 rounded-full overflow-hidden">
-                                <div class="bg-blue-600 h-full w-2/5"></div>
+                         <div v-if="!sidebarCollapsed && isEmployer && seatUsage" class="p-3 bg-blue-50 rounded-lg border border-blue-100 mb-2">
+                            <div class="text-xs font-semibold text-blue-900">{{ seatUsage.plan_name || 'Active Plan' }}</div>
+                            <div v-if="seatUsage.job_post_limit" class="text-xs text-blue-700 mt-1">
+                                {{ seatUsage.jobs_used }}/{{ seatUsage.job_post_limit }} Active Jobs
+                            </div>
+                            <div v-else class="text-xs text-blue-700 mt-1">Unlimited Jobs</div>
+                            <div v-if="seatUsage.job_post_limit" class="w-full bg-blue-200 h-1 mt-2 rounded-full overflow-hidden">
+                                <div class="bg-blue-600 h-full rounded-full transition-all" :style="{ width: seatPercent + '%' }"></div>
                             </div>
                         </div>
 
@@ -393,6 +446,15 @@ onMounted(() => {
                             </RouterLink>
                          </div>
                     </nav>
+                    <!-- Mobile seat usage widget -->
+                    <div v-if="isEmployer && seatUsage" class="mt-6 mx-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                        <div class="text-xs font-semibold text-blue-900">{{ seatUsage.plan_name || 'Active Plan' }}</div>
+                        <div v-if="seatUsage.job_post_limit" class="text-xs text-blue-700 mt-1">{{ seatUsage.jobs_used }}/{{ seatUsage.job_post_limit }} Active Jobs</div>
+                        <div v-else class="text-xs text-blue-700 mt-1">Unlimited Jobs</div>
+                        <div v-if="seatUsage.job_post_limit" class="w-full bg-blue-200 h-1 mt-2 rounded-full overflow-hidden">
+                            <div class="bg-blue-600 h-full rounded-full transition-all" :style="{ width: seatPercent + '%' }"></div>
+                        </div>
+                    </div>
                 </Drawer>
 
                 <!-- Main Content Area -->
@@ -428,6 +490,7 @@ onMounted(() => {
             <ChatbotWidget v-if="isEmployer" />
             <MarketingPopup v-if="!isAuthed" />
             <StickyMarketingCard v-if="!isAuthed" />
+            <Toast position="bottom-right" />
         </div>
     </div>
 </template>

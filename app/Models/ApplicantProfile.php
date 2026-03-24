@@ -24,10 +24,18 @@ class ApplicantProfile extends Model
         'city',
         'public_display_name',
         'avatar',
+        'skills',
+        'work_experience',
+        'education',
+        'portfolio_links',
     ];
 
     protected $casts = [
         'years_experience' => 'integer',
+        'skills' => 'array',
+        'work_experience' => 'array',
+        'education' => 'array',
+        'portfolio_links' => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

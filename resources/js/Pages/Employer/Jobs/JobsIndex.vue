@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
+import SkeletonCard from "@/Components/SkeletonCard.vue";
 import { http } from "../../../lib/http";
 
 // PrimeVue
@@ -270,7 +271,7 @@ onBeforeUnmount(() => {
       <Message v-if="error" severity="error" :closable="false" class="mb-4">{{ error }} <Button label="Retry" text size="small" @click="load()" class="p-0 ml-2 !text-red-600" /></Message>
 
       <!-- Enhanced Filters & Toolbar -->
-      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+      <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
         <div class="flex flex-col lg:flex-row justify-between items-center gap-4">
             <div class="flex flex-wrap gap-2">
                 <Button 
@@ -320,13 +321,12 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Enhanced Job List -->
-      <div v-if="loading" class="text-center py-12">
-        <i class="pi pi-spin pi-spinner text-4xl text-blue-600 mb-4"></i>
-        <div class="text-slate-500">Loading opportunities...</div>
+      <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <SkeletonCard v-for="n in 6" :key="n" type="card" />
       </div>
       
       <div v-else-if="filtered.length" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-         <div v-for="r in filtered" :key="r.id" class="group relative bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg hover:border-blue-300 transition-all duration-300 overflow-hidden">
+         <div v-for="r in filtered" :key="r.id" class="group relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 overflow-hidden">
             <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 opacity-70"></div>
             <RouterLink :to="{ name: 'employer.jobs.view', params: { id: r.id } }" class="absolute inset-0 z-10"></RouterLink>
             
@@ -337,8 +337,8 @@ onBeforeUnmount(() => {
                         {{ initialsFromTitle(pickTitle(r)) }}
                     </div>
                     <div class="min-w-0">
-                        <h3 class="font-bold text-lg text-slate-900 truncate" :title="pickTitle(r)">{{ pickTitle(r) }}</h3>
-                        <div class="flex items-center gap-2 text-xs text-slate-500">
+                        <h3 class="font-bold text-lg text-slate-900 dark:text-slate-100 truncate" :title="pickTitle(r)">{{ pickTitle(r) }}</h3>
+                        <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                              <i class="pi pi-map-marker text-xs"></i>
                              <span class="truncate">{{ pickLocation(r) }}</span>
                         </div>
@@ -353,16 +353,16 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Stats Grid -->
-            <div class="grid grid-cols-3 gap-2 py-3 border-t border-b border-slate-100 mb-4 bg-slate-50/50 rounded-lg">
+            <div class="grid grid-cols-3 gap-2 py-3 border-t border-b border-slate-100 dark:border-slate-700 mb-4 bg-slate-50/50 dark:bg-slate-900/50 rounded-lg">
                 <div class="text-center px-2">
-                    <div class="text-lg font-bold text-slate-900">{{ getApplicationCount(r) || 0 }}</div>
+                    <div class="text-lg font-bold text-slate-900 dark:text-slate-100">{{ getApplicationCount(r) || 0 }}</div>
                     <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Applied</div>
                 </div>
-                <div class="text-center px-2 border-l border-slate-200">
+                <div class="text-center px-2 border-l border-slate-200 dark:border-slate-700">
                     <div class="text-lg font-bold text-green-600">{{ getActiveCount(r) || 0 }}</div>
                     <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Active</div>
                 </div>
-                <div class="text-center px-2 border-l border-slate-200">
+                <div class="text-center px-2 border-l border-slate-200 dark:border-slate-700">
                     <div class="text-lg font-bold text-blue-600">{{ getViewCount(r) || 0 }}</div>
                     <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Views</div>
                 </div>
@@ -372,12 +372,12 @@ onBeforeUnmount(() => {
             <div class="flex justify-between items-center relative z-20">
                 <span class="text-xs text-slate-400 font-medium">{{ formatRelative(r.created_at) }}</span>
                 <div class="flex items-center gap-1.5">
-                  <RouterLink :to="{ name: 'employer.jobs.edit', params: { id: r.id } }" class="inline-flex items-center px-2 py-1 rounded-lg text-xs border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 z-20">
+                  <RouterLink :to="{ name: 'employer.jobs.edit', params: { id: r.id } }" class="inline-flex items-center px-2 py-1 rounded-lg text-xs border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 z-20">
                     Edit
                   </RouterLink>
                 <RouterLink
                   :to="{ name: 'employer.jobs.view', params: { id: r.id } }"
-                  class="inline-flex items-center px-2 py-1 rounded-lg text-xs text-blue-700 bg-blue-50 border border-blue-200 z-20"
+                  class="inline-flex items-center px-2 py-1 rounded-lg text-xs text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700 z-20"
                 >
                   Manage <i class="pi pi-arrow-right text-[10px] ml-1"></i>
                 </RouterLink>
@@ -386,12 +386,12 @@ onBeforeUnmount(() => {
          </div>
       </div>
 
-      <div v-else class="text-center py-16 bg-white rounded-xl border border-dashed border-slate-300">
-          <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 text-blue-600 mb-4">
+      <div v-else class="text-center py-16 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-600">
+          <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 mb-4">
             <i class="pi pi-briefcase text-2xl"></i>
           </div>
-          <h3 class="text-xl font-bold text-slate-900 mb-2">No roles found</h3>
-          <p class="text-slate-500 mb-6 max-w-md mx-auto">Try adjusting your filters or create a new job posting to find the perfect candidate.</p>
+          <h3 class="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">No roles found</h3>
+          <p class="text-slate-500 dark:text-slate-400 mb-6 max-w-md mx-auto">Try adjusting your filters or create a new job posting to find the perfect candidate.</p>
           <RouterLink :to="{ name: 'employer.jobs.create' }" custom v-slot="{ navigate }">
               <Button 
                 label="Post New Role" 

@@ -49,16 +49,27 @@
 }
 
 /* Dark Mode (Fallback / Optional) */
-.app-dark {
+.app-dark,
+.dark {
     --c-bg-app: #0f172a;
     --c-bg-surface: #1e293b;
     --c-bg-sidebar: #0f172a;
     --c-border: #334155;
+    --c-border-hover: #475569;
     --c-text-primary: #f8fafc;
     --c-text-secondary: #cbd5e1;
+    --c-text-tertiary: #64748b;
     --c-accent-primary: #3b82f6;
-    /* Blue 500 */
+    --c-accent-hover: #2563eb;
+    --c-accent-light: #1e3a8a;
     --c-accent-text: #ffffff;
+    --c-success: #4ade80;
+    --c-warning: #fbbf24;
+    --c-danger: #f87171;
+    --c-info: #60a5fa;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
 }
 
 /* Base Classes */
@@ -91,10 +102,8 @@
     color: var(--c-accent-primary);
 }
 
-.card-glass {
-    background: var(--c-bg-surface);
-    border: 1px solid var(--c-border);
-    box-shadow: var(--shadow-sm);
+.bg-sidebar {
+    background-color: var(--c-bg-sidebar);
 }
 
 /* Button Overrides for "Blue Buttons" */
@@ -130,4 +139,10 @@
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--c-text-tertiary);
+}
+
+.card-glass {
+    background: var(--c-bg-surface);
+    border: 1px solid var(--c-border);
+    box-shadow: var(--shadow-sm);
 }

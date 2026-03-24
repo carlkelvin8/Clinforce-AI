@@ -101,6 +101,21 @@
                     Complete your profile to improve matches with employers.
                   </p>
                 </div>
+                <!-- Completeness nudge checklist -->
+                <div v-if="completeness < 100" class="flex flex-col gap-1.5 mt-1">
+                  <span class="text-[11px] uppercase tracking-wide font-medium text-slate-500">Missing fields</span>
+                  <div v-for="nudge in missingNudges" :key="nudge.field"
+                    class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer hover:text-sky-600 transition-colors group"
+                    @click="focusField(nudge.field)"
+                  >
+                    <i class="pi pi-circle text-[10px] text-slate-300 group-hover:text-sky-400"></i>
+                    <span>{{ nudge.label }}</span>
+                    <i class="pi pi-arrow-right text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                  </div>
+                </div>
+                <div v-else class="flex items-center gap-1.5 text-xs text-emerald-600 font-medium mt-1">
+                  <i class="pi pi-check-circle"></i> Profile complete
+                </div>
                 <div class="flex flex-col gap-0.5 text-xs text-slate-500">
                   <span class="uppercase tracking-wide font-medium">Account</span>
                   <span>Signed in as <span class="font-medium text-slate-700">{{ auth.email || "—" }}</span></span>
@@ -312,6 +327,15 @@
                             </div>
                             <div class="flex items-center gap-1">
                               <div class="hidden sm:flex items-center gap-1">
+                                <Button
+                                  v-if="d.mime_type === 'application/pdf' || (d.file_name || '').endsWith('.pdf')"
+                                  icon="pi pi-eye"
+                                  text
+                                  rounded
+                                  size="small"
+                                  aria-label="Preview"
+                                  @click.stop="openDocPreview(d)"
+                                />
                                 <a
                                   v-if="d.file_url"
                                   :href="d.file_url"
@@ -353,8 +377,56 @@
           </div>
         </div>
 
-        <Dialog v-model:visible="showUpload" header="Add document" modal :style="{ width: '500px' }" class="p-fluid">
-          <template #header>
+        <!-- Portfolio Links -->
+        <div class="grid grid-cols-1 gap-3">
+          <Card class="rounded-2xl shadow-sm bg-white">
+            <template #title>
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-sm font-semibold text-slate-900">Portfolio & Links</span>
+                  <p class="text-xs text-slate-500 mt-0.5">Add links to your portfolio, GitHub, LinkedIn, or personal site.</p>
+                </div>
+              </div>
+            </template>
+            <template #content>
+              <div class="px-4 py-2 space-y-3">
+                <div class="flex gap-2">
+                  <InputText v-model="newPortfolioUrl" placeholder="https://github.com/yourname" class="flex-1 !rounded-xl !text-sm" @keyup.enter="addPortfolioLink" />
+                  <Button icon="pi pi-plus" @click="addPortfolioLink" outlined />
+                </div>
+                <div v-if="!portfolioLinks.length" class="text-sm text-slate-400 py-2">No links added yet.</div>
+                <div v-else class="space-y-2">
+                  <div v-for="(link, idx) in portfolioLinks" :key="idx"
+                    class="flex items-center justify-between gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <a :href="link" target="_blank" rel="noreferrer" class="text-sm text-blue-600 hover:underline truncate flex-1">{{ link }}</a>
+                    <Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removePortfolioLink(idx)" />
+                  </div>
+                </div>
+                <div class="flex justify-end pt-1">
+                  <Button label="Save links" icon="pi pi-check" size="small" :loading="savingPortfolio" @click="savePortfolioLinks"
+                    class="!rounded-full !bg-slate-900 hover:!bg-slate-800 !border-slate-900 !text-sm" />
+                </div>
+              </div>
+            </template>
+          </Card>
+        </div>
+
+        <!-- Document Preview Dialog -->
+        <Dialog v-model:visible="showDocPreview" modal :header="previewDoc?.file_name || 'Preview'" :style="{ width: '90vw', maxWidth: '900px' }" :contentStyle="{ padding: 0 }" @hide="closeDocPreview">
+          <div v-if="docPreviewLoading" class="flex justify-center items-center h-64">
+            <i class="pi pi-spin pi-spinner text-3xl text-slate-400"></i>
+          </div>
+          <div v-else-if="docPreviewError" class="p-6 text-center text-red-500 text-sm">{{ docPreviewError }}</div>
+          <iframe
+            v-else-if="docPreviewBlobUrl"
+            :src="docPreviewBlobUrl"
+            class="w-full"
+            style="height: 80vh; border: none;"
+            title="Document Preview"
+          ></iframe>
+        </Dialog>
+
+        <Dialog v-model:visible="showUpload" header="Add document" modal :style="{ width: '500px' }" class="p-fluid">          <template #header>
             <div class="flex flex-column">
               <span class="text-xl font-bold">Add document</span>
               <span class="text-sm text-600 mt-1">Creates via <span class="font-mono">POST /api/documents</span></span>
@@ -435,6 +507,32 @@ const form = ref({
   city: "",
 });
 
+// Portfolio links
+const portfolioLinks = ref([])
+const newPortfolioUrl = ref('')
+const savingPortfolio = ref(false)
+
+function addPortfolioLink() {
+  const url = newPortfolioUrl.value.trim()
+  if (!url) return
+  if (!portfolioLinks.value.includes(url)) portfolioLinks.value.push(url)
+  newPortfolioUrl.value = ''
+}
+
+function removePortfolioLink(idx) {
+  portfolioLinks.value.splice(idx, 1)
+}
+
+async function savePortfolioLinks() {
+  savingPortfolio.value = true
+  try {
+    await api.put('/me/applicant', { portfolio_links: portfolioLinks.value })
+    await toast('success', 'Portfolio links saved')
+  } catch (e) {
+    await Swal.fire({ icon: 'error', title: 'Failed', text: e?.__payload?.message || e?.message || 'Save failed' })
+  } finally { savingPortfolio.value = false }
+}
+
 const docs = ref([]);
 
 const allowedDocTypes = ["resume", "license", "certificate", "id_document", "other"];
@@ -491,6 +589,65 @@ const completeness = computed(() => {
   const filled = fields.filter((v) => String(v || "").trim().length > 0).length;
   return Math.round((filled / fields.length) * 100);
 });
+
+const nudgeFields = [
+  { field: 'firstName', key: 'first_name', label: 'Add your first name' },
+  { field: 'lastName', key: 'last_name', label: 'Add your last name' },
+  { field: 'headline', key: 'headline', label: 'Add a professional headline' },
+  { field: 'summary', key: 'summary', label: 'Write a short summary' },
+  { field: 'experience', key: 'years_experience', label: 'Add years of experience' },
+  { field: 'country', key: 'country', label: 'Select your country' },
+  { field: 'state', key: 'state', label: 'Add your state/province' },
+  { field: 'city', key: 'city', label: 'Add your city' },
+];
+
+const missingNudges = computed(() =>
+  nudgeFields.filter(n => !String(form.value[n.key] ?? '').trim())
+);
+
+function focusField(fieldId) {
+  const el = document.getElementById(fieldId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => el.focus(), 300);
+  }
+}
+
+// Document preview
+const showDocPreview = ref(false);
+const previewDoc = ref(null);
+const docPreviewLoading = ref(false);
+const docPreviewError = ref('');
+const docPreviewBlobUrl = ref('');
+
+async function openDocPreview(d) {
+  previewDoc.value = d;
+  showDocPreview.value = true;
+  docPreviewLoading.value = true;
+  docPreviewError.value = '';
+  docPreviewBlobUrl.value = '';
+  try {
+    const token = localStorage.getItem('auth_token') || '';
+    const res = await fetch(`/api/documents/${d.id}/stream`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('Could not load document');
+    const blob = await res.blob();
+    docPreviewBlobUrl.value = URL.createObjectURL(blob);
+  } catch (e) {
+    docPreviewError.value = e?.message || 'Failed to load preview.';
+  } finally {
+    docPreviewLoading.value = false;
+  }
+}
+
+function closeDocPreview() {
+  if (docPreviewBlobUrl.value) {
+    URL.revokeObjectURL(docPreviewBlobUrl.value);
+    docPreviewBlobUrl.value = '';
+  }
+  previewDoc.value = null;
+}
 
 function formatDate(v) {
   if (!v) return "N/A";
@@ -561,6 +718,7 @@ async function fetchMe() {
     state: ap?.state ?? "",
     city: ap?.city ?? "",
   };
+  portfolioLinks.value = Array.isArray(ap?.portfolio_links) ? [...ap.portfolio_links] : [];
 }
 
 async function fetchDocs() {

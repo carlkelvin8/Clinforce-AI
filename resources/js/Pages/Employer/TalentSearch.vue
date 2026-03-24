@@ -113,31 +113,69 @@ function initials(name) {
 
 const inviting = ref({});
 const invited = ref({});
+const selected = ref(new Set());
+const bulkInviting = ref(false);
+
+function toggleSelect(id) {
+  const s = new Set(selected.value);
+  s.has(id) ? s.delete(id) : s.add(id);
+  selected.value = s;
+}
+
+function toggleSelectAll() {
+  if (selected.value.size === filtered.value.length) {
+    selected.value = new Set();
+  } else {
+    selected.value = new Set(filtered.value.map(c => c.id));
+  }
+}
 
 async function invite(c) {
   if (inviting.value[c.id] || invited.value[c.id]) return;
-  
   inviting.value[c.id] = true;
   try {
     await http.post('/invitations', { candidate_id: c.id });
     invited.value[c.id] = true;
-    await Swal.fire({
-      icon: 'success',
-      title: 'Invitation sent',
-      text: `Invitation sent to ${c.name || 'candidate'}.`,
-      timer: 1800,
-      showConfirmButton: false,
-    });
   } catch (e) {
     const msg = e.response?.data?.message || "Failed to send invitation.";
-    await Swal.fire({
-      icon: 'error',
-      title: 'Invitation failed',
-      text: msg,
-    });
+    await Swal.fire({ icon: 'error', title: 'Invitation failed', text: msg });
   } finally {
     inviting.value[c.id] = false;
   }
+}
+
+async function bulkInvite() {
+  if (!selected.value.size) return;
+  const ids = Array.from(selected.value).filter(id => !invited.value[id]);
+  if (!ids.length) return;
+
+  const result = await Swal.fire({
+    icon: 'question',
+    title: `Invite ${ids.length} candidate(s)?`,
+    text: 'An invitation will be sent to each selected candidate.',
+    showCancelButton: true,
+    confirmButtonText: 'Send Invitations',
+    confirmButtonColor: '#2563eb',
+  });
+  if (!result.isConfirmed) return;
+
+  bulkInviting.value = true;
+  let ok = 0, fail = 0;
+  for (const id of ids) {
+    try {
+      await http.post('/invitations', { candidate_id: id });
+      invited.value[id] = true;
+      ok++;
+    } catch { fail++; }
+  }
+  bulkInviting.value = false;
+  selected.value = new Set();
+  await Swal.fire({
+    icon: fail === 0 ? 'success' : 'warning',
+    title: `${ok} sent${fail ? `, ${fail} failed` : ''}`,
+    timer: 2000,
+    showConfirmButton: false,
+  });
 }
 </script>
 
@@ -189,10 +227,40 @@ async function invite(c) {
       <!-- Results Area -->
       <div>
          <div class="flex items-center justify-between mb-6 px-1">
-            <div class="text-sm font-medium text-gray-500">
-               Showing <span class="text-gray-900 font-bold">{{ filtered.length }}</span> candidates
+            <div class="flex items-center gap-4">
+              <div class="text-sm font-medium text-gray-500">
+                Showing <span class="text-gray-900 font-bold">{{ filtered.length }}</span> candidates
+              </div>
+              <button
+                v-if="filtered.length"
+                class="text-xs text-blue-600 hover:underline font-medium"
+                @click="toggleSelectAll"
+              >
+                {{ selected.size === filtered.length ? 'Deselect all' : 'Select all' }}
+              </button>
             </div>
-            <!-- Optional: Sort dropdown could go here -->
+            <!-- Bulk invite bar -->
+            <transition name="fade">
+              <div v-if="selected.size > 0" class="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2">
+                <span class="text-sm font-semibold text-blue-700">{{ selected.size }} selected</span>
+                <Button
+                  label="Bulk Invite"
+                  icon="pi pi-send"
+                  size="small"
+                  :loading="bulkInviting"
+                  @click="bulkInvite"
+                  class="!rounded-lg"
+                />
+                <Button
+                  icon="pi pi-times"
+                  text
+                  rounded
+                  size="small"
+                  severity="secondary"
+                  @click="selected = new Set()"
+                />
+              </div>
+            </transition>
          </div>
 
          <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -208,17 +276,27 @@ async function invite(c) {
          </div>
 
          <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div v-for="c in filtered" :key="c.id" class="group bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden">
+            <div v-for="c in filtered" :key="c.id" class="group bg-white rounded-xl border hover:border-blue-300 hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden"
+              :class="selected.has(c.id) ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'"
+            >
                <!-- Card Header -->
                <div class="p-6 pb-4 flex items-start justify-between gap-4">
-                  <Avatar 
-                    :image="c.avatar" 
-                    :label="!c.avatar ? initials(c.name) : null" 
-                    shape="circle" 
-                    size="xlarge" 
-                    class="!w-16 !h-16 text-xl shadow-sm border border-gray-100"
-                    :style="{ backgroundColor: !c.avatar ? '#eff6ff' : undefined, color: !c.avatar ? '#3b82f6' : undefined }"
-                  />
+                  <div class="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      :checked="selected.has(c.id)"
+                      @change="toggleSelect(c.id)"
+                      class="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                    />
+                    <Avatar
+                      :image="c.avatar"
+                      :label="!c.avatar ? initials(c.name) : null"
+                      shape="circle"
+                      size="xlarge"
+                      class="!w-16 !h-16 text-xl shadow-sm border border-gray-100"
+                      :style="{ backgroundColor: !c.avatar ? '#eff6ff' : undefined, color: !c.avatar ? '#3b82f6' : undefined }"
+                    />
+                  </div>
                   <div v-if="c.match" class="flex flex-col items-end">
                      <span class="text-xs font-bold uppercase text-green-600 tracking-wide">Match</span>
                      <span class="text-lg font-bold text-gray-900">{{ c.match }}%</span>
@@ -229,12 +307,10 @@ async function invite(c) {
                <div class="px-6 flex-1">
                   <h3 class="text-lg font-bold text-gray-900 leading-tight mb-1 group-hover:text-blue-600 transition-colors">{{ c.name }}</h3>
                   <p class="text-sm text-gray-500 font-medium mb-4">{{ c.role }}</p>
-                  
                   <div class="flex items-center gap-2 text-sm text-gray-600 mb-4">
                      <i class="pi pi-map-marker text-gray-400"></i>
                      <span>{{ c.location }}</span>
                   </div>
-
                   <p class="text-sm text-gray-600 line-clamp-3 mb-4 leading-relaxed">
                      {{ c.blurb || 'No summary provided.' }}
                   </p>
@@ -243,14 +319,14 @@ async function invite(c) {
                <!-- Footer -->
                <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between mt-auto">
                   <span class="text-xs text-gray-400 font-medium">Active: {{ fmtDate(c.last_active) }}</span>
-                  <Button 
-                     :icon="invited[c.id] ? 'pi pi-check' : 'pi pi-arrow-right'" 
-                     :label="invited[c.id] ? 'Invited' : ''"
-                     rounded 
-                     :text="!invited[c.id]" 
-                     :severity="invited[c.id] ? 'success' : 'secondary'" 
-                     class="!h-8 !px-3 hover:bg-white hover:shadow-sm" 
-                     @click="invite(c)" 
+                  <Button
+                     :icon="invited[c.id] ? 'pi pi-check' : 'pi pi-send'"
+                     :label="invited[c.id] ? 'Invited' : 'Invite'"
+                     rounded
+                     size="small"
+                     :severity="invited[c.id] ? 'success' : 'secondary'"
+                     class="!h-8 !px-3"
+                     @click="invite(c)"
                      :loading="inviting[c.id]"
                      :disabled="invited[c.id]"
                   />
@@ -261,3 +337,8 @@ async function invite(c) {
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>

@@ -27,6 +27,8 @@ class EmployerProfile extends Model
         'tax_id',
         'address_line',
         'website_url',
+        'description',
+        'slug',
         'verification_status',
         'verified_at',
         'rejected_reason',

@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Requests\Api\VerificationRequestStoreRequest;
 use App\Http\Requests\Api\VerificationReviewRequest;
+use App\Mail\VerificationReviewed;
 use App\Models\AgencyProfile;
 use App\Models\EmployerProfile;
 use App\Models\VerificationRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class VerificationRequestsController extends ApiController
 {
@@ -98,6 +100,17 @@ class VerificationRequestsController extends ApiController
                 ]);
             }
         });
+
+        // Email the user about the review outcome
+        try {
+            $verificationRequest->load('user');
+            if ($verificationRequest->user?->email) {
+                Mail::to($verificationRequest->user->email)
+                    ->send(new VerificationReviewed($verificationRequest->fresh()));
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Failed to send verification reviewed email', ['error' => $e->getMessage()]);
+        }
 
         return $this->ok($verificationRequest->fresh(), 'Reviewed');
     }

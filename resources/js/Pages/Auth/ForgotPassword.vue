@@ -8,10 +8,7 @@
         
         <div class="absolute inset-0 z-20 flex flex-col justify-between p-12 text-white">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm grid place-content-center border border-white/10 shadow-lg">
-                <span class="font-bold">AC</span>
-            </div>
-            <div class="text-lg font-bold tracking-tight">AI Clinforce Partners</div>
+            <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-24 w-auto brightness-0 invert" />
           </div>
           
           <div class="mb-10">
@@ -32,10 +29,7 @@
         <div class="w-full max-w-[520px]">
           <!-- Mobile Header -->
           <div class="mb-8 text-center lg:hidden">
-            <div class="inline-flex items-center justify-center bg-blue-600 text-white rounded-xl w-12 h-12 mb-4 shadow-lg shadow-blue-200">
-                <span class="font-bold text-lg">AC</span>
-            </div>
-            <h2 class="text-2xl font-bold text-slate-900">AI Clinforce Partners</h2>
+            <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-28 w-auto mx-auto mb-4" />
           </div>
 
           <div class="mb-8">

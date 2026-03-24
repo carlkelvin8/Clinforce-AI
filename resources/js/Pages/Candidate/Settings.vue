@@ -11,6 +11,7 @@ import Avatar from 'primevue/avatar';
 import Toast from 'primevue/toast';
 import FileUpload from 'primevue/fileupload';
 import Dialog from 'primevue/dialog';
+import Select from 'primevue/select';
 import { useToast } from 'primevue/usetoast';
 import { Cropper } from 'vue-advanced-cropper';
 import 'vue-advanced-cropper/dist/style.css';
@@ -19,6 +20,36 @@ const toast = useToast();
 const user = ref(null)
 const loading = ref(false)
 const saving = ref(false)
+
+// Notification preferences
+const notif = ref({ frequency: 'immediate' })
+const notifLoading = ref(false)
+const notifSaving = ref(false)
+const frequencyOptions = [
+  { label: 'Immediate', value: 'immediate' },
+  { label: 'Daily digest', value: 'daily' },
+  { label: 'Weekly summary', value: 'weekly' },
+]
+
+async function loadNotificationPrefs() {
+  notifLoading.value = true
+  try {
+    const res = await http.get('/notifications/preferences')
+    const p = res?.data?.data
+    if (p && typeof p.frequency === 'string') notif.value.frequency = p.frequency
+  } catch {}
+  finally { notifLoading.value = false }
+}
+
+async function saveNotificationPrefs() {
+  notifSaving.value = true
+  try {
+    await http.put('/notifications/preferences', { frequency: notif.value.frequency })
+    toast.add({ severity: 'success', summary: 'Saved', detail: 'Notification preferences updated.', life: 3000 })
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e?.response?.data?.message || 'Failed to save preferences.', life: 5000 })
+  } finally { notifSaving.value = false }
+}
 
 const form = ref({
   email: '',
@@ -120,6 +151,7 @@ onMounted(() => {
     }
   } catch {}
   fetchUser()
+  loadNotificationPrefs()
 })
 
 function onFileSelect(event) {
@@ -428,6 +460,35 @@ async function saveSettings() {
               </template>
             </Card>
           </div>
+
+            <Card class="shadow-sm border border-slate-100 bg-white rounded-2xl transition-all hover:shadow-md hover:border-slate-200">
+              <template #title>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold text-slate-900">Notification preferences</span>
+                </div>
+              </template>
+              <template #subtitle>
+                <span class="text-xs text-slate-500">Choose how often you receive notifications.</span>
+              </template>
+              <template #content>
+                <div class="pt-1 space-y-4">
+                  <div class="flex flex-col gap-2">
+                    <label class="font-medium text-xs uppercase tracking-wide text-slate-500">Frequency</label>
+                    <Select
+                      v-model="notif.frequency"
+                      :options="frequencyOptions"
+                      optionLabel="label"
+                      optionValue="value"
+                      :loading="notifLoading"
+                      class="w-full md:w-64"
+                    />
+                  </div>
+                  <div class="flex justify-end">
+                    <Button label="Save preferences" icon="pi pi-save" size="small" :loading="notifSaving" @click="saveNotificationPrefs" class="!rounded-full !bg-slate-900 hover:!bg-slate-800 !border-slate-900 !text-sm" />
+                  </div>
+                </div>
+              </template>
+            </Card>
 
           <Dialog v-model:visible="showCropDialog" modal header="Adjust image" :style="{ width: '500px' }" :closable="false">
             <div class="flex flex-col gap-4">

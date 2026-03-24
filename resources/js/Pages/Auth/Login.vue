@@ -98,6 +98,7 @@ const router = useRouter();
       const redirect = route.query.redirect ? String(route.query.redirect) : null;
       if (redirect) return router.push(redirect);
   
+      if (user?.role === 'admin') return router.push({ name: 'admin.dashboard' });
       if (isApplicantRole(user?.role)) return router.push({ name: "candidate.dashboard" });
       if (isStaffRole(user?.role)) return router.push({ name: "employer.dashboard" });
   
@@ -147,7 +148,6 @@ const router = useRouter();
   
   function loginWithGoogle() {
     if (loading.value) return;
-    // Don't pass role for existing users - they already have one
     window.location.href = "/auth/google/redirect";
   }
   </script>
@@ -162,10 +162,7 @@ const router = useRouter();
         
         <div class="absolute inset-0 z-20 flex flex-col justify-between p-12 text-white">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm grid place-content-center border border-white/10 shadow-lg">
-                <span class="font-bold">AC</span>
-            </div>
-            <div class="text-lg font-bold tracking-tight">AI Clinforce Partners</div>
+            <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-48 w-auto brightness-0 invert" />
           </div>
           
           <div class="mb-10">
@@ -197,14 +194,11 @@ const router = useRouter();
       </div>
 
       <!-- Right Side: Login Form -->
-      <div class="min-h-screen flex items-center justify-center p-6 bg-white">
+      <div class="min-h-screen flex items-center justify-center p-6 bg-white dark:bg-slate-900 transition-colors duration-300">
         <div class="w-full max-w-[420px]">
           <!-- Mobile Header -->
           <div class="mb-8 text-center lg:hidden">
-            <div class="inline-flex items-center justify-center bg-blue-600 text-white rounded-xl w-12 h-12 mb-4 shadow-lg shadow-blue-200">
-                <span class="font-bold text-lg">AC</span>
-            </div>
-            <h2 class="text-2xl font-bold text-slate-900">AI Clinforce Partners</h2>
+            <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-40 w-auto mx-auto mb-4" />
           </div>
 
           <div class="mb-8">
@@ -217,7 +211,7 @@ const router = useRouter();
             
             <div class="space-y-1.5">
               <label for="identifier" class="block text-sm font-semibold text-slate-700">Email or Phone</label>
-              <InputText id="identifier" v-model="identifier" placeholder="name@hospital.com" :disabled="loading" required @input="clearErrorOnType" class="w-full !rounded-lg !py-2.5" />
+              <InputText id="identifier" v-model="identifier" :disabled="loading" required @input="clearErrorOnType" class="w-full !rounded-lg !py-2.5" />
             </div>
             
             <div class="space-y-1.5">
@@ -225,7 +219,7 @@ const router = useRouter();
                 <label for="password" class="block text-sm font-semibold text-slate-700">Password</label>
                 <RouterLink :to="{ name: 'auth.forgot-password' }" class="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline">Forgot password?</RouterLink>
               </div>
-              <Password id="password" v-model="password" placeholder="••••••••" :disabled="loading" required @input="clearErrorOnType" toggleMask :feedback="false" inputClass="!w-full !rounded-lg !py-2.5" class="w-full" />
+              <Password id="password" v-model="password" :disabled="loading" required @input="clearErrorOnType" toggleMask :feedback="false" inputClass="!w-full !rounded-lg !py-2.5" class="w-full" />
             </div>
             
             <div class="flex items-center gap-2">
@@ -240,12 +234,12 @@ const router = useRouter();
                 <div class="w-full border-t border-slate-200"></div>
               </div>
               <div class="relative flex justify-center">
-                <span class="bg-white px-4 text-sm text-slate-500">Don't have an account?</span>
+                <span class="bg-white dark:bg-slate-900 px-4 text-sm text-slate-500">Don't have an account?</span>
               </div>
             </div>
             
             <div class="text-center">
-              <RouterLink :to="{ name: 'auth.register' }" class="inline-flex items-center justify-center w-full px-4 py-3 border border-slate-200 rounded-lg text-slate-700 font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all">
+              <RouterLink :to="{ name: 'auth.register' }" class="inline-flex items-center justify-center w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 transition-all">
                 Create free account
               </RouterLink>
             </div>
@@ -257,12 +251,12 @@ const router = useRouter();
                 <div class="w-full border-t border-slate-200"></div>
               </div>
               <div class="relative flex justify-center">
-                <span class="bg-white px-3 text-xs text-slate-400 uppercase tracking-wide">Or continue with</span>
+                <span class="bg-white dark:bg-slate-900 px-3 text-xs text-slate-400 uppercase tracking-wide">Or continue with</span>
               </div>
             </div>
             <button
               type="button"
-              class="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+              class="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 transition-colors"
               @click="loginWithGoogle"
             >
               <img

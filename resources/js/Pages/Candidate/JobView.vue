@@ -29,6 +29,14 @@
             </div>
             <div class="flex gap-3">
               <Button label="Refresh" icon="pi pi-refresh" outlined class="!border-slate-300 !text-slate-600" @click="fetchJob" :loading="loading" />
+              <Button
+                :icon="saved ? 'pi pi-bookmark-fill' : 'pi pi-bookmark'"
+                :label="saved ? 'Saved' : 'Save Job'"
+                :severity="saved ? 'success' : 'secondary'"
+                outlined
+                @click="toggleSave"
+                :loading="saveLoading"
+              />
               <Button v-if="!loading && !error" label="Apply Now" icon="pi pi-send" class="!bg-blue-600 !border-blue-600 hover:!bg-blue-700" @click="applyNow" :loading="applyLoading" :disabled="applyLoading" />
             </div>
           </div>
@@ -103,7 +111,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
 import api from "@/lib/api";
@@ -120,12 +128,55 @@ const loading = ref(false);
 const error = ref("");
 const job = ref({});
 
+// SEO meta tags
+watch(job, (j) => {
+  if (!j?.title) return
+  document.title = `${j.title} — ClinForce`
+  let desc = document.querySelector('meta[name="description"]')
+  if (!desc) { desc = document.createElement('meta'); desc.name = 'description'; document.head.appendChild(desc) }
+  desc.content = j.description ? j.description.slice(0, 160) : `Apply for ${j.title} at ClinForce`
+  let ogTitle = document.querySelector('meta[property="og:title"]')
+  if (!ogTitle) { ogTitle = document.createElement('meta'); ogTitle.setAttribute('property', 'og:title'); document.head.appendChild(ogTitle) }
+  ogTitle.content = j.title
+  let ogDesc = document.querySelector('meta[property="og:description"]')
+  if (!ogDesc) { ogDesc = document.createElement('meta'); ogDesc.setAttribute('property', 'og:description'); document.head.appendChild(ogDesc) }
+  ogDesc.content = desc.content
+}, { immediate: false })
+
 const applyLoading = ref(false);
 const applyError = ref("");
 const applyOk = ref("");
 const resumeFile = ref(null);
 const existingDocs = ref([]);
 let triedAutoAttach = false;
+
+const saved = ref(false);
+const saveLoading = ref(false);
+
+async function toggleSave() {
+  saveLoading.value = true;
+  try {
+    if (saved.value) {
+      await api.delete(`/jobs/${props.id}/save`);
+      saved.value = false;
+    } else {
+      await api.post(`/jobs/${props.id}/save`);
+      saved.value = true;
+    }
+  } catch (e) {
+    // silently ignore
+  } finally {
+    saveLoading.value = false;
+  }
+}
+
+async function checkSaved() {
+  try {
+    const res = await api.get('/saved-jobs');
+    const list = res.data?.data || [];
+    saved.value = list.some(j => String(j?.id) === String(props.id));
+  } catch {}
+}
 
 function goBack() {
   router.back();
@@ -276,6 +327,7 @@ async function autoAttachResumeIfAvailable() {
 
 onMounted(async () => {
   await fetchJob();
+  checkSaved();
 });
 </script>
 

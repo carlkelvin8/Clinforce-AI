@@ -19,6 +19,8 @@ class Subscription extends Model
         'currency_code',
         'amount_cents',
         'status',
+        'billing_country',
+        'notes',
         'start_at',
         'end_at',
         'current_period_end',

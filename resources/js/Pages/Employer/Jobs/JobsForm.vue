@@ -6,7 +6,7 @@ import Card from "primevue/card";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Textarea from "primevue/textarea";
-import Dropdown from "primevue/dropdown";
+import Select from "primevue/select";
 import Message from "primevue/message";
 import { http } from "@/lib/http";
 import { countries } from "@/lib/countries";
@@ -27,6 +27,9 @@ const form = ref({
     work_mode: "on_site",
     country: "",
     city: "",
+    salary_min: "",
+    salary_max: "",
+    salary_currency: "USD",
 });
 
 const employmentTypes = [
@@ -73,6 +76,9 @@ async function load() {
         form.value.work_mode = j.work_mode || "on_site";
         form.value.country = j.country || j.country_code || "";
         form.value.city = j.city || "";
+        form.value.salary_min = j.salary_min ?? "";
+        form.value.salary_max = j.salary_max ?? "";
+        form.value.salary_currency = j.salary_currency || "USD";
     } catch (e) {
         error.value = e?.response?.data?.message || e?.message || "Failed to load job";
     } finally {
@@ -97,6 +103,9 @@ async function save() {
         work_mode: form.value.work_mode,
         country: form.value.country,
         city: String(form.value.city || "").trim() || null,
+        salary_min: form.value.salary_min !== "" ? Number(form.value.salary_min) : null,
+        salary_max: form.value.salary_max !== "" ? Number(form.value.salary_max) : null,
+        salary_currency: form.value.salary_currency || null,
     };
 
     try {
@@ -192,11 +201,11 @@ onMounted(load);
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div class="flex flex-col gap-2">
                                     <label for="employment_type" class="font-medium text-slate-700">Employment Type <span class="text-red-500">*</span></label>
-                                    <Dropdown id="employment_type" v-model="form.employment_type" :options="employmentTypes" optionLabel="label" optionValue="value" :disabled="loading" placeholder="Select type" class="w-full !border-slate-300" />
+                                    <Select id="employment_type" v-model="form.employment_type" :options="employmentTypes" optionLabel="label" optionValue="value" :disabled="loading" placeholder="Select type" class="w-full !border-slate-300" />
                                 </div>
                                 <div class="flex flex-col gap-2">
                                     <label for="work_mode" class="font-medium text-slate-700">Work Mode <span class="text-red-500">*</span></label>
-                                    <Dropdown id="work_mode" v-model="form.work_mode" :options="workModes" optionLabel="label" optionValue="value" :disabled="loading" placeholder="Select mode" class="w-full !border-slate-300" />
+                                    <Select id="work_mode" v-model="form.work_mode" :options="workModes" optionLabel="label" optionValue="value" :disabled="loading" placeholder="Select mode" class="w-full !border-slate-300" />
                                 </div>
                             </div>
                         </div>
@@ -212,7 +221,7 @@ onMounted(load);
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div class="flex flex-col gap-2">
                                     <label for="country" class="font-medium text-slate-700">Country</label>
-                                    <Dropdown
+                                    <Select
                                       id="country"
                                       v-model="form.country"
                                       :options="countries"
@@ -233,7 +242,37 @@ onMounted(load);
 
                         <hr class="border-slate-100" />
 
-                        <!-- Description -->
+                        <!-- Salary -->
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                                <i class="pi pi-dollar text-blue-600"></i>
+                                Salary Range <span class="text-sm font-normal text-slate-400 ml-1">(optional)</span>
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div class="flex flex-col gap-2">
+                                    <label for="salary_min" class="font-medium text-slate-700">Minimum</label>
+                                    <InputText id="salary_min" v-model="form.salary_min" type="number" min="0" placeholder="e.g. 30000" :disabled="loading" class="w-full !border-slate-300" />
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <label for="salary_max" class="font-medium text-slate-700">Maximum</label>
+                                    <InputText id="salary_max" v-model="form.salary_max" type="number" min="0" placeholder="e.g. 60000" :disabled="loading" class="w-full !border-slate-300" />
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <label for="salary_currency" class="font-medium text-slate-700">Currency</label>
+                                    <Select
+                                        id="salary_currency"
+                                        v-model="form.salary_currency"
+                                        :options="[{label:'USD ($)',value:'USD'},{label:'PHP (₱)',value:'PHP'},{label:'EUR (€)',value:'EUR'},{label:'GBP (£)',value:'GBP'}]"
+                                        optionLabel="label"
+                                        optionValue="value"
+                                        :disabled="loading"
+                                        class="w-full !border-slate-300"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="border-slate-100" />
                         <div>
                             <h3 class="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
                                 <i class="pi pi-align-left text-blue-600"></i>

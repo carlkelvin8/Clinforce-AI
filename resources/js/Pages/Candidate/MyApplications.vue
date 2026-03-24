@@ -1,6 +1,7 @@
 <!-- resources/js/Pages/Candidate/MyApplications.vue -->
 <template>
   <AppLayout>
+    <ConfirmDialog />
     <div class="w-full max-w-7xl mx-auto p-4">
       <!-- Header -->
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -70,6 +71,16 @@
                   <p v-if="row.cover_letter" class="text-sm text-gray-700 line-clamp-2">{{ row.cover_letter }}</p>
                 </div>
                 <Button label="View" icon="pi pi-eye" size="small" @click="router.push({ name: 'candidate.applications.view', params: { id: row.id } })" />
+                <Button
+                  v-if="!['rejected','hired','withdrawn'].includes(row.status)"
+                  label="Withdraw"
+                  icon="pi pi-times-circle"
+                  size="small"
+                  severity="danger"
+                  outlined
+                  :loading="withdrawing === row.id"
+                  @click="confirmWithdraw(row)"
+                />
               </div>
             </template>
           </Card>
@@ -93,6 +104,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
 import api from "@/lib/api";
+import { toast } from "@/composables/useAppToast";
 
 import Card from 'primevue/card';
 import Button from 'primevue/button';
@@ -100,8 +112,11 @@ import InputText from 'primevue/inputtext';
 import Select from 'primevue/select';
 import Tag from 'primevue/tag';
 import Message from 'primevue/message';
+import ConfirmDialog from 'primevue/confirmdialog';
+import { useConfirm } from 'primevue/useconfirm';
 
 const router = useRouter();
+const confirm = useConfirm();
 
 const loading = ref(false);
 const error = ref("");
@@ -184,6 +199,33 @@ async function fetchData(page = 1) {
     raw.value = null;
   } finally {
     loading.value = false;
+  }
+}
+
+const withdrawing = ref(null);
+
+function confirmWithdraw(row) {
+  confirm.require({
+    message: `Withdraw your application for "${row.job?.title || 'this job'}"? This cannot be undone.`,
+    header: 'Withdraw Application',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: 'Yes, Withdraw',
+    rejectLabel: 'Cancel',
+    acceptClass: 'p-button-danger',
+    accept: () => doWithdraw(row),
+  });
+}
+
+async function doWithdraw(row) {
+  withdrawing.value = row.id;
+  try {
+    await api.post(`/applications/${row.id}/status`, { status: 'withdrawn' });
+    row.status = 'withdrawn';
+    toast.success('Application withdrawn.');
+  } catch (e) {
+    toast.error(e?.response?.data?.message || 'Failed to withdraw application.');
+  } finally {
+    withdrawing.value = null;
   }
 }
 

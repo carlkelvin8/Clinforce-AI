@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { RouterLink, useRoute } from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
 import api from "@/lib/api";
 
@@ -10,18 +10,20 @@ import Button from "primevue/button";
 import IconField from "primevue/iconfield";
 import InputIcon from "primevue/inputicon";
 import InputText from "primevue/inputtext";
-import Dropdown from "primevue/dropdown";
 import DataTable from "primevue/datatable";
 import Column from "primevue/column";
 import Tag from "primevue/tag";
 import Dialog from "primevue/dialog";
-import Calendar from "primevue/calendar";
+import DatePicker from "primevue/datepicker";
 import Message from "primevue/message";
+import Textarea from "primevue/textarea";
+import Select from "primevue/select";
 
 /* =========================
    Sidebar + auth (UNCHANGED)
    ========================= */
 const route = useRoute();
+const router = useRouter();
 
 /* =========================
    Helpers
@@ -215,7 +217,7 @@ async function loadApplications() {
         String(a?.applicant_id || a?.applicant_user_id || a?.user_id) === candId
       );
       if (match) {
-        form.value.application_id = match.id;
+        form.value.application_id = Number(match.id);
       }
     }
   } catch (error) {
@@ -249,7 +251,7 @@ const applicationOptions = computed(() => {
     const phoneStr = phone ? ` | ${phone}` : "";
     
     return {
-      id: a.id,
+      appId: Number(a.id),   // always the job_applications.id PK
       label: `${cand}${phoneStr} — ${jobTitle} (App #${a.id})`,
     };
   });
@@ -257,7 +259,7 @@ const applicationOptions = computed(() => {
 
 const selectedApplication = computed(() => {
   if (!form.value.application_id) return null;
-  return applications.value.find(a => a.id === form.value.application_id);
+  return applications.value.find(a => Number(a.id) === form.value.application_id);
 });
 
 const modeOptions = [
@@ -289,6 +291,12 @@ async function submitSchedule() {
       return;
     }
 
+    const appId = Number(form.value.application_id);
+    if (!appId || appId <= 0) {
+      formError.value = "Invalid application selected. Please choose again.";
+      return;
+    }
+
     const start = form.value.scheduled_start;
     const end = form.value.scheduled_end;
 
@@ -297,15 +305,21 @@ async function submitSchedule() {
       return;
     }
 
+    // Send local datetime string (not UTC) so server's after:now check works correctly
+    function toLocalISO(d) {
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
     const payload = {
-      scheduled_start: start.toISOString(),
-      scheduled_end: end.toISOString(),
+      scheduled_start: toLocalISO(start),
+      scheduled_end: toLocalISO(end),
       mode: form.value.mode,
       meeting_link: form.value.meeting_link?.trim() || null,
       location_text: form.value.location_text?.trim() || null,
     };
 
-    const res = await api.post(`/applications/${form.value.application_id}/interviews`, payload);
+    const res = await api.post(`/applications/${appId}/interviews`, payload);
     const created = unwrap(res.data);
 
     interviews.value = [...interviews.value, created].sort((a, b) => {
@@ -337,6 +351,125 @@ function getSeverity(status) {
         default: return 'secondary';
     }
 }
+
+// ICS download
+async function downloadIcs(interview) {
+  try {
+    const res = await api.get(`/interviews/${interview.id}/ics`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `interview-${interview.id}.ics`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    alert('Failed to download calendar file')
+  }
+}
+
+// View mode: list | calendar
+const viewMode = ref('list')
+const calendarDate = ref(new Date())
+
+const calendarTitle = computed(() => {
+  return calendarDate.value.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+})
+
+function prevMonth() {
+  const d = new Date(calendarDate.value)
+  d.setMonth(d.getMonth() - 1)
+  calendarDate.value = d
+}
+function nextMonth() {
+  const d = new Date(calendarDate.value)
+  d.setMonth(d.getMonth() + 1)
+  calendarDate.value = d
+}
+
+const calendarCells = computed(() => {
+  const year = calendarDate.value.getFullYear()
+  const month = calendarDate.value.getMonth()
+  const firstDay = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const today = new Date()
+
+  const cells = []
+  // leading empty cells
+  for (let i = 0; i < firstDay; i++) {
+    const prevDate = new Date(year, month, -firstDay + i + 1)
+    cells.push({ day: prevDate.getDate(), isCurrentMonth: false, isToday: false, interviews: [], date: prevDate })
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month, d)
+    const isToday = date.toDateString() === today.toDateString()
+    const dayInterviews = interviews.value.filter(iv => {
+      const s = parseDate(iv.scheduled_start)
+      return s && s.getFullYear() === year && s.getMonth() === month && s.getDate() === d
+    })
+    cells.push({ day: d, isCurrentMonth: true, isToday, interviews: dayInterviews, date })
+  }
+  // trailing cells to fill 6 rows
+  const remaining = 42 - cells.length
+  for (let i = 1; i <= remaining; i++) {
+    const nextDate = new Date(year, month + 1, i)
+    cells.push({ day: i, isCurrentMonth: false, isToday: false, interviews: [], date: nextDate })
+  }
+  return cells
+})
+
+function candidateNameFromInterview(iv) {
+  return iv?.application?.applicant?.name ||
+    iv?.application?.applicant_name ||
+    `App #${iv?.application_id || iv?.id}`
+}
+
+function calEventClass(status) {
+  const map = {
+    proposed: 'bg-blue-100 text-blue-700',
+    confirmed: 'bg-indigo-100 text-indigo-700',
+    rescheduled: 'bg-amber-100 text-amber-700',
+    completed: 'bg-green-100 text-green-700',
+    cancelled: 'bg-red-100 text-red-600 line-through',
+  }
+  return map[status] || 'bg-gray-100 text-gray-600'
+}
+
+// Feedback modal
+const feedbackOpen = ref(false)
+const feedbackInterview = ref(null)
+const feedbackForm = ref({ rating: 5, notes: '', recommendation: 'neutral' })
+const savingFeedback = ref(false)
+const feedbackError = ref('')
+
+const ratingOptions = [1,2,3,4,5].map(v => ({ label: `${v} — ${{ 1:'Poor', 2:'Fair', 3:'Good', 4:'Very Good', 5:'Excellent' }[v]}`, value: v }))
+const recommendationOptions = [
+  { label: 'Recommend', value: 'recommend' },
+  { label: 'Neutral', value: 'neutral' },
+  { label: 'Do not recommend', value: 'do_not_recommend' },
+]
+
+function openFeedback(interview) {
+  feedbackInterview.value = interview
+  feedbackForm.value = { rating: 5, notes: '', recommendation: 'neutral' }
+  feedbackError.value = ''
+  feedbackOpen.value = true
+}
+
+async function submitFeedback() {
+  feedbackError.value = ''
+  savingFeedback.value = true
+  try {
+    await api.post(`/interviews/${feedbackInterview.value.id}/feedback`, feedbackForm.value)
+    feedbackOpen.value = false
+    await loadSchedule()
+  } catch (e) {
+    feedbackError.value = e?.response?.data?.message || 'Failed to save feedback'
+  } finally {
+    savingFeedback.value = false
+  }
+}
 </script>
 
 <template>
@@ -367,8 +500,26 @@ function getSeverity(status) {
             </div>
         </div>
 
-        <!-- Filters -->
-        <div class="bg-white p-2 rounded-2xl shadow-sm border border-gray-200 flex flex-col md:flex-row gap-2">
+        <!-- View toggle -->
+        <div class="flex gap-2">
+          <button
+            @click="viewMode = 'list'"
+            class="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+            :class="viewMode === 'list' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'"
+          >
+            <i class="pi pi-list mr-1.5"></i>List
+          </button>
+          <button
+            @click="viewMode = 'calendar'"
+            class="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+            :class="viewMode === 'calendar' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'"
+          >
+            <i class="pi pi-calendar mr-1.5"></i>Calendar
+          </button>
+        </div>
+
+        <!-- Filters (list only) -->
+        <div v-if="viewMode === 'list'" class="bg-white p-2 rounded-2xl shadow-sm border border-gray-200 flex flex-col md:flex-row gap-2">
              <div class="relative flex-1">
                 <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 <InputText 
@@ -379,7 +530,7 @@ function getSeverity(status) {
              </div>
              <div class="h-px md:h-auto md:w-px bg-gray-200 mx-2"></div>
              <div class="flex gap-2 md:w-auto w-full">
-                 <Dropdown 
+                 <Select 
                     v-model="jobFilter" 
                     :options="jobOptions" 
                     optionLabel="label" 
@@ -387,7 +538,7 @@ function getSeverity(status) {
                     class="w-full md:w-48 !border-0 !shadow-none" 
                     placeholder="All Jobs"
                  />
-                 <Dropdown 
+                 <Select 
                     v-model="timeFilter" 
                     :options="timeOptions" 
                     optionLabel="label" 
@@ -398,7 +549,7 @@ function getSeverity(status) {
         </div>
 
         <!-- Schedule table -->
-        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div v-if="viewMode === 'list'" class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
             <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                 <span class="text-sm font-semibold text-gray-900 uppercase tracking-wider">Schedule</span>
                 <span class="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">{{ filtered.length }} item(s)</span>
@@ -406,11 +557,13 @@ function getSeverity(status) {
             
             <DataTable :value="filtered" :loading="loading" stripedRows responsiveLayout="scroll" class="p-datatable-sm">
                 <template #empty>
-                    <div class="text-center py-12">
-                        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <i class="pi pi-calendar text-gray-400"></i>
+                    <div class="text-center py-16">
+                        <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="pi pi-calendar text-blue-300 text-3xl"></i>
                         </div>
-                        <p class="text-gray-500">No interviews found.</p>
+                        <p class="text-gray-700 font-semibold mb-1">No interviews scheduled</p>
+                        <p class="text-gray-400 text-sm mb-4">Schedule your first interview to get started.</p>
+                        <Button label="Schedule Interview" icon="pi pi-plus" size="small" @click="openScheduleModal" />
                     </div>
                 </template>
 
@@ -470,16 +623,139 @@ function getSeverity(status) {
                     </template>
                 </Column>
 
-                <Column header="Link" alignFrozen="right" frozen>
+                <Column header="Actions" style="min-width: 260px">
                     <template #body="{ data }">
-                        <a v-if="data?.meeting_link" :href="data.meeting_link" target="_blank" rel="noreferrer" class="no-underline">
-                            <Button icon="pi pi-external-link" rounded text size="small" aria-label="Open Link" />
-                        </a>
-                        <span v-else class="text-gray-300 text-sm">—</span>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <!-- View Application -->
+                            <Button
+                                label="Application"
+                                icon="pi pi-file-edit"
+                                size="small"
+                                outlined
+                                class="!text-xs !px-3 !py-1.5 !border-slate-200 !text-slate-700 hover:!bg-blue-50 hover:!border-blue-300 hover:!text-blue-700 transition-colors"
+                                @click="router.push({ name: 'applicants.view', params: { id: data?.application?.id || data?.application_id } })"
+                                v-if="data?.application?.id || data?.application_id"
+                            />
+                            <!-- Join Meeting -->
+                            <a
+                                v-if="data?.meeting_link"
+                                :href="data.meeting_link"
+                                target="_blank"
+                                rel="noreferrer"
+                                class="no-underline"
+                            >
+                                <Button
+                                    icon="pi pi-video"
+                                    size="small"
+                                    class="!text-xs !px-3 !py-1.5"
+                                    aria-label="Join meeting"
+                                    v-tooltip.top="'Join meeting'"
+                                />
+                            </a>
+                            <!-- ICS Download -->
+                            <Button
+                                icon="pi pi-calendar-plus"
+                                size="small"
+                                severity="secondary"
+                                outlined
+                                class="!text-xs !px-2 !py-1.5"
+                                aria-label="Add to calendar"
+                                v-tooltip.top="'Download .ics'"
+                                @click="downloadIcs(data)"
+                            />
+                            <!-- Feedback (completed interviews) -->
+                            <Button
+                                v-if="data?.status === 'completed'"
+                                icon="pi pi-star"
+                                size="small"
+                                severity="warn"
+                                outlined
+                                class="!text-xs !px-2 !py-1.5"
+                                aria-label="Add feedback"
+                                v-tooltip.top="'Add feedback'"
+                                @click="openFeedback(data)"
+                            />
+                        </div>
                     </template>
                 </Column>
             </DataTable>
         </div>
+
+        <!-- Calendar view -->
+        <div v-if="viewMode === 'calendar'" class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <!-- Month nav -->
+          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+            <button @click="prevMonth" class="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <i class="pi pi-chevron-left text-gray-600"></i>
+            </button>
+            <span class="text-base font-bold text-gray-900">
+              {{ calendarTitle }}
+            </span>
+            <button @click="nextMonth" class="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <i class="pi pi-chevron-right text-gray-600"></i>
+            </button>
+          </div>
+          <!-- Day headers -->
+          <div class="grid grid-cols-7 border-b border-gray-100">
+            <div v-for="d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="d"
+              class="py-2 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">
+              {{ d }}
+            </div>
+          </div>
+          <!-- Calendar grid -->
+          <div class="grid grid-cols-7">
+            <div
+              v-for="(cell, idx) in calendarCells"
+              :key="idx"
+              class="min-h-[100px] border-b border-r border-gray-100 p-1.5 last:border-r-0"
+              :class="cell.isToday ? 'bg-blue-50/40' : cell.isCurrentMonth ? 'bg-white' : 'bg-gray-50/60'"
+            >
+              <div class="flex items-center justify-between mb-1">
+                <span
+                  class="text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full"
+                  :class="cell.isToday ? 'bg-blue-600 text-white' : cell.isCurrentMonth ? 'text-gray-700' : 'text-gray-300'"
+                >
+                  {{ cell.day }}
+                </span>
+              </div>
+              <div class="space-y-1">
+                <div
+                  v-for="iv in cell.interviews"
+                  :key="iv.id"
+                  class="text-[10px] font-medium px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity"
+                  :class="calEventClass(iv.status)"
+                  :title="`${candidateNameFromInterview(iv)} — ${iv.application?.job?.title || ''}`"
+                  @click="openFeedback(iv)"
+                >
+                  {{ fmtDate(iv.scheduled_start).time }} {{ candidateNameFromInterview(iv) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feedback Modal -->
+        <Dialog v-model:visible="feedbackOpen" modal header="Interview Feedback" :style="{ width: '480px' }">
+          <div class="space-y-4 py-2">
+            <div v-if="feedbackError" class="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{{ feedbackError }}</div>
+            <div class="space-y-1.5">
+              <label class="text-sm font-semibold text-gray-700">Rating</label>
+              <Select v-model="feedbackForm.rating" :options="ratingOptions" optionLabel="label" optionValue="value" class="w-full" />
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-sm font-semibold text-gray-700">Recommendation</label>
+              <Select v-model="feedbackForm.recommendation" :options="recommendationOptions" optionLabel="label" optionValue="value" class="w-full" />
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-sm font-semibold text-gray-700">Notes</label>
+              <Textarea v-model="feedbackForm.notes" rows="4" placeholder="Observations, strengths, concerns..." class="w-full !rounded-xl" />
+            </div>
+          </div>
+          <template #footer>
+            <Button label="Cancel" text severity="secondary" @click="feedbackOpen = false" />
+            <Button label="Save Feedback" icon="pi pi-check" :loading="savingFeedback" @click="submitFeedback" />
+          </template>
+        </Dialog>
 
         <!-- Modal -->
         <Dialog v-model:visible="modalOpen" header="Schedule Interview" modal :style="{ width: '50rem' }" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }" class="p-fluid">
@@ -498,11 +774,11 @@ function getSeverity(status) {
              <div class="space-y-6 py-2">
                  <div class="flex flex-col gap-2">
                      <label class="text-sm font-semibold text-gray-700">Application</label>
-                     <Dropdown 
+                     <Select 
                         v-model="form.application_id" 
                         :options="applicationOptions" 
                         optionLabel="label" 
-                        optionValue="id" 
+                        optionValue="appId" 
                         placeholder="Select candidate application..." 
                         :disabled="appsLoading" 
                         filter 
@@ -553,12 +829,12 @@ function getSeverity(status) {
                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                      <div class="flex flex-col gap-2">
                          <label class="text-sm font-semibold text-gray-700">Start Time</label>
-                         <Calendar v-model="form.scheduled_start" showTime hourFormat="12" class="w-full" :class="{'p-invalid': formFieldErrors?.scheduled_start}" />
+                         <DatePicker v-model="form.scheduled_start" showTime hourFormat="12" class="w-full" :class="{'p-invalid': formFieldErrors?.scheduled_start}" />
                          <small v-if="formFieldErrors?.scheduled_start" class="text-red-600 text-xs">{{ formFieldErrors.scheduled_start[0] }}</small>
                      </div>
                      <div class="flex flex-col gap-2">
                          <label class="text-sm font-semibold text-gray-700">End Time</label>
-                         <Calendar v-model="form.scheduled_end" showTime hourFormat="12" class="w-full" :class="{'p-invalid': formFieldErrors?.scheduled_end}" />
+                         <DatePicker v-model="form.scheduled_end" showTime hourFormat="12" class="w-full" :class="{'p-invalid': formFieldErrors?.scheduled_end}" />
                          <small v-if="formFieldErrors?.scheduled_end" class="text-red-600 text-xs">{{ formFieldErrors.scheduled_end[0] }}</small>
                      </div>
                  </div>
@@ -566,7 +842,7 @@ function getSeverity(status) {
                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                      <div class="flex flex-col gap-2">
                          <label class="text-sm font-semibold text-gray-700">Interview Mode</label>
-                         <Dropdown v-model="form.mode" :options="modeOptions" optionLabel="label" optionValue="value" class="w-full" :class="{'p-invalid': formFieldErrors?.mode}" />
+                         <Select v-model="form.mode" :options="modeOptions" optionLabel="label" optionValue="value" class="w-full" :class="{'p-invalid': formFieldErrors?.mode}" />
                          <small v-if="formFieldErrors?.mode" class="text-red-600 text-xs">{{ formFieldErrors.mode[0] }}</small>
                      </div>
                      

@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Requests\Api\JobApplyRequest;
 use App\Http\Requests\Api\JobApplicationStatusUpdateRequest;
+use App\Mail\ApplicationStatusUpdated;
 use App\Models\ApplicationStatusHistory;
 use App\Models\Document;
 use App\Models\Job;
 use App\Models\JobApplication;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 class JobApplicationsController extends ApiController
@@ -514,6 +516,17 @@ class JobApplicationsController extends ApiController
         try {
             $this->notifyApplicantStatus($application->applicant_user_id, $application, $v['status']);
         } catch (\Throwable $e) {
+        }
+
+        // Email the applicant about the status change
+        try {
+            $application->load(['job', 'applicant']);
+            if ($application->applicant?->email) {
+                Mail::to($application->applicant->email)
+                    ->send(new ApplicationStatusUpdated($application, $from, $to));
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Failed to send status update email', ['error' => $e->getMessage()]);
         }
 
         return $this->ok($application->fresh(), 'Status updated');

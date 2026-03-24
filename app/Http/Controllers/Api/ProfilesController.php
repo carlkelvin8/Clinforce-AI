@@ -60,6 +60,13 @@ class ProfilesController extends ApiController
         return $this->ok($data);
     }
 
+    public function meApplicant(): JsonResponse
+    {
+        $u = $this->requireAuth();
+        $p = ApplicantProfile::query()->where('user_id', $u->id)->first();
+        return $this->ok($p);
+    }
+
     public function meEmployer(): JsonResponse
     {
         $u = $this->requireAuth();
@@ -140,12 +147,23 @@ class ProfilesController extends ApiController
         if ($u->role !== 'applicant') return $this->fail('Only applicants can update applicant profile', null, 403);
 
         $v = $request->validated();
-        $public = $v['first_name'] . ' ' . mb_substr($v['last_name'], 0, 1) . '.';
 
-        $profile = ApplicantProfile::query()->updateOrCreate(
-            ['user_id' => $u->id],
-            array_merge($v, ['public_display_name' => $public])
-        );
+        $existing = ApplicantProfile::query()->where('user_id', $u->id)->first();
+
+        // Only update public_display_name when name fields are provided
+        $extra = [];
+        if (isset($v['first_name']) && isset($v['last_name'])) {
+            $extra['public_display_name'] = $v['first_name'] . ' ' . mb_substr($v['last_name'], 0, 1) . '.';
+        }
+
+        if ($existing) {
+            $existing->update(array_merge($v, $extra));
+            $profile = $existing->fresh();
+        } else {
+            $profile = ApplicantProfile::query()->create(
+                array_merge(['user_id' => $u->id], $v, $extra)
+            );
+        }
 
         return $this->ok($profile, 'Profile saved');
     }

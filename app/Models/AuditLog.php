@@ -11,6 +11,9 @@ class AuditLog extends Model
 
     public $timestamps = false; // only created_at exists
 
+    public $incrementing = true;
+    protected $keyType = 'int';
+
     protected $fillable = [
         'actor_user_id',
         'action',

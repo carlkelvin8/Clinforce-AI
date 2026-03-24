@@ -21,6 +21,9 @@ class JobStoreRequest extends ApiRequest
             'work_mode' => ['required', Rule::in(['on_site','remote','hybrid'])],
             'country' => ['nullable','string','max:200'],
             'city' => ['nullable','string','min:2','max:120'],
+            'salary_min' => ['nullable','numeric','min:0'],
+            'salary_max' => ['nullable','numeric','min:0','gte:salary_min'],
+            'salary_currency' => ['nullable','string','size:3'],
         ];
     }
 

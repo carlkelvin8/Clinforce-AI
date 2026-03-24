@@ -104,7 +104,7 @@ class DocumentAccessController extends ApiController
         $ctx = $this->currency->getEmployerCurrencyContext($u instanceof User ? $u : User::find($u->id));
         $amountCents = $this->currency->convertAmount($perApplicantUSD, 'USD', $ctx['currency_code']);
 
-        // Create payment record
+        // Create payment record as pending, then charge
         $payment = DocumentAccessPayment::create([
             'employer_user_id' => $u->id,
             'applicant_user_id' => $v['applicant_id'],
@@ -112,12 +112,59 @@ class DocumentAccessController extends ApiController
             'access_type' => 'per_applicant',
             'amount_cents' => $amountCents,
             'currency_code' => $ctx['currency_code'],
-            'status' => 'paid', // TODO: Integrate with Stripe for actual payment
+            'status' => 'pending',
             'provider' => 'stripe',
-            'paid_at' => now(),
+            'paid_at' => null,
         ]);
 
-        return $this->ok($payment, 'Document access granted', 201);
+        try {
+            \Stripe\Stripe::setApiKey(config('services.stripe.secret'));
+
+            $paymentMethods = \Stripe\PaymentMethod::all([
+                'customer' => $u->stripe_customer_id,
+                'type' => 'card',
+            ]);
+
+            if (!$u->stripe_customer_id || count($paymentMethods->data) === 0) {
+                $payment->delete();
+                return $this->fail('Please add a payment method before purchasing document access.', null, 422);
+            }
+
+            $intent = \Stripe\PaymentIntent::create([
+                'amount' => $amountCents,
+                'currency' => strtolower($ctx['currency_code']),
+                'customer' => $u->stripe_customer_id,
+                'payment_method' => $paymentMethods->data[0]->id,
+                'confirm' => true,
+                'off_session' => true,
+                'description' => 'Document access: applicant #' . $v['applicant_id'],
+                'metadata' => [
+                    'employer_user_id' => $u->id,
+                    'applicant_user_id' => $v['applicant_id'],
+                ],
+            ]);
+
+            if ($intent->status !== 'succeeded') {
+                $payment->delete();
+                return $this->fail('Payment did not succeed. Status: ' . $intent->status, null, 402);
+            }
+
+            $payment->update([
+                'status' => 'paid',
+                'provider_ref' => $intent->id,
+                'paid_at' => now(),
+            ]);
+
+        } catch (\Stripe\Exception\CardException $e) {
+            $payment->delete();
+            return $this->fail('Card declined: ' . $e->getMessage(), ['stripe' => $e->getMessage()], 402);
+        } catch (\Exception $e) {
+            $payment->delete();
+            \Log::error('Document access payment failed', ['error' => $e->getMessage()]);
+            return $this->fail('Payment failed: ' . $e->getMessage(), null, 500);
+        }
+
+        return $this->ok($payment->fresh(), 'Document access granted', 201);
     }
 
     /**

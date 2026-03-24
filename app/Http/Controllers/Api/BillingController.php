@@ -37,41 +37,56 @@ class BillingController extends ApiController
         
         \Log::info('Currency context', $ctx);
 
+        $userCurrency = $ctx['currency_code']; // e.g. 'PHP' or 'USD'
+
         $plans = Plan::query()
             ->where('is_active', 1)
+            ->where(function ($q) use ($userCurrency) {
+                if ($userCurrency === 'PHP') {
+                    // PH users see PHP plans only
+                    $q->where('currency', 'PHP');
+                } else {
+                    // International users see USD plans only
+                    $q->where('currency', 'USD');
+                }
+            })
             ->orderBy('price_cents')
             ->get();
 
         $converted = [];
 
         foreach ($plans as $plan) {
-            $conv = $this->currency->convertPlanPriceForUser($plan, $ctx);
-            
-            \Log::info('Plan conversion', [
-                'plan_id' => $plan->id,
-                'base_price' => $plan->price_cents,
-                'base_currency' => $plan->currency,
-                'converted_price' => $conv['amount_cents'],
-                'target_currency' => $conv['currency_code'],
-            ]);
-
-            $amountCents = $conv['amount_cents'] ?? null;
-            $decimals = $conv['decimals'];
+            // Free trial — no conversion needed
+            if ((int) $plan->price_cents === 0) {
+                $amountCents = 0;
+                $decimals = 2;
+                $priceLabel = 'Free';
+            } else {
+                $conv = $this->currency->convertPlanPriceForUser($plan, $ctx);
+                $amountCents = $conv['amount_cents'] ?? null;
+                $decimals = $conv['decimals'];
+                $priceLabel = $amountCents !== null ? $this->currency->formatMinor($amountCents, $decimals) : null;
+            }
 
             $converted[] = [
-                'id' => $plan->id,
-                'name' => $plan->name,
-                'duration_months' => (int) $plan->duration_months,
-                'job_post_limit' => (int) $plan->job_post_limit,
+                'id'                   => $plan->id,
+                'stripe_price_id'      => $plan->stripe_price_id,
+                'name'                 => $plan->name,
+                'duration_months'      => (int) $plan->duration_months,
+                'job_post_limit'       => (int) $plan->job_post_limit,
                 'ai_screening_enabled' => (bool) $plan->ai_screening_enabled,
-                'analytics_enabled' => (bool) $plan->analytics_enabled,
-                'base_price_cents' => (int) $plan->price_cents,
-                'base_currency' => $plan->currency ?: $ctx['base_currency'],
-                'currency_code' => $ctx['currency_code'],
-                'currency_symbol' => $ctx['currency_symbol'],
-                'price_cents' => $amountCents,
-                'price' => $amountCents !== null ? $this->currency->formatMinor($amountCents, $decimals) : null,
-                'interval' => 'month',
+                'analytics_enabled'    => (bool) $plan->analytics_enabled,
+                'features'             => $plan->features_json ?? [],
+                'base_price_cents'     => (int) $plan->price_cents,
+                'base_currency'        => $plan->currency ?: $ctx['base_currency'],
+                'currency_code'        => $userCurrency,
+                'currency_symbol'      => $ctx['currency_symbol'],
+                'price_cents'          => $amountCents,
+                'price'                => $priceLabel,
+                'is_trial'             => (int) $plan->price_cents === 0,
+                'interval'             => $plan->duration_months > 1
+                                            ? $plan->duration_months . ' months'
+                                            : ($plan->duration_months === 0 ? '7 days' : 'month'),
             ];
         }
 
@@ -94,6 +109,12 @@ class BillingController extends ApiController
         return $this->ok($payload);
     }
 
+    public function countries(): JsonResponse
+    {
+        $list = $this->currency->getCountriesList();
+        return $this->ok($list);
+    }
+
     public function updateProfile(Request $request): JsonResponse
     {
         $u = $this->requireAuth();
@@ -113,6 +134,7 @@ class BillingController extends ApiController
             [
                 'country_code' => $countryCode,
                 'billing_currency_code' => $billingCurrency,
+                'country' => $countryCode, // satisfy NOT NULL constraint
             ]
         );
 

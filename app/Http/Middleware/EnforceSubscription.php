@@ -7,21 +7,16 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Usage:
+ *   Route::middleware('subscription')           — requires any active subscription
+ *   Route::middleware('subscription:ai')        — requires active subscription with ai_screening_enabled
+ */
 class EnforceSubscription
 {
-    protected $subscriptionService;
+    public function __construct(protected SubscriptionService $svc) {}
 
-    public function __construct(SubscriptionService $subscriptionService)
-    {
-        $this->subscriptionService = $subscriptionService;
-    }
-
-    /**
-     * Handle an incoming request.
-     *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
-     */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, string $feature = 'basic'): Response
     {
         $user = $request->user();
 
@@ -29,30 +24,31 @@ class EnforceSubscription
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        // Admins, Applicants, and Agencies are usually exempt from paid subscriptions in this model
-        // (unless agencies pay too, but usually it's employers who pay for access)
-        if (in_array($user->role, ['admin', 'applicant'])) {
+        // Admins and applicants are never gated
+        if (in_array($user->role, ['admin', 'applicant'], true)) {
             return $next($request);
         }
 
-        // If agency needs to pay, include them here. Assuming only Employers pay for now based on context.
-        // If agency role is free, skip.
-        if ($user->role === 'agency') {
-            // Check if agency needs subscription? Assuming free for now based on typical models or previous code context.
-            // If they need to pay, remove this check.
-            // Let's assume they are free for now unless specified otherwise.
-            return $next($request);
-        }
+        $allowed = match ($feature) {
+            'ai'          => $this->svc->canUseAiScreening($user->id),
+            'invite'      => $this->svc->canSendInvitations($user->id),
+            'jobs'        => $this->svc->canPostJobs($user->id),
+            default       => $this->svc->hasAccess($user->id),
+        };
 
-        // Check for active subscription or active trial
-        if ($this->subscriptionService->hasAccess($user->id)) {
+        if ($allowed) {
             return $next($request);
         }
 
         return response()->json([
-            'error' => 'subscription_required',
-            'message' => 'Your free trial has ended. Please subscribe to continue accessing this feature.',
-            'trial_expired' => $user->hasExpiredTrial(),
+            'error'   => 'subscription_required',
+            'feature' => $feature,
+            'message' => match ($feature) {
+                'ai'     => 'AI screening requires an active subscription with AI features enabled.',
+                'invite' => 'Sending invitations requires an active subscription.',
+                'jobs'   => 'Posting jobs requires an active subscription.',
+                default  => 'An active subscription is required to use this feature.',
+            },
         ], 403);
     }
 }

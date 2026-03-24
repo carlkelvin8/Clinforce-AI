@@ -1,8 +1,0 @@
-[build]
-builder = "dockerfile"
-dockerfile = "Dockerfile"
-
-[deploy]
-startCommand = "/usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
-restartPolicyMaxRetries = 5
-restartPolicyWindowSeconds = 60
