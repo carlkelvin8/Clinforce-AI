@@ -24,6 +24,7 @@ class EmployerProfileUpsertRequest extends ApiRequest
             'tax_id' => ['nullable','string','min:2','max:50'],
             'address_line' => ['nullable','string','max:255'],
             'website_url' => ['nullable','url','max:255'],
+            'data_retention_days' => ['nullable','integer','min:7','max:3650'],
         ];
     }
 

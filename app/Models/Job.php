@@ -25,13 +25,16 @@ class Job extends Model
         'salary_min',
         'salary_max',
         'salary_currency',
+        'closes_at',
+        'view_count',
     ];
 
     protected $casts = [
         'published_at' => 'datetime',
-        'archived_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'archived_at'  => 'datetime',
+        'closes_at'    => 'datetime',
+        'created_at'   => 'datetime',
+        'updated_at'   => 'datetime',
     ];
 
     public function owner(): BelongsTo

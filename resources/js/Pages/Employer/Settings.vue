@@ -9,11 +9,43 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Message from 'primevue/message'
+import InputNumber from 'primevue/inputnumber'
 import Swal from 'sweetalert2'
 
 import { countries } from '@/lib/countries'
 
 import ToggleSwitch from 'primevue/toggleswitch';
+
+// Sessions
+const sessions = ref([])
+const sessionsLoading = ref(false)
+
+async function loadSessions() {
+  sessionsLoading.value = true
+  try {
+    const res = await api.get('/user/sessions')
+    sessions.value = res.data?.data ?? res.data ?? []
+  } catch {} finally { sessionsLoading.value = false }
+}
+
+async function revokeSession(tokenId) {
+  try {
+    await api.delete(`/user/sessions/${tokenId}`)
+    sessions.value = sessions.value.filter(s => s.id !== tokenId)
+  } catch (e) {
+    await Swal.fire({ icon: 'error', title: 'Failed', text: e?.response?.data?.message || 'Could not revoke session' })
+  }
+}
+
+async function revokeAllSessions() {
+  const { isConfirmed } = await Swal.fire({ icon: 'warning', title: 'Revoke all other sessions?', showCancelButton: true })
+  if (!isConfirmed) return
+  try {
+    await api.delete('/user/sessions')
+    sessions.value = sessions.value.filter(s => s.is_current)
+    await Swal.fire({ icon: 'success', title: 'Done', timer: 1500, showConfirmButton: false })
+  } catch {}
+}
 
 // 2FA
 const twoFa = ref({ enabled: false, qr_code_url: null, secret: null })
@@ -143,6 +175,7 @@ const form = ref({
   zip_code: '',
   tax_id: '',
   address_line: '',
+  data_retention_days: null,
 })
 
 const initializingLocation = ref(true)
@@ -202,6 +235,7 @@ async function loadProfile() {
       form.value.zip_code = p.zip_code || ''
       form.value.tax_id = p.tax_id || ''
       form.value.address_line = p.address_line || ''
+      form.value.data_retention_days = p.data_retention_days ?? null
     }
   } catch (e) {
     error.value = e?.__payload?.message || e?.message || 'Failed to load profile'
@@ -296,6 +330,7 @@ onMounted(async () => {
   loadProfile()
   loadNotificationPrefs()
   load2Fa()
+  loadSessions()
   ensureBillingContext()
 })
 </script>
@@ -380,6 +415,14 @@ onMounted(async () => {
                     <label class="text-sm font-semibold text-slate-700">Address</label>
                     <InputText v-model="form.address_line" class="w-full" placeholder="123 Main St" />
                   </div>
+                  <div class="space-y-1.5 md:col-span-2">
+                    <label class="text-sm font-semibold text-slate-700">Data Retention</label>
+                    <div class="flex items-center gap-3">
+                      <InputNumber v-model="form.data_retention_days" :min="7" :max="3650" placeholder="90" class="w-40" />
+                      <span class="text-sm text-slate-500">days — auto-delete rejected applications after this period</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400">Leave blank to use the platform default (90 days). Set to 0 to disable auto-deletion.</p>
+                  </div>
                 </div>
 
                 <div class="flex justify-end">
@@ -411,6 +454,37 @@ onMounted(async () => {
                 </div>
                 <div class="flex justify-end">
                   <Button label="Save preferences" icon="pi pi-save" :loading="notifSaving" @click="saveNotificationPrefs" />
+                </div>
+              </div>
+            </template>
+          </Card>
+
+          <!-- Sessions Card -->
+          <Card class="h-full">
+            <template #title>Active Sessions</template>
+            <template #content>
+              <div v-if="sessionsLoading" class="py-4 text-center text-slate-400"><i class="pi pi-spin pi-spinner"></i></div>
+              <div v-else class="space-y-3">
+                <div v-for="s in sessions" :key="s.id"
+                  class="flex items-center justify-between p-3 rounded-xl border"
+                  :class="s.is_current ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-slate-50'">
+                  <div>
+                    <div class="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                      {{ s.name }}
+                      <span v-if="s.is_current" class="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full">Current</span>
+                    </div>
+                    <div class="text-xs text-slate-500 mt-0.5">
+                      Last active: {{ s.last_used_at ? new Date(s.last_used_at).toLocaleString() : 'Never' }}
+                    </div>
+                  </div>
+                  <Button v-if="!s.is_current" icon="pi pi-times" size="small" severity="danger" outlined
+                    v-tooltip="'Revoke session'" @click="revokeSession(s.id)" />
+                </div>
+                <div v-if="!sessions.length" class="text-sm text-slate-400 py-2">No active sessions.</div>
+                <div class="flex justify-end pt-1">
+                  <Button label="Revoke all other sessions" size="small" severity="secondary" outlined
+                    :disabled="sessions.filter(s => !s.is_current).length === 0"
+                    @click="revokeAllSessions" />
                 </div>
               </div>
             </template>

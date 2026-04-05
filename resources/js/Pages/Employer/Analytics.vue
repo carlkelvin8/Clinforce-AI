@@ -104,7 +104,7 @@ const kpis = computed(() => data.value?.kpis ?? {})
           <p class="text-slate-500 mt-1">Hiring performance and pipeline insights.</p>
         </div>
         <div class="flex items-center gap-2">
-          <Select v-model="range" :options="rangeOptions" optionLabel="label" optionValue="value" class="w-44" @change="load" />
+          <Select v-model="range" :options="rangeOptions" optionLabel="label" optionValue="value" class="w-44" @update:modelValue="load" />
           <Button icon="pi pi-refresh" severity="secondary" outlined @click="load" :loading="loading" />
         </div>
       </div>

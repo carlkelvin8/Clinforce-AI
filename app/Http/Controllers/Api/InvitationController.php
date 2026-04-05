@@ -28,6 +28,20 @@ class InvitationController extends Controller
 
         $invitations = $query->orderBy('created_at', 'desc')->paginate(20);
 
+        if ($user->role === 'employer' || $user->role === 'agency') {
+            $invitations->getCollection()->transform(function ($inv) {
+                if ($inv->candidateProfile) {
+                    $first = $inv->candidateProfile->first_name ?? '';
+                    $last  = $inv->candidateProfile->last_name ?? '';
+                    $lastInitial = $last ? strtoupper($last[0]) . '.' : '';
+                    $inv->candidate_name = trim($first . ' ' . $lastInitial);
+                } else {
+                    $inv->candidate_name = $inv->candidate->email ?? 'Unknown Candidate';
+                }
+                return $inv;
+            });
+        }
+
         return response()->json($invitations);
     }
 
@@ -78,6 +92,43 @@ class InvitationController extends Controller
         }
 
         $invitation->status = 'accepted';
+        $invitation->save();
+
+        // Create a notification for the employer
+        try {
+            \App\Models\Notification::pushNotification([
+                'user_id' => $invitation->employer_id,
+                'role' => 'employer',
+                'category' => 'invitations',
+                'type' => 'invitation_accepted',
+                'title' => 'Invitation Accepted',
+                'body' => 'A candidate has accepted your invitation.',
+                'url' => '/employer/invitations',
+                'data' => [
+                    'invitation_id' => $invitation->id,
+                    'candidate_id' => $invitation->candidate_id
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::warning('Failed to send invitation accepted notification: ' . $e->getMessage());
+        }
+
+        return response()->json(['data' => $invitation]);
+    }
+
+    public function decline(Request $request, Invitation $invitation): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->id !== $invitation->candidate_id) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        if ($invitation->status === 'declined') {
+            return response()->json(['data' => $invitation]);
+        }
+
+        $invitation->status = 'declined';
         $invitation->save();
 
         return response()->json(['data' => $invitation]);

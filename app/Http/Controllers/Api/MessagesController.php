@@ -174,12 +174,29 @@ class MessagesController extends ApiController
             'participants.user.applicantProfile',
             'participants.user.employerProfile',
             'participants.user.agencyProfile',
-            'messages.sender.applicantProfile',
-            'messages.sender.employerProfile',
-            'messages.sender.agencyProfile',
         ]);
 
-        return $this->ok($conversation);
+        // Paginate messages — newest first, 30 per page
+        $perPage = 30;
+        $page    = (int) request()->query('page', 1);
+
+        $messages = \App\Models\Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->with(['sender.applicantProfile', 'sender.employerProfile', 'sender.agencyProfile'])
+            ->orderByDesc('id')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return $this->ok([
+            'conversation' => $conversation,
+            'messages'     => $messages->items(),
+            'pagination'   => [
+                'current_page' => $messages->currentPage(),
+                'last_page'    => $messages->lastPage(),
+                'total'        => $messages->total(),
+                'per_page'     => $perPage,
+                'has_more'     => $messages->hasMorePages(),
+            ],
+        ]);
     }
 
     /**

@@ -149,7 +149,7 @@ const routes = [
   { path: "/password/reset/:token", name: "auth.reset-password", component: ResetPassword, meta: { guestOnly: true } },
   { path: "/privacy", name: "privacy", component: Privacy },
   { path: "/terms", name: "terms", component: Terms },
-  { path: "/verify/success", name: "auth.verify.success", component: VerifySuccess, meta: { guestOnly: true } },
+  { path: "/verify/success", name: "auth.verify.success", component: VerifySuccess },
   { path: "/auth/social/callback", name: "auth.social.callback", component: SocialCallback, meta: { guestOnly: true } },
   { path: "/auth/select-role", name: "auth.select-role", component: SelectRole, meta: { guestOnly: true } },
 
@@ -180,6 +180,13 @@ const routes = [
   // Applicants (staff side)
   { path: "/applicants", name: "applicants.list", component: ApplicantsList, meta: staffMeta },
   { path: "/applicants/:id", name: "applicants.view", component: ApplicantProfile, props: true, meta: staffMeta },
+
+  // Redirect old /employer/applications/:id URLs (from notifications) to the correct route
+  {
+    path: "/employer/applications/:id",
+    redirect: to => ({ name: "applicants.view", params: { id: to.params.id } }),
+    meta: staffMeta,
+  },
 
   // Alias
   { path: "/employer/applicants", name: "employer.applicants", redirect: { name: "applicants.list" }, meta: staffMeta },
@@ -228,8 +235,8 @@ const routes = [
 ];
 
 const router = createRouter({
-  // ✅ important for Vite base path / subfolder deployments
-  history: createWebHistory(import.meta.env.BASE_URL),
+  // ✅ Explicitly set base to / to avoid /build/ prefixing in production
+  history: createWebHistory('/'),
   routes,
   scrollBehavior() {
     return { top: 0 };

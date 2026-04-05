@@ -24,6 +24,7 @@ class JobStoreRequest extends ApiRequest
             'salary_min' => ['nullable','numeric','min:0'],
             'salary_max' => ['nullable','numeric','min:0','gte:salary_min'],
             'salary_currency' => ['nullable','string','size:3'],
+            'closes_at'       => ['nullable','date','after:today'],
         ];
     }
 

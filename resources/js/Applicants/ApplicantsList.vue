@@ -4,10 +4,13 @@
       <!-- Header -->
       <div class="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-gray-100 pb-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Applicants</h1>
+          <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Candidates</h1>
           <p class="text-gray-500 text-sm mt-1">Manage and track candidate applications</p>
         </div>
-        <Button icon="pi pi-refresh" :loading="loading" @click="fetchData(1)" text rounded severity="secondary" aria-label="Refresh" />
+        <div class="flex items-center gap-2">
+          <Button icon="pi pi-download" label="Export CSV" size="small" severity="secondary" outlined @click="exportCsv" :loading="exporting" />
+          <Button icon="pi pi-refresh" :loading="loading" @click="fetchData(1)" text rounded severity="secondary" aria-label="Refresh" />
+        </div>
       </div>
 
       <!-- Stats Grid -->
@@ -33,7 +36,7 @@
           <div class="flex items-center gap-3 w-full lg:w-auto">
             <IconField iconPosition="left" class="w-full lg:w-64">
               <InputIcon class="pi pi-search text-gray-400" />
-              <InputText v-model="search" placeholder="Search applicants..." class="w-full !text-sm !py-2 !pl-10 !border-gray-200 !rounded-lg" @keydown.enter="fetchData(1)" />
+              <InputText v-model="search" placeholder="Search candidates..." class="w-full !text-sm !py-2 !pl-10 !border-gray-200 !rounded-lg" @keydown.enter="fetchData(1)" />
             </IconField>
             <Select v-model="status" :options="allowedStatuses" placeholder="Status" class="!border-gray-200 !rounded-lg !text-sm w-40" showClear @change="fetchData(1)" />
           </div>
@@ -49,8 +52,12 @@
         <div v-if="selectedItems.length > 0" class="px-4 py-2.5 bg-indigo-50 border-b border-indigo-100 flex items-center gap-3">
           <span class="text-sm font-semibold text-indigo-700">{{ selectedItems.length }} selected</span>
           <div class="flex gap-2">
-            <Button v-for="opt in bulkActionOptions" :key="opt.value" :label="opt.label" size="small" severity="secondary" outlined
+            <Button v-for="opt in bulkActionOptions.filter(o => o.value !== 'reject')" :key="opt.value"
+              :label="opt.label" size="small" severity="secondary" outlined
               class="!text-xs !border-indigo-200 !text-indigo-700 hover:!bg-indigo-100" :loading="bulkLoading" @click="executeBulkAction(opt.value)" />
+            <!-- Quick reject with reason -->
+            <Button label="Reject with reason" size="small" severity="danger" outlined
+              class="!text-xs" @click="openBulkReject" />
           </div>
           <Button icon="pi pi-times" text size="small" severity="secondary" class="ml-auto !text-indigo-500" @click="selectedItems = []" />
         </div>
@@ -73,7 +80,7 @@
               <div class="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="pi pi-users text-indigo-300 text-3xl"></i>
               </div>
-              <div class="text-base font-semibold text-gray-900 mb-1">No applicants found</div>
+              <div class="text-base font-semibold text-gray-900 mb-1">No candidates found</div>
               <div class="text-gray-500 text-sm mb-4">Try adjusting your search or filters.</div>
               <Button label="Clear filters" @click="resetFilters" class="!bg-indigo-600 !border-indigo-600 !text-white hover:!bg-indigo-700" />
             </div>
@@ -81,7 +88,7 @@
 
           <Column selectionMode="multiple" style="width: 3rem" />
 
-          <Column header="Applicant">
+          <Column header="Candidate">
             <template #body="{ data }">
               <div class="flex items-center gap-3 py-2">
                 <Avatar :image="candidateAvatarUrl(data)" :label="!candidateAvatarUrl(data) ? initials(displayApplicantName(data)) : null"
@@ -118,8 +125,19 @@
 
           <Column header="Actions" style="width: 100px" alignFrozen="right" frozen>
             <template #body="{ data }">
-              <Button icon="pi pi-arrow-right" label="View" size="small" text class="!text-indigo-600 hover:!bg-indigo-50"
-                @click="router.push({ name: 'applicants.view', params: { id: data.id } })" />
+              <div class="flex items-center gap-1">
+                <!-- Star rating -->
+                <div class="flex gap-0.5 mr-1">
+                  <button v-for="star in 5" :key="star"
+                    @click.stop="rateCandidate(data, star)"
+                    class="text-sm transition-colors"
+                    :class="star <= (data.employer_rating || 0) ? 'text-amber-400' : 'text-gray-200 hover:text-amber-300'">
+                    ★
+                  </button>
+                </div>
+                <Button icon="pi pi-arrow-right" label="View" size="small" text class="!text-indigo-600 hover:!bg-indigo-50"
+                  @click="router.push({ name: 'applicants.view', params: { id: data.id } })" />
+              </div>
             </template>
           </Column>
         </DataTable>
@@ -136,6 +154,32 @@
       </div>
     </div>
   </AppLayout>
+
+  <!-- Quick Reject Dialog -->
+  <Dialog v-model:visible="rejectDialog" header="Reject with reason" :style="{ width: '480px' }" modal>
+    <div class="space-y-4 pt-2">
+      <p class="text-sm text-slate-600">Rejecting <strong>{{ selectedItems.length }}</strong> candidate(s). An email will be sent with the message below.</p>
+      <div class="space-y-2">
+        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Template</label>
+        <div class="flex flex-col gap-1.5">
+          <button v-for="(t, i) in REJECT_TEMPLATES" :key="i"
+            @click="rejectReason = t"
+            :class="['text-left text-xs px-3 py-2 rounded-lg border transition-colors',
+              rejectReason === t ? 'border-red-300 bg-red-50 text-red-800' : 'border-slate-200 hover:border-slate-300 text-slate-600']">
+            {{ t.slice(0, 80) }}...
+          </button>
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Message (editable)</label>
+        <Textarea v-model="rejectReason" rows="4" class="w-full text-sm" />
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <Button label="Cancel" severity="secondary" @click="rejectDialog = false" />
+        <Button label="Send & Reject" icon="pi pi-times" severity="danger" :loading="rejectingBulk" @click="confirmBulkReject" />
+      </div>
+    </div>
+  </Dialog>
 </template>
 
 <script setup>
@@ -155,6 +199,8 @@ import Avatar from 'primevue/avatar'
 import Message from 'primevue/message'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
+import Dialog from 'primevue/dialog'
+import Textarea from 'primevue/textarea'
 
 const router = useRouter()
 const loading = ref(false)
@@ -164,6 +210,33 @@ const status = ref('')
 const search = ref('')
 const selectedItems = ref([])
 const bulkLoading = ref(false)
+const exporting = ref(false)
+
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const res = await api.get('/applications/export', { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url; a.download = 'candidates-export.csv'; a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    toast.error('Export failed', e?.response?.data?.message || e?.message)
+  } finally {
+    exporting.value = false }
+}
+
+async function rateCandidate(row, rating) {
+  const prev = row.employer_rating
+  row.employer_rating = rating
+  try {
+    await api.post(`/applications/${row.id}/rate`, { rating })
+    toast.success('Rating saved')
+  } catch (e) {
+    row.employer_rating = prev
+    toast.error('Failed to save rating')
+  }
+}
 
 // Server-side pagination
 const currentPage = ref(1)
@@ -175,7 +248,7 @@ const items = ref([])
 const raw = ref(null)
 
 const statCards = computed(() => [
-  { label: 'Total Applicants', value: totalRecords.value, icon: 'pi pi-users', color: 'text-blue-500', bg: 'bg-blue-50' },
+  { label: 'Total Candidates', value: totalRecords.value, icon: 'pi pi-users', color: 'text-blue-500', bg: 'bg-blue-50' },
   { label: 'New / Submitted', value: items.value.filter(r => r.status === 'submitted').length, icon: 'pi pi-file', color: 'text-orange-500', bg: 'bg-orange-50' },
   { label: 'Interviews', value: items.value.filter(r => r.status === 'interview').length, icon: 'pi pi-calendar', color: 'text-purple-500', bg: 'bg-purple-50' },
   { label: 'Hired', value: items.value.filter(r => r.status === 'hired').length, icon: 'pi pi-check-circle', color: 'text-emerald-500', bg: 'bg-emerald-50' },
@@ -186,6 +259,40 @@ const bulkActionOptions = [
   { label: 'Reject selected', value: 'reject' },
   { label: 'Move to Interview', value: 'interview' },
 ]
+
+// Quick reject with reason
+const rejectDialog = ref(false)
+const rejectReason = ref('')
+const rejectingBulk = ref(false)
+const REJECT_TEMPLATES = [
+  'Thank you for applying. After careful consideration, we have decided to move forward with other candidates.',
+  'We appreciate your interest. Unfortunately, your profile does not match our current requirements.',
+  'Thank you for your time. The position has been filled internally.',
+]
+
+function openBulkReject() {
+  rejectReason.value = REJECT_TEMPLATES[0]
+  rejectDialog.value = true
+}
+
+async function confirmBulkReject() {
+  if (!selectedItems.value.length) return
+  rejectingBulk.value = true
+  try {
+    const ids = selectedItems.value.map(i => i.id)
+    await api.post('/applications/bulk-action', {
+      application_ids: ids,
+      action: 'reject',
+      reason: rejectReason.value,
+    })
+    selectedItems.value = []
+    rejectDialog.value = false
+    toast.success('Rejected', `${ids.length} application(s) rejected`)
+    await fetchData(currentPage.value)
+  } catch (e) {
+    toast.error('Failed', e?.response?.data?.message || e?.message)
+  } finally { rejectingBulk.value = false }
+}
 
 const allowedStatuses = ['submitted', 'shortlisted', 'rejected', 'interview', 'hired', 'withdrawn']
 const quickStatuses = ['submitted', 'interview', 'hired', 'rejected']
@@ -278,7 +385,7 @@ function displayApplicantName(row) {
   const fn = (p?.first_name || '').trim()
   const ln = (p?.last_name || '').trim()
   const name = fn ? `${fn}${ln ? ' ' + ln[0].toUpperCase() + '.' : ''}` : ''
-  return name || p?.public_display_name || u?.name || u?.full_name || `Applicant #${row?.applicant_user_id || row?.id || ''}`.trim()
+  return name || p?.public_display_name || u?.name || u?.full_name || `Candidate #${row?.applicant_user_id || row?.id || ''}`.trim()
 }
 
 function formatDate(v) {

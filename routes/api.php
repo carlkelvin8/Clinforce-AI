@@ -61,8 +61,8 @@ Route::post('/webhooks/zoom', [ZoomWebhookController::class, 'handle']);
 |--------------------------------------------------------------------------
 */
 Route::prefix('auth')->group(function () {
-    // Rate limited auth endpoints
-    Route::middleware('throttle:5,1')->group(function () {
+    // Rate limited auth endpoints — relaxed in testing
+    Route::middleware('throttle:' . (app()->environment('testing', 'local') ? '1000,1' : '5,1'))->group(function () {
         Route::post('/register', [AuthController::class, 'register']);
         Route::post('/login',    [AuthController::class, 'login']);
         Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
@@ -98,6 +98,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [ProfilesController::class, 'me']);
     Route::get('/profiles/{userId}', [ProfilesController::class, 'show']);
     Route::put('/user/settings', [UsersController::class, 'updateSettings']);
+    // Session management
+    Route::get('/user/sessions', [UsersController::class, 'sessions']);
+    Route::delete('/user/sessions/{tokenId}', [UsersController::class, 'revokeSession']);
+    Route::delete('/user/sessions', [UsersController::class, 'revokeAllSessions']);
+    Route::get('/user/login-history', [UsersController::class, 'loginHistory']);
+    Route::get('/user/gdpr-export', [UsersController::class, 'gdprExport']);
+    Route::post('/user/request-deletion', [UsersController::class, 'requestDeletion']);
+    Route::delete('/user/cancel-deletion', [UsersController::class, 'cancelDeletion']);
+    Route::get('/user/deletion-status', [UsersController::class, 'deletionStatus']);
     Route::put('/me/applicant', [ProfilesController::class, 'upsertApplicant']);
     Route::get('/me/applicant', [ProfilesController::class, 'meApplicant']);
     Route::put('/me/employer', [ProfilesController::class, 'upsertEmployer']);
@@ -113,10 +122,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/documents', [DocumentsController::class, 'index']);
     Route::post('/documents', [DocumentsController::class, 'store']);
     Route::delete('/documents/{document}', [DocumentsController::class, 'destroy']);
+    Route::get('/documents/{document}/stream', [DocumentsController::class, 'stream']);
+    Route::patch('/documents/{document}/set-active', [DocumentsController::class, 'setActive']);
 
     // Jobs (owner) — posting requires active subscription
     Route::get('/jobs', [JobsController::class, 'index']);
     Route::get('/jobs/{job}', [JobsController::class, 'show']);
+    Route::get('/jobs/{job}/pipeline-report', [JobsController::class, 'pipelineReport']);
+    Route::get('/jobs/duplicate-check', [JobsController::class, 'duplicateCheck']);
     Route::middleware('subscription:jobs')->group(function () {
         Route::post('/jobs', [JobsController::class, 'store']);
         Route::put('/jobs/{job}', [JobsController::class, 'update']);
@@ -137,6 +150,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/applications', [JobApplicationsController::class, 'index']);
     Route::get('/applications/{application}', [JobApplicationsController::class, 'show']);
     Route::post('/applications/{application}/status', [JobApplicationsController::class, 'updateStatus']);
+    Route::post('/applications/{application}/withdraw', [JobApplicationsController::class, 'withdraw']);
+    Route::post('/applications/{application}/rate', [JobApplicationsController::class, 'rateCandidate']);
+    Route::get('/applications/export', [JobApplicationsController::class, 'exportCsv']);
     Route::get('/applications/{application}/resume', [JobApplicationsController::class, 'viewResume']);
 
     // Bulk application actions
@@ -155,6 +171,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Invitations — requires active subscription
     Route::get('/invitations', [App\Http\Controllers\Api\InvitationController::class, 'index']);
     Route::post('/invitations/{invitation}/accept', [App\Http\Controllers\Api\InvitationController::class, 'accept']);
+    Route::post('/invitations/{invitation}/decline', [App\Http\Controllers\Api\InvitationController::class, 'decline']);
     Route::middleware('subscription:invite')->group(function () {
         Route::post('/invitations', [App\Http\Controllers\Api\InvitationController::class, 'store']);
     });
@@ -163,6 +180,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/interviews', [InterviewsController::class, 'index']);
     Route::get('/interviews/{interview}', [InterviewsController::class, 'show']);
     Route::get('/interviews/{interview}/ics', [InterviewsController::class, 'exportIcs']);
+    Route::post('/interviews/{interview}/respond', [InterviewsController::class, 'respond']);
+    Route::post('/interviews/{interview}/no-show', [InterviewsController::class, 'markNoShow']);
     Route::middleware(['require.sub'])->group(function () {
         Route::post('/applications/{application}/interviews', [InterviewsController::class, 'store']);
         Route::put('/interviews/{interview}', [InterviewsController::class, 'update']);
@@ -274,6 +293,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Analytics
     Route::get('/analytics/dashboard', [\App\Http\Controllers\Api\AnalyticsController::class, 'dashboard']);
+
+    // Employer tools
+    Route::get('/employer/blacklist', [\App\Http\Controllers\Api\EmployerToolsController::class, 'blacklistIndex']);
+    Route::post('/employer/blacklist', [\App\Http\Controllers\Api\EmployerToolsController::class, 'blacklistAdd']);
+    Route::delete('/employer/blacklist/{candidateId}', [\App\Http\Controllers\Api\EmployerToolsController::class, 'blacklistRemove']);
+    Route::get('/employer/blacklist/{candidateId}/check', [\App\Http\Controllers\Api\EmployerToolsController::class, 'isBlacklisted']);
+    Route::get('/jobs/{job}/analytics', [\App\Http\Controllers\Api\EmployerToolsController::class, 'jobAnalytics']);
+    Route::post('/jobs/{job}/bulk-message', [\App\Http\Controllers\Api\EmployerToolsController::class, 'bulkMessage']);
+    Route::post('/applications/{application}/offer-letter', [\App\Http\Controllers\Api\EmployerToolsController::class, 'offerLetter']);
 
     // 2FA
     Route::get('/2fa/status', [\App\Http\Controllers\Api\TwoFactorController::class, 'status']);

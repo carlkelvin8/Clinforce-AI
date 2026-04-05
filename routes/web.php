@@ -18,6 +18,52 @@ Route::get('/ping', function () {
     return 'ok';
 });
 
+// Diagnostic route for Hostinger/Deployment storage issues
+Route::get('/maintenance/storage-fix', function () {
+    $results = [];
+
+    // 1. Run storage:link
+    try {
+        \Illuminate\Support\Facades\Artisan::call('storage:link');
+        $results['storage_link_command'] = 'Artisan command ran successfully.';
+    } catch (\Exception $e) {
+        $results['storage_link_command'] = 'Error: ' . $e->getMessage();
+    }
+
+    // 2. Check Paths
+    $results['paths'] = [
+        'public_path' => public_path(),
+        'storage_path' => storage_path('app/public'),
+        'exists_public_storage' => is_link(public_path('storage')) ? 'Yes (Symlink)' : (is_dir(public_path('storage')) ? 'Yes (Directory)' : 'No'),
+    ];
+
+    // 3. Try manual symlink if standard fails
+    if ($results['paths']['exists_public_storage'] === 'No') {
+        try {
+            symlink(storage_path('app/public'), public_path('storage'));
+            $results['manual_symlink'] = 'Manual symlink created.';
+        } catch (\Exception $e) {
+            $results['manual_symlink'] = 'Error: ' . $e->getMessage();
+        }
+    }
+
+    // 5. Clean up notification URLs with /build/ prefix
+    try {
+        $notifications = \App\Models\Notification::where('url', 'like', '/build/%')->get();
+        $count = 0;
+        foreach ($notifications as $n) {
+            $n->url = str_replace('/build/', '/', $n->url);
+            $n->save();
+            $count++;
+        }
+        $results['notification_cleanup'] = "Fixed $count notification URLs.";
+    } catch (\Exception $e) {
+        $results['notification_cleanup'] = 'Error: ' . $e->getMessage();
+    }
+
+    return response()->json($results);
+});
+
 Route::get('/auth/google/redirect', [ApiAuthController::class, 'googleRedirect'])->name('auth.google.redirect');
 Route::get('/auth/google/callback', [ApiAuthController::class, 'googleCallback'])->name('auth.google.callback');
 

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
 import Card from "primevue/card";
@@ -7,6 +7,7 @@ import Button from "primevue/button";
 import InputText from "primevue/inputtext";
 import Textarea from "primevue/textarea";
 import Select from "primevue/select";
+import DatePicker from "primevue/datepicker";
 import Message from "primevue/message";
 import { http } from "@/lib/http";
 import { countries } from "@/lib/countries";
@@ -19,6 +20,19 @@ const editing = computed(() => Boolean(id.value));
 
 const loading = ref(false);
 const error = ref("");
+const exportingReport = ref(false);
+
+async function downloadPipelineReport() {
+    if (!editing.value || !id.value) return;
+    exportingReport.value = true;
+    try {
+        const res = await http.get(`/jobs/${id.value}/pipeline-report`, { responseType: 'blob' });
+        const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+        const a = document.createElement('a');
+        a.href = url; a.download = `pipeline-job-${id.value}.csv`; a.click();
+        URL.revokeObjectURL(url);
+    } catch {} finally { exportingReport.value = false; }
+}
 
 const form = ref({
     title: "",
@@ -30,6 +44,23 @@ const form = ref({
     salary_min: "",
     salary_max: "",
     salary_currency: "USD",
+    closes_at: null,
+});
+
+// Duplicate detection
+const duplicates = ref([]);
+let dupTimer = null;
+watch(() => form.value.title, (val) => {
+    clearTimeout(dupTimer);
+    duplicates.value = [];
+    if (!editing.value && val.trim().length >= 5) {
+        dupTimer = setTimeout(async () => {
+            try {
+                const res = await http.get('/jobs/duplicate-check', { params: { title: val.trim() } });
+                duplicates.value = res.data?.data?.duplicates || [];
+            } catch {}
+        }, 600);
+    }
 });
 
 const employmentTypes = [
@@ -79,6 +110,7 @@ async function load() {
         form.value.salary_min = j.salary_min ?? "";
         form.value.salary_max = j.salary_max ?? "";
         form.value.salary_currency = j.salary_currency || "USD";
+        form.value.closes_at = j.closes_at ? new Date(j.closes_at) : null;
     } catch (e) {
         error.value = e?.response?.data?.message || e?.message || "Failed to load job";
     } finally {
@@ -106,6 +138,7 @@ async function save() {
         salary_min: form.value.salary_min !== "" ? Number(form.value.salary_min) : null,
         salary_max: form.value.salary_max !== "" ? Number(form.value.salary_max) : null,
         salary_currency: form.value.salary_currency || null,
+        closes_at: form.value.closes_at ? new Date(form.value.closes_at).toISOString().split('T')[0] : null,
     };
 
     try {
@@ -134,6 +167,39 @@ async function save() {
 }
 
 onMounted(load);
+
+// ── Job template auto-fill ──────────────────────────────────
+import { http } from '@/lib/http'
+const templates = ref([])
+const selectedTemplate = ref(null)
+
+const templateOptions = computed(() =>
+  templates.value.map(t => ({ label: t.title, value: t.id }))
+)
+
+async function loadTemplates() {
+  if (editing.value) return
+  try {
+    const res = await http.get('/job-templates')
+    templates.value = res.data?.data ?? res.data ?? []
+  } catch {}
+}
+
+function applyTemplate(id) {
+  const t = templates.value.find(x => x.id === id)
+  if (!t) return
+  form.value.title          = t.title          || form.value.title
+  form.value.description    = t.description    || form.value.description
+  form.value.employment_type= t.employment_type|| form.value.employment_type
+  form.value.work_mode      = t.work_mode      || form.value.work_mode
+  form.value.country        = t.country        || form.value.country
+  form.value.city           = t.city           || form.value.city
+  form.value.salary_min     = t.salary_min     ?? form.value.salary_min
+  form.value.salary_max     = t.salary_max     ?? form.value.salary_max
+  form.value.salary_currency= t.salary_currency|| form.value.salary_currency
+}
+
+onMounted(() => { load(); loadTemplates() })
 </script>
 
 <template>
@@ -174,6 +240,13 @@ onMounted(load);
 
             <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div class="p-8">
+                    <!-- Template auto-fill (only on create) -->
+                    <div v-if="!editing && templates.length" class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3">
+                        <i class="pi pi-copy text-blue-600"></i>
+                        <span class="text-sm font-medium text-blue-800">Auto-fill from a previous job:</span>
+                        <Select v-model="selectedTemplate" :options="templateOptions" optionLabel="label" optionValue="value"
+                            placeholder="Select a template..." class="flex-1 max-w-xs" @update:modelValue="applyTemplate" />
+                    </div>
                     <form @submit.prevent="save" class="space-y-8">
                         <!-- Basic Info Section -->
                         <div>
@@ -186,6 +259,14 @@ onMounted(load);
                                 <div class="flex flex-col gap-2">
                                     <label for="title" class="font-medium text-slate-700">Job Title <span class="text-red-500">*</span></label>
                                     <InputText id="title" v-model="form.title" placeholder="e.g. Senior ICU Nurse" :disabled="loading" class="w-full !border-slate-300 focus:!border-blue-500 focus:!ring-blue-500/20" />
+                                    <!-- Duplicate warning -->
+                                    <div v-if="duplicates.length" class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+                                        <i class="pi pi-exclamation-triangle text-amber-500 mt-0.5 flex-shrink-0"></i>
+                                        <div>
+                                            <span class="font-semibold">Similar active jobs found:</span>
+                                            <span v-for="d in duplicates" :key="d.id" class="ml-1 underline cursor-pointer hover:text-amber-900" @click="$router.push({ name: 'employer.jobs.view', params: { id: d.id } })">{{ d.title }}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -273,6 +354,22 @@ onMounted(load);
                         </div>
 
                         <hr class="border-slate-100" />
+                        <!-- Application Deadline -->
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                                <i class="pi pi-calendar text-blue-600"></i>
+                                Application Deadline <span class="text-sm font-normal text-slate-400 ml-1">(optional)</span>
+                            </h3>
+                            <div class="flex flex-col gap-2 max-w-xs">
+                                <label for="closes_at" class="font-medium text-slate-700">Closes on</label>
+                                <DatePicker id="closes_at" v-model="form.closes_at" :disabled="loading"
+                                    placeholder="No deadline" dateFormat="yy-mm-dd" showButtonBar
+                                    class="w-full !border-slate-300" />
+                                <p class="text-xs text-slate-400">Job will be automatically archived after this date.</p>
+                            </div>
+                        </div>
+
+                        <hr class="border-slate-100" />
                         <div>
                             <h3 class="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
                                 <i class="pi pi-align-left text-blue-600"></i>
@@ -290,6 +387,8 @@ onMounted(load);
 
                         <!-- Actions -->
                         <div class="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
+                            <Button v-if="editing" label="Pipeline Report" icon="pi pi-download" severity="secondary" outlined
+                                :loading="exportingReport" @click="downloadPipelineReport" />
                             <Button label="Cancel" text class="!text-slate-600 hover:!bg-slate-50" @click="router.push({ name: 'employer.jobs' })" :disabled="loading" />
                             <Button type="submit" :label="loading ? 'Saving...' : (editing ? 'Save Changes' : 'Publish Job')" icon="pi pi-check" :loading="loading" class="!bg-blue-600 !border-blue-600 hover:!bg-blue-700" />
                         </div>

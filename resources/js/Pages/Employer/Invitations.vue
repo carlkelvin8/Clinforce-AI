@@ -104,13 +104,13 @@ function formatDate(date) {
                         <div class="flex items-center gap-3 py-2 cursor-pointer hover:bg-slate-50 rounded-lg -mx-2 px-2" @click="viewApplicant(data)">
                             <Avatar
                                 :image="avatarUrl(data)"
-                                :label="!avatarUrl(data) ? (data.candidate_profile?.first_name?.[0] || 'C') : null"
+                                :label="!avatarUrl(data) ? (data.candidate_profile?.last_name?.[0] || data.candidate_profile?.first_name?.[0] || 'C') : null"
                                 shape="circle"
                                 class="w-10 h-10 bg-indigo-50 text-indigo-600 border border-indigo-100 text-sm font-semibold"
                             />
                             <div class="min-w-0">
                                 <div class="font-semibold text-gray-900 text-sm truncate">
-                                    {{ data.candidate_profile ? `${data.candidate_profile.first_name} ${data.candidate_profile.last_name}` : 'Unknown candidate' }}
+                                    {{ data.candidate_name || (data.candidate_profile ? `${data.candidate_profile.first_name} ${data.candidate_profile.last_name?.[0] || ''}.`.trim() : 'Unknown candidate') }}
                                 </div>
                                 <div class="flex flex-wrap items-center gap-1 text-xs text-gray-500">
                                     <span class="truncate max-w-[180px]">

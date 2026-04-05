@@ -81,6 +81,11 @@ class NotificationsController extends ApiController
             'in_app_enabled' => ['sometimes','boolean'],
             'frequency' => ['sometimes','string','in:immediate,daily,weekly'],
             'category_toggles' => ['sometimes','array'],
+            'category_toggles.status_changes' => ['sometimes','boolean'],
+            'category_toggles.interviews'     => ['sometimes','boolean'],
+            'category_toggles.messages'       => ['sometimes','boolean'],
+            'category_toggles.job_alerts'     => ['sometimes','boolean'],
+            'category_toggles.invitations'    => ['sometimes','boolean'],
         ]);
         $p->fill($v);
         $p->save();

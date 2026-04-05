@@ -2,55 +2,57 @@
 
 namespace App\Console\Commands;
 
-use App\Mail\InterviewScheduled;
 use App\Models\Interview;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
+use Carbon\Carbon;
 
 class SendInterviewReminders extends Command
 {
-    protected $signature = 'interviews:send-reminders';
-    protected $description = 'Send email reminders 24h before scheduled interviews';
+    protected $signature   = 'interviews:reminders';
+    protected $description = 'Send 24h and 1h reminder emails for upcoming interviews';
 
-    public function handle(): int
+    public function handle(): void
     {
-        $now = now();
-        $windowStart = $now->copy()->addHours(23)->addMinutes(30);
-        $windowEnd = $now->copy()->addHours(24)->addMinutes(30);
+        $now = Carbon::now();
 
-        $interviews = Interview::query()
-            ->with(['application.applicant', 'application.job.owner'])
-            ->whereIn('status', ['scheduled', 'confirmed'])
-            ->whereBetween('scheduled_start', [$windowStart, $windowEnd])
-            ->whereNull('reminder_sent_at')
-            ->get();
+        // Windows: 23h55m–24h05m and 55m–65m before start
+        $windows = [
+            ['label' => '24h', 'from' => $now->copy()->addMinutes(23 * 60 + 55), 'to' => $now->copy()->addMinutes(24 * 60 + 5)],
+            ['label' => '1h',  'from' => $now->copy()->addMinutes(55),            'to' => $now->copy()->addMinutes(65)],
+        ];
 
-        $sent = 0;
+        foreach ($windows as $window) {
+            $interviews = Interview::query()
+                ->with(['application.job', 'application.applicant'])
+                ->where('status', '!=', 'cancelled')
+                ->whereBetween('scheduled_start', [$window['from'], $window['to']])
+                ->get();
 
-        foreach ($interviews as $interview) {
-            try {
-                $candidate = $interview->application?->applicant;
-                $employer = $interview->application?->job?->owner;
+            foreach ($interviews as $iv) {
+                $applicantEmail = $iv->application?->applicant?->email;
+                $jobTitle       = $iv->application?->job?->title ?? 'your interview';
+                $startTime      = Carbon::parse($iv->scheduled_start)->format('D, M j \a\t g:i A');
+                $link           = $iv->meeting_link ?? $iv->location_text ?? 'See your dashboard';
 
-                if ($candidate && $candidate->email) {
-                    Mail::to($candidate->email)->send(new InterviewScheduled($interview));
+                if ($applicantEmail) {
+                    try {
+                        Mail::raw(
+                            "Hi,\n\nThis is a reminder that your interview for \"{$jobTitle}\" is scheduled in {$window['label']}.\n\n" .
+                            "Time: {$startTime}\n" .
+                            "Details: {$link}\n\n" .
+                            "Good luck!\n— ClinForce Team",
+                            fn ($m) => $m->to($applicantEmail)
+                                ->subject("⏰ Interview reminder ({$window['label']}) — {$jobTitle}")
+                        );
+                        $this->info("Sent {$window['label']} reminder to {$applicantEmail}");
+                    } catch (\Throwable $e) {
+                        $this->warn("Failed to send to {$applicantEmail}: " . $e->getMessage());
+                    }
                 }
-
-                if ($employer && $employer->email && $employer->email !== $candidate?->email) {
-                    Mail::to($employer->email)->send(new InterviewScheduled($interview));
-                }
-
-                $interview->reminder_sent_at = now();
-                $interview->save();
-
-                $sent++;
-            } catch (\Throwable $e) {
-                $this->error("Failed to send reminder for interview {$interview->id}: {$e->getMessage()}");
             }
         }
 
-        $this->info("Sent {$sent} interview reminder(s).");
-
-        return 0;
+        $this->info('Interview reminders done.');
     }
 }

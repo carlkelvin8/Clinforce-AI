@@ -36,6 +36,48 @@ const applications = ref([])
 const jobs = ref([])
 const selectedJob = ref('')
 const movingId = ref(null)
+const currentPage = ref(1)
+const hasMore = ref(false)
+const loadingMore = ref(false)
+
+// Bulk selection
+const selectedIds = ref(new Set())
+const bulkMode = ref(false)
+const bulkMoving = ref(false)
+
+function toggleSelect(id) {
+  if (selectedIds.value.has(id)) selectedIds.value.delete(id)
+  else selectedIds.value.add(id)
+  selectedIds.value = new Set(selectedIds.value)
+}
+
+async function bulkMove(toStatus) {
+  if (!selectedIds.value.size) return
+  bulkMoving.value = true
+  const ids = [...selectedIds.value]
+  // Optimistic update
+  const prev = {}
+  for (const app of applications.value) {
+    if (ids.includes(app.id)) {
+      prev[app.id] = app.status
+      if (canMoveTo(app.status, toStatus)) app.status = toStatus
+    }
+  }
+  try {
+    await api.post('/applications/bulk-action', { application_ids: ids, action: toStatus })
+    toast.success(`${ids.length} candidates moved to ${toStatus}`)
+    selectedIds.value = new Set()
+    bulkMode.value = false
+  } catch (e) {
+    // Revert
+    for (const app of applications.value) {
+      if (prev[app.id]) app.status = prev[app.id]
+    }
+    toast.error(e?.response?.data?.message || 'Bulk move failed')
+  } finally {
+    bulkMoving.value = false
+  }
+}
 
 // drag state
 const dragging = ref(null)
@@ -60,13 +102,14 @@ const columns = computed(() => {
 async function load() {
   loading.value = true
   error.value = ''
+  currentPage.value = 1
   try {
-    const res = await api.get('/applications', { params: { scope: 'owned', per_page: 200 } })
+    const res = await api.get('/applications', { params: { scope: 'owned', per_page: 50, page: 1 } })
     const data = res.data?.data ?? res.data
     const list = data?.applications?.data ?? data?.applications ?? (Array.isArray(data) ? data : [])
     applications.value = list
+    hasMore.value = (data?.applications?.last_page ?? data?.last_page ?? 1) > 1
 
-    // extract unique jobs
     const jobMap = new Map()
     for (const a of list) {
       const j = a.job
@@ -80,10 +123,32 @@ async function load() {
   }
 }
 
+async function loadMore() {
+  loadingMore.value = true
+  try {
+    const nextPage = currentPage.value + 1
+    const res = await api.get('/applications', { params: { scope: 'owned', per_page: 50, page: nextPage } })
+    const data = res.data?.data ?? res.data
+    const list = data?.applications?.data ?? data?.applications ?? (Array.isArray(data) ? data : [])
+    applications.value = [...applications.value, ...list]
+    currentPage.value = nextPage
+    hasMore.value = nextPage < (data?.applications?.last_page ?? data?.last_page ?? 1)
+
+    for (const a of list) {
+      const j = a.job
+      if (j?.id && !jobs.value.find(x => x.id === j.id)) jobs.value.push(j)
+    }
+  } catch {} finally {
+    loadingMore.value = false
+  }
+}
+
 function candidateName(app) {
   const p = app.applicant?.applicant_profile || app.applicant?.applicantProfile
-  if (p?.first_name || p?.last_name) return `${p.first_name || ''} ${p.last_name || ''}`.trim()
-  return app.applicant_name || app.applicant?.name || app.applicant?.email || `App #${app.id}`
+  const first = (p?.first_name || '').trim()
+  const last  = (p?.last_name  || '').trim()
+  if (first) return last ? `${first} ${last[0].toUpperCase()}.` : first
+  return app.applicant_name || app.applicant?.name || `App #${app.id}`
 }
 
 function initials(name) {
@@ -154,7 +219,7 @@ onMounted(load)
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 class="text-3xl font-bold text-gray-900 tracking-tight">Pipeline Board</h1>
-          <p class="text-gray-500 mt-1">Drag cards between stages to update applicant status.</p>
+          <p class="text-gray-500 mt-1">Drag cards between stages to update candidate status.</p>
         </div>
         <div class="flex items-center gap-3">
           <Select
@@ -165,8 +230,24 @@ onMounted(load)
             placeholder="All jobs"
             class="w-56"
           />
+          <Button :label="bulkMode ? 'Cancel' : 'Select'" :icon="bulkMode ? 'pi pi-times' : 'pi pi-check-square'"
+            :severity="bulkMode ? 'secondary' : 'secondary'" outlined size="small" @click="bulkMode = !bulkMode; selectedIds = new Set()" />
           <Button icon="pi pi-refresh" text severity="secondary" :loading="loading" @click="load" />
         </div>
+      </div>
+
+      <!-- Bulk action bar -->
+      <div v-if="bulkMode && selectedIds.size > 0"
+        class="flex items-center gap-3 px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+        <span class="text-sm font-semibold text-indigo-700">{{ selectedIds.size }} selected</span>
+        <div class="flex gap-2 flex-wrap">
+          <Button v-for="col in COLUMNS.filter(c => !['submitted'].includes(c.key))" :key="col.key"
+            :label="`→ ${col.label}`" size="small" severity="secondary" outlined
+            :class="col.text" :loading="bulkMoving"
+            @click="bulkMove(col.key)" />
+        </div>
+        <Button icon="pi pi-times" text size="small" severity="secondary" class="ml-auto"
+          @click="selectedIds = new Set()" />
       </div>
 
       <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
@@ -205,13 +286,23 @@ onMounted(load)
             <div
               v-for="app in col.cards"
               :key="app.id"
-              draggable="true"
-              @dragstart="onDragStart(app)"
+              :draggable="!bulkMode"
+              @dragstart="!bulkMode && onDragStart(app)"
               @dragend="onDragEnd"
-              class="bg-white rounded-xl border border-gray-200 p-3 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-all group"
-              :class="movingId === app.id ? 'opacity-50' : ''"
+              class="bg-white rounded-xl border border-gray-200 p-3 shadow-sm transition-all group"
+              :class="[
+                movingId === app.id ? 'opacity-50' : '',
+                bulkMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing hover:shadow-md',
+                bulkMode && selectedIds.has(app.id) ? 'ring-2 ring-indigo-400 border-indigo-300' : ''
+              ]"
+              @click="bulkMode && toggleSelect(app.id)"
             >
               <div class="flex items-start gap-2.5">
+                <div v-if="bulkMode" class="flex-shrink-0 mt-0.5">
+                  <input type="checkbox" :checked="selectedIds.has(app.id)"
+                    class="w-4 h-4 rounded accent-indigo-600 cursor-pointer"
+                    @click.stop="toggleSelect(app.id)" />
+                </div>
                 <Avatar
                   :label="initials(candidateName(app))"
                   shape="circle"
@@ -251,10 +342,16 @@ onMounted(load)
             <!-- Empty column -->
             <div v-if="col.cards.length === 0" class="flex flex-col items-center justify-center py-10 text-center">
               <i class="pi pi-inbox text-2xl text-gray-300 mb-2"></i>
-              <p class="text-xs text-gray-400">No applicants here</p>
+              <p class="text-xs text-gray-400">No candidates here</p>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Load more -->
+      <div v-if="hasMore" class="flex justify-center pt-2">
+        <Button label="Load more" icon="pi pi-chevron-down" severity="secondary" outlined
+          :loading="loadingMore" @click="loadMore" />
       </div>
     </div>
   </AppLayout>

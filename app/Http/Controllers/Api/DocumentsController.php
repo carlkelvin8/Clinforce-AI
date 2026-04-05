@@ -106,4 +106,66 @@ class DocumentsController extends ApiController
         $document->delete();
         return $this->ok(null, 'Deleted');
     }
+
+    public function setActive(Document $document): JsonResponse
+    {
+        $u = $this->requireAuth();
+
+        if ($document->user_id !== $u->id) {
+            return $this->fail('Forbidden', null, 403);
+        }
+
+        // Deactivate all other resumes, activate this one
+        Document::query()
+            ->where('user_id', $u->id)
+            ->where('doc_type', $document->doc_type)
+            ->update(['status' => 'inactive']);
+
+        $document->status = 'active';
+        $document->save();
+
+        return $this->ok($document, 'Set as active');
+    }
+
+    public function stream(Document $document): \Symfony\Component\HttpFoundation\Response
+    {
+        $u = $this->requireAuth();
+
+        // Only owner or admin can stream
+        if ($u->role !== 'admin' && $document->user_id !== $u->id) {
+            // Also allow employers to view if they have access to the application
+            // But for simplicity in the profile page, we check owner first.
+            abort(403, 'Forbidden');
+        }
+
+        $filePath = $document->file_url;
+        
+        // Fix for production /build/ prefix or full URLs
+        if (str_contains($filePath, '/build/')) {
+            $filePath = str_replace('/build/', '/', $filePath);
+        }
+
+        // If it's a full URL, we need to extract the relative path after /storage/
+        if (str_contains($filePath, '/storage/')) {
+            $pos = strpos($filePath, '/storage/');
+            $filePath = substr($filePath, $pos + 9); // length of "/storage/"
+        } else {
+            // Remove leading slash and public prefix if present
+            $filePath = ltrim($filePath, '/');
+            if (str_starts_with($filePath, 'public/')) {
+                $filePath = substr($filePath, 7);
+            }
+        }
+
+        if (!Storage::disk('public')->exists($filePath)) {
+            abort(404, 'File not found');
+        }
+
+        $fullPath = Storage::disk('public')->path($filePath);
+        
+        return response()->file($fullPath, [
+            'Content-Type' => $document->mime_type ?: 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $document->file_name . '"'
+        ]);
+    }
 }

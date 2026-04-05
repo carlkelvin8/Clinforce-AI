@@ -4,6 +4,14 @@ import { RouterLink, useRoute, useRouter } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
 import api from "@/lib/api";
 
+// Mask last name — show first name + last initial only
+function maskLastName(fullName) {
+  if (!fullName) return 'Candidate'
+  const parts = String(fullName).trim().split(/\s+/)
+  if (parts.length < 2) return fullName
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`
+}
+
 // PrimeVue
 import Card from "primevue/card";
 import Button from "primevue/button";
@@ -241,18 +249,17 @@ function closeScheduleModal() {
 const applicationOptions = computed(() => {
   return applications.value.map((a) => {
     const jobTitle = a?.job?.title || a?.job_title || "Job";
-    const cand =
+    const cand = maskLastName(
       a?.applicant_name ||
       a?.applicant?.name ||
       a?.user?.name ||
       a?.applicant_full_name ||
-      "Candidate";
-    const phone = a?.applicant?.phone || a?.user?.phone || "";
-    const phoneStr = phone ? ` | ${phone}` : "";
-    
+      "Candidate"
+    );
+
     return {
-      appId: Number(a.id),   // always the job_applications.id PK
-      label: `${cand}${phoneStr} — ${jobTitle} (App #${a.id})`,
+      appId: Number(a.id),
+      label: `${cand} — ${jobTitle} (App #${a.id})`,
     };
   });
 });
@@ -352,6 +359,19 @@ function getSeverity(status) {
     }
 }
 
+// No-show tracking
+const noShowId = ref(null)
+async function markNoShow(interview) {
+  noShowId.value = interview.id
+  try {
+    await api.post(`/interviews/${interview.id}/no-show`)
+    interview.no_show = true
+    interview.status = 'completed'
+  } catch (e) {
+    alert(e?.response?.data?.message || 'Failed')
+  } finally { noShowId.value = null }
+}
+
 // ICS download
 async function downloadIcs(interview) {
   try {
@@ -420,9 +440,10 @@ const calendarCells = computed(() => {
 })
 
 function candidateNameFromInterview(iv) {
-  return iv?.application?.applicant?.name ||
+  const name = iv?.application?.applicant?.name ||
     iv?.application?.applicant_name ||
     `App #${iv?.application_id || iv?.id}`
+  return maskLastName(name)
 }
 
 function calEventClass(status) {
@@ -586,15 +607,16 @@ async function submitFeedback() {
                     <template #body="{ data }">
                         <div class="font-bold text-gray-900">
                             {{
-                                data?.application?.applicant?.name ||
-                                data?.application?.user?.name ||
-                                data?.application?.applicant_name ||
-                                "Candidate"
+                                maskLastName(
+                                  data?.application?.applicant?.name ||
+                                  data?.application?.user?.name ||
+                                  data?.application?.applicant_name ||
+                                  "Candidate"
+                                )
                             }}
                         </div>
                         <div class="text-xs text-gray-600 mt-1 flex flex-col gap-1">
                             <span class="flex items-center gap-1"><i class="pi pi-id-card text-[10px]"></i> App #{{ data?.application?.id || data?.application_id || "—" }}</span>
-                            <span v-if="data?.application?.applicant?.phone" class="flex items-center gap-1 text-blue-600 font-medium"><i class="pi pi-phone text-[10px]"></i> {{ data.application.applicant.phone }}</span>
                         </div>
                     </template>
                 </Column>
@@ -663,6 +685,19 @@ async function submitFeedback() {
                                 v-tooltip.top="'Download .ics'"
                                 @click="downloadIcs(data)"
                             />
+                            <!-- No-show -->
+                            <Button
+                                v-if="data?.status !== 'cancelled' && data?.status !== 'completed' && !data?.no_show"
+                                icon="pi pi-user-minus"
+                                size="small"
+                                severity="warn"
+                                outlined
+                                class="!text-xs !px-2 !py-1.5"
+                                v-tooltip.top="'Mark as no-show'"
+                                :loading="noShowId === data?.id"
+                                @click="markNoShow(data)"
+                            />
+                            <Tag v-if="data?.no_show" value="No-show" severity="warn" class="text-[10px]" />
                             <!-- Feedback (completed interviews) -->
                             <Button
                                 v-if="data?.status === 'completed'"
@@ -805,21 +840,13 @@ async function submitFeedback() {
                         <Avatar :image="selectedApplication.applicant?.avatar_url" icon="pi pi-user" size="large" shape="circle" class="bg-blue-100 text-blue-600" />
                         <div class="flex-1">
                             <div class="text-lg font-black text-slate-900 leading-none mb-1">
-                                {{ selectedApplication.applicant?.name || selectedApplication.applicant_name || "Candidate" }}
+                                {{ maskLastName(selectedApplication.applicant?.name || selectedApplication.applicant_name || "Candidate") }}
                             </div>
                             <div class="text-sm font-medium text-slate-500 mb-2">{{ selectedApplication.job?.title || "Job Application" }}</div>
                             <div class="flex flex-wrap gap-x-4 gap-y-1 mt-3">
                                 <div class="flex items-center gap-1.5 text-xs font-bold text-slate-600">
                                     <i class="pi pi-id-card text-slate-400"></i>
                                     App #{{ selectedApplication.id }}
-                                </div>
-                                <div v-if="selectedApplication.applicant?.phone" class="flex items-center gap-1.5 text-xs font-bold text-blue-600">
-                                    <i class="pi pi-phone text-blue-400"></i>
-                                    {{ selectedApplication.applicant.phone }}
-                                </div>
-                                <div v-if="selectedApplication.applicant?.email" class="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                                    <i class="pi pi-envelope text-slate-400"></i>
-                                    {{ selectedApplication.applicant.email }}
                                 </div>
                             </div>
                         </div>

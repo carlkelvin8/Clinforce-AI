@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Mail\InterviewScheduled;
@@ -93,6 +94,7 @@ class InterviewsController extends ApiController
 
         $overlap = Interview::query()
             ->where('application_id', $application->id)
+            ->where('status', '!=', 'cancelled')
             ->where(function ($q) use ($start, $end) {
                 $q->where('scheduled_start', '<', $end)
                   ->where('scheduled_end', '>', $start);
@@ -249,6 +251,52 @@ class InterviewsController extends ApiController
         return $this->ok($interview->fresh(), 'Updated');
     }
 
+    public function respond(Request $request, Interview $interview): JsonResponse
+    {
+        $u = $this->requireAuth();
+
+        $interview->load('application');
+
+        $isApplicant = $interview->application?->applicant_user_id === $u->id;
+
+        if (!$isApplicant && $u->role !== 'admin') {
+            return $this->fail('Forbidden', null, 403);
+        }
+
+        if (in_array($interview->status, ['cancelled', 'completed'], true)) {
+            return $this->fail('Cannot respond to a cancelled or completed interview', null, 409);
+        }
+
+        $data = $request->validate([
+            'response' => 'required|in:confirmed,declined',
+            'reason'   => 'nullable|string|max:500',
+        ]);
+
+        $interview->status = $data['response'] === 'confirmed' ? 'confirmed' : 'cancelled';
+        if ($data['response'] === 'declined') {
+            $interview->cancel_reason = $data['reason'] ?? 'Declined by candidate';
+        }
+        $interview->save();
+
+        // Notify employer
+        try {
+            $interview->load(['application.job.owner']);
+            $employerEmail = $interview->application?->job?->owner?->email;
+            $jobTitle      = $interview->application?->job?->title ?? 'a position';
+            $action        = $data['response'] === 'confirmed' ? 'confirmed' : 'declined';
+            if ($employerEmail) {
+                Mail::raw(
+                    "A candidate has {$action} the interview for \"{$jobTitle}\".\n\n" .
+                    ($data['reason'] ? "Reason: {$data['reason']}\n\n" : '') .
+                    "Interview ID: #{$interview->id}",
+                    fn ($m) => $m->to($employerEmail)->subject("Interview {$action} — {$jobTitle}")
+                );
+            }
+        } catch (\Throwable $e) {}
+
+        return $this->ok($interview->fresh(), 'Response recorded');
+    }
+
     /** GET /interviews/{interview}/ics — download .ics calendar file */
     public function exportIcs(Interview $interview): \Illuminate\Http\Response
     {
@@ -300,6 +348,31 @@ class InterviewsController extends ApiController
             'Content-Type'        => 'text/calendar; charset=utf-8',
             'Content-Disposition' => 'attachment; filename="interview-' . $interview->id . '.ics"',
         ]);
+    }
+
+    public function markNoShow(Interview $interview): JsonResponse
+    {
+        $u = $this->requireAuth();
+        $interview->load('application.job');
+        $job = $interview->application?->job;
+
+        $isOwner = $job
+            && in_array($u->role, ['employer','agency'], true)
+            && $job->owner_user_id === $u->id
+            && $job->owner_type === $u->role;
+
+        if ($u->role !== 'admin' && !$isOwner) {
+            return $this->fail('Forbidden', null, 403);
+        }
+
+        $interview->no_show = true;
+        $interview->status  = 'completed'; // mark as done
+        $interview->save();
+
+        // Notify admin / log
+        \Log::info("Interview #{$interview->id} marked as no-show by user #{$u->id}");
+
+        return $this->ok($interview->fresh(), 'Marked as no-show');
     }
 
     public function cancel(InterviewCancelRequest $request, Interview $interview): JsonResponse

@@ -31,7 +31,9 @@
           <nav class="hidden md:flex items-center gap-8">
             <a href="#features" class="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Features</a>
             <a href="#how-it-works" class="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">How it works</a>
+            <a href="#pricing" class="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Pricing</a>
             <a href="#testimonials" class="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Testimonials</a>
+            <a href="#faq" class="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">FAQ</a>
             <a href="#contact" class="text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Contact</a>
             <div class="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-2"></div>
             <DarkModeToggle />
@@ -77,14 +79,41 @@
               Streamline your healthcare recruitment. Connect with qualified professionals, automate compliance, and fill shifts faster than ever.
             </p>
             <div class="flex flex-wrap items-center gap-5">
-              <RouterLink :to="{ name: 'auth.register' }" class="group inline-flex items-center justify-center px-8 py-4 rounded-2xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 hover:shadow-2xl hover:-translate-y-1 active:translate-y-0">
-                Start hiring now
-                <svg class="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+              <!-- Employer path -->
+              <RouterLink :to="{ name: 'auth.register' }"
+                class="group relative flex flex-col gap-3 p-5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xl shadow-blue-200 hover:shadow-2xl hover:-translate-y-1 active:translate-y-0 flex-1 min-w-[200px]">
+                <div class="flex items-center justify-between">
+                  <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                  </div>
+                  <svg class="w-4 h-4 opacity-60 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                </div>
+                <div>
+                  <div class="font-black text-base">I'm an Employer</div>
+                  <div class="text-blue-200 text-xs font-medium mt-0.5">Post jobs · Screen candidates · Hire faster</div>
+                </div>
+                <div class="text-[10px] font-bold text-blue-300 uppercase tracking-widest">Free 7-day trial →</div>
               </RouterLink>
-              <RouterLink :to="{ name: 'auth.login' }" class="inline-flex items-center justify-center px-8 py-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-lg hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600 transition-all hover:-translate-y-1 active:translate-y-0">
-                I'm a clinician
+              <!-- Clinician path -->
+              <RouterLink :to="{ name: 'auth.login' }"
+                class="group relative flex flex-col gap-3 p-5 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 text-slate-900 dark:text-white transition-all hover:shadow-xl hover:-translate-y-1 active:translate-y-0 flex-1 min-w-[200px]">
+                <div class="flex items-center justify-between">
+                  <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                  </div>
+                  <svg class="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+                </div>
+                <div>
+                  <div class="font-black text-base">I'm a Clinician</div>
+                  <div class="text-slate-500 dark:text-slate-400 text-xs font-medium mt-0.5">Browse jobs · Apply · Track applications</div>
+                </div>
+                <div class="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Browse open roles →</div>
               </RouterLink>
             </div>
+            <p class="mt-4 text-xs text-slate-400 dark:text-slate-500 font-medium flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              No credit card required · Cancel anytime
+            </p>
             <div class="mt-12 flex flex-wrap items-center gap-8 text-sm font-bold text-slate-500 uppercase tracking-wide">
               <div class="flex items-center gap-2.5">
                 <div class="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
@@ -101,66 +130,126 @@
             </div>
           </div>
 
-          <!-- Right Visual -->
+          <!-- Right Visual — Animated Demo -->
           <div class="relative lg:h-[650px] flex items-center justify-center reveal reveal-delay-200">
             <div class="absolute inset-0 bg-gradient-to-tr from-blue-200/40 to-indigo-200/40 rounded-full blur-3xl animate-pulse-slow"></div>
-            <!-- Dashboard Mockup Card -->
-            <div class="relative w-full max-w-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-[2.5rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] border border-white/50 dark:border-slate-700/50 overflow-hidden transform lg:rotate-[-3deg] hover:rotate-0 transition-all duration-700 hover:scale-[1.02]">
-              <div class="px-8 py-5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between bg-white/50 dark:bg-slate-800/50">
-                <div class="flex items-center gap-2">
-                  <div class="w-3.5 h-3.5 rounded-full bg-red-400/80 shadow-inner"></div>
-                  <div class="w-3.5 h-3.5 rounded-full bg-amber-400/80 shadow-inner"></div>
-                  <div class="w-3.5 h-3.5 rounded-full bg-emerald-400/80 shadow-inner"></div>
+            <div class="relative w-full max-w-lg transform lg:rotate-[-2deg] hover:rotate-0 transition-all duration-700 hover:scale-[1.02]">
+              <!-- Browser chrome -->
+              <div class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-[2rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.15)] border border-white/60 dark:border-slate-700/60 overflow-hidden">
+                <!-- Title bar -->
+                <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3 bg-slate-50/80 dark:bg-slate-900/50">
+                  <div class="flex gap-1.5">
+                    <div class="w-3 h-3 rounded-full bg-red-400/80"></div>
+                    <div class="w-3 h-3 rounded-full bg-amber-400/80"></div>
+                    <div class="w-3 h-3 rounded-full bg-emerald-400/80"></div>
+                  </div>
+                  <div class="flex-1 bg-white dark:bg-slate-700 rounded-lg px-3 py-1 text-[10px] text-slate-400 font-mono">aiclinforce.com/employer/dashboard</div>
                 </div>
-                <div class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Dashboard Preview</div>
+                <!-- Demo content -->
+                <div class="p-5 space-y-4">
+                  <!-- KPI row -->
+                  <div class="grid grid-cols-3 gap-3">
+                    <div v-for="kpi in demoKpis" :key="kpi.label"
+                      class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700">
+                      <div class="text-[10px] text-slate-400 font-semibold uppercase tracking-wide mb-1">{{ kpi.label }}</div>
+                      <div class="text-xl font-black text-slate-900 dark:text-white">{{ kpi.value }}</div>
+                    </div>
+                  </div>
+                  <!-- Pipeline bars -->
+                  <div class="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700 space-y-3">
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Hiring Pipeline</div>
+                    <div v-for="stage in demoStages" :key="stage.label" class="space-y-1">
+                      <div class="flex justify-between text-xs font-semibold">
+                        <span class="text-slate-600 dark:text-slate-400">{{ stage.label }}</span>
+                        <span class="text-slate-900 dark:text-white">{{ stage.count }}</span>
+                      </div>
+                      <div class="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full demo-bar" :style="{ width: stage.pct + '%', background: stage.color }"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Recent activity -->
+                  <div class="space-y-2">
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recent Activity</div>
+                    <div v-for="(act, i) in demoActivity" :key="i"
+                      class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
+                      :class="{ 'demo-highlight': demoHighlight === i }">
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0"
+                        :style="{ background: act.bg, color: act.color }">{{ act.initials }}</div>
+                      <div class="flex-1 min-w-0">
+                        <div class="text-xs font-bold text-slate-900 dark:text-white truncate">{{ act.name }}</div>
+                        <div class="text-[10px] text-slate-500">{{ act.action }}</div>
+                      </div>
+                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                        :style="{ background: act.tagBg, color: act.tagColor }">{{ act.tag }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="p-8 space-y-8">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <div class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Total Candidates</div>
-                    <div class="text-4xl font-black text-slate-900 dark:text-white tracking-tight">1,248</div>
-                  </div>
-                  <div class="w-16 h-16 rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-200">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                  </div>
-                </div>
-                <div class="space-y-4">
-                  <div class="flex items-center justify-between text-sm font-bold">
-                    <span class="text-slate-700 dark:text-slate-300">Active Jobs</span>
-                    <span class="text-blue-600">75% Complete</span>
-                  </div>
-                  <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
-                    <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-full rounded-full transition-all duration-1000" style="width: 75%"></div>
-                  </div>
-                </div>
-                <div class="p-6 bg-slate-50/50 dark:bg-slate-900/50 rounded-3xl border border-slate-100 dark:border-slate-700">
-                  <div class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-5">Recent Activity</div>
-                  <div class="space-y-5">
-                    <div class="flex items-center gap-4 group cursor-default">
-                      <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xs font-black shadow-sm group-hover:scale-110 transition-transform">JS</div>
-                      <div class="flex-1">
-                        <div class="text-sm font-bold text-slate-900 dark:text-white">James Smith</div>
-                        <div class="text-xs font-medium text-slate-500">Applied for Senior Nurse</div>
-                      </div>
-                      <span class="text-[10px] font-bold text-slate-400">2m ago</span>
-                    </div>
-                    <div class="flex items-center gap-4 group cursor-default">
-                      <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-black shadow-sm group-hover:scale-110 transition-transform">AL</div>
-                      <div class="flex-1">
-                        <div class="text-sm font-bold text-slate-900 dark:text-white">Ana Lee</div>
-                        <div class="text-xs font-medium text-slate-500">Interview Scheduled</div>
-                      </div>
-                      <span class="text-[10px] font-bold text-slate-400">1h ago</span>
-                    </div>
-                  </div>
-                </div>
+              <!-- AI badge floating -->
+              <div class="absolute -bottom-4 -right-4 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl px-4 py-3 shadow-xl shadow-blue-300/40 flex items-center gap-2 animate-float">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                <span class="text-xs font-black">AI matched 3 candidates</span>
               </div>
             </div>
-            <!-- Floating Elements -->
-
-
           </div>
         </div>
+
+        <!-- ── Stats Counter ─────────────────────────────────────────── -->
+        <section class="mt-20 md:mt-28 reveal" ref="statsSection">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div v-for="stat in stats" :key="stat.label"
+              class="text-center p-8 bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
+              <div class="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight mb-2">
+                {{ stat.prefix }}{{ stat.displayed.toLocaleString() }}{{ stat.suffix }}
+              </div>
+              <div class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{{ stat.label }}</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Live Job Ticker ─────────────────────────────────────────── -->
+        <section class="mt-16 reveal overflow-hidden">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Live — recently posted jobs</span>
+          </div>
+          <div class="relative">
+            <!-- Fade edges -->
+            <div class="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-slate-50/80 dark:from-slate-950/80 to-transparent z-10 pointer-events-none"></div>
+            <div class="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-slate-50/80 dark:from-slate-950/80 to-transparent z-10 pointer-events-none"></div>
+            <div class="flex gap-4 ticker-track">
+              <div v-for="(job, i) in [...tickerJobs, ...tickerJobs]" :key="i"
+                class="flex-shrink-0 flex items-center gap-3 px-5 py-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                <div class="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-900 dark:text-white truncate max-w-[160px]">{{ job.title }}</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">{{ job.location }}</div>
+                </div>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 flex-shrink-0">New</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Trusted By ──────────────────────────────────────────────── -->
+        <section class="mt-16 reveal">
+          <p class="text-center text-xs font-bold text-slate-400 dark:text-slate-600 uppercase tracking-[0.25em] mb-8">Trusted by healthcare institutions across the Philippines &amp; beyond</p>
+          <div class="flex flex-wrap items-center justify-center gap-8 md:gap-12 opacity-60 dark:opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
+            <!-- SVG text logos — no external images needed -->
+            <div v-for="org in trustedOrgs" :key="org.name"
+              class="flex items-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:opacity-100 transition-opacity">
+              <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" :style="{ background: org.color + '20' }">
+                <svg class="w-4 h-4" :style="{ color: org.color }" fill="currentColor" viewBox="0 0 24 24">
+                  <path :d="org.icon" />
+                </svg>
+              </div>
+              <span class="text-sm font-black text-slate-700 dark:text-slate-300 whitespace-nowrap">{{ org.name }}</span>
+            </div>
+          </div>
+        </section>
 
         <!-- Banner Section -->
         <section class="mt-32 md:mt-48 reveal">
@@ -170,7 +259,7 @@
           </div>
           <div class="grid md:grid-cols-2 gap-8">
             <div class="relative overflow-hidden rounded-[2.5rem] shadow-2xl group cursor-pointer aspect-[16/9]">
-              <img :src="banner1" alt="Healthcare Excellence" class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+              <img :src="banner1" alt="Healthcare Excellence" class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
               <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity"></div>
               <div class="absolute inset-0 p-10 flex flex-col justify-end">
                 <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-black uppercase tracking-[0.2em] mb-4 w-fit">Excellence</div>
@@ -179,7 +268,7 @@
               </div>
             </div>
             <div class="relative overflow-hidden rounded-[2.5rem] shadow-2xl group cursor-pointer aspect-[16/9]">
-              <img :src="banner2" alt="Professional Staffing" class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+              <img :src="banner2" alt="Professional Staffing" class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
               <div class="absolute inset-0 bg-gradient-to-t from-indigo-900/90 via-indigo-900/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity"></div>
               <div class="absolute inset-0 p-10 flex flex-col justify-end">
                 <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-black uppercase tracking-[0.2em] mb-4 w-fit">Reliability</div>
@@ -305,44 +394,94 @@
             <p class="text-slate-600 dark:text-slate-400 text-lg font-medium">Real stories from our community.</p>
           </div>
           <div class="grid md:grid-cols-3 gap-8">
-            <div class="p-8 bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group">
-              <div class="flex gap-1 text-amber-400 mb-6 group-hover:scale-105 transition-transform origin-left">
-                <i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i>
+            <div v-for="t in testimonials" :key="t.name"
+              class="p-8 bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group flex flex-col">
+              <div class="flex gap-1 text-amber-400 mb-6">
+                <i v-for="n in 5" :key="n" class="pi pi-star-fill text-xs"></i>
               </div>
-              <div class="text-slate-700 dark:text-slate-300 leading-8 font-medium italic">"We filled critical shifts in days, not weeks. The platform is intuitive and incredibly efficient."</div>
+              <p class="text-slate-700 dark:text-slate-300 leading-8 font-medium italic flex-1">"{{ t.quote }}"</p>
               <div class="mt-8 flex items-center gap-4">
-                <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 grid place-content-center font-black text-xs">HR</div>
+                <img :src="t.avatar" :alt="t.name" class="w-12 h-12 rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-700" loading="lazy" />
                 <div>
-                  <div class="text-sm font-black text-slate-900 dark:text-white">HR Manager</div>
-                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Regional Hospital</div>
+                  <div class="text-sm font-black text-slate-900 dark:text-white">{{ t.name }}</div>
+                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{{ t.role }}</div>
                 </div>
               </div>
             </div>
-            <div class="p-8 bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group">
-              <div class="flex gap-1 text-amber-400 mb-6 group-hover:scale-105 transition-transform origin-left">
-                <i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i>
-              </div>
-              <div class="text-slate-700 dark:text-slate-300 leading-8 font-medium italic">"The interview scheduling saved so much back-and-forth. Our workflow has never been smoother."</div>
-              <div class="mt-8 flex items-center gap-4">
-                <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 grid place-content-center font-black text-xs">CD</div>
-                <div>
-                  <div class="text-sm font-black text-slate-900 dark:text-white">Clinic Director</div>
-                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">HealthCare Plus</div>
-                </div>
-              </div>
+          </div>
+        </section>
+
+        <!-- ── Pricing ──────────────────────────────────────────────────── -->
+        <section id="pricing" class="mt-32 md:mt-48 reveal">
+          <div class="text-center max-w-2xl mx-auto mb-6">
+            <h2 class="text-4xl font-black text-slate-900 dark:text-white tracking-tight mb-4">Simple, transparent pricing</h2>
+            <p class="text-slate-600 dark:text-slate-400 text-lg font-medium">No hidden fees. Cancel anytime.</p>
+          </div>
+          <div class="flex justify-center mb-12">
+            <div class="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl gap-1">
+              <button v-for="r in [{ label: '🇵🇭 Philippines (PHP)', key: 'ph' }, { label: '🌍 International (USD)', key: 'intl' }]" :key="r.key"
+                @click="pricingRegion = r.key"
+                :class="['px-6 py-2.5 rounded-xl text-sm font-bold transition-all',
+                  pricingRegion === r.key
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200']">
+                {{ r.label }}
+              </button>
             </div>
-            <div class="p-8 bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group">
-              <div class="flex gap-1 text-amber-400 mb-6 group-hover:scale-105 transition-transform origin-left">
-                <i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i><i class="pi pi-star-fill text-xs"></i>
-              </div>
-              <div class="text-slate-700 dark:text-slate-300 leading-8 font-medium italic">"I found a role that matches my preferred shifts perfectly. The AI matching is spot on!"</div>
-              <div class="mt-8 flex items-center gap-4">
-                <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 grid place-content-center font-black text-xs">RN</div>
-                <div>
-                  <div class="text-sm font-black text-slate-900 dark:text-white">Registered Nurse</div>
-                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Independent Contractor</div>
+          </div>
+          <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            <div v-for="plan in activePlans" :key="plan.name"
+              class="relative flex flex-col rounded-[2rem] border p-8 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl"
+              :class="plan.popular
+                ? 'bg-blue-600 border-blue-500 text-white shadow-2xl shadow-blue-200 scale-[1.03]'
+                : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm'">
+              <div v-if="plan.popular" class="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-amber-400 text-slate-900 text-xs font-black rounded-full uppercase tracking-widest shadow-lg whitespace-nowrap">Most Popular</div>
+              <div class="mb-6">
+                <div class="text-xs font-black uppercase tracking-widest mb-2" :class="plan.popular ? 'text-blue-200' : 'text-blue-600'">{{ plan.duration }}</div>
+                <div class="text-2xl font-black mb-1" :class="plan.popular ? 'text-white' : 'text-slate-900 dark:text-white'">{{ plan.name }}</div>
+                <div class="flex items-end gap-1 mt-3">
+                  <span class="text-5xl font-black" :class="plan.popular ? 'text-white' : 'text-slate-900 dark:text-white'">{{ plan.price }}</span>
+                  <span class="text-sm font-bold mb-2" :class="plan.popular ? 'text-blue-200' : 'text-slate-400'">{{ plan.currency }}</span>
                 </div>
               </div>
+              <ul class="space-y-3 flex-1 mb-8">
+                <li v-for="f in plan.features" :key="f" class="flex items-start gap-2.5 text-sm font-medium"
+                  :class="plan.popular ? 'text-blue-100' : 'text-slate-600 dark:text-slate-400'">
+                  <svg class="w-4 h-4 mt-0.5 flex-shrink-0" :class="plan.popular ? 'text-blue-200' : 'text-emerald-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                  {{ f }}
+                </li>
+              </ul>
+              <RouterLink :to="{ name: 'auth.register' }"
+                :class="['block text-center py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95',
+                  plan.popular
+                    ? 'bg-white text-blue-600 hover:bg-blue-50 shadow-lg'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-100']">
+                Get started
+              </RouterLink>
+            </div>
+          </div>
+          <p class="text-center text-sm text-slate-400 mt-8 font-medium">All plans include a 7-day free trial. No credit card required.</p>
+        </section>
+
+        <!-- ── FAQ ─────────────────────────────────────────────────────── -->
+        <section id="faq" class="mt-32 md:mt-48 reveal">
+          <div class="text-center max-w-2xl mx-auto mb-16">
+            <h2 class="text-4xl font-black text-slate-900 dark:text-white tracking-tight mb-4">Frequently asked questions</h2>
+            <p class="text-slate-600 dark:text-slate-400 text-lg font-medium">Everything you need to know before getting started.</p>
+          </div>
+          <div class="max-w-3xl mx-auto space-y-3">
+            <div v-for="(faq, i) in faqs" :key="i"
+              class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+              <button class="w-full flex items-center justify-between px-8 py-6 text-left gap-4"
+                @click="openFaq = openFaq === i ? null : i">
+                <span class="font-bold text-slate-900 dark:text-white text-base">{{ faq.q }}</span>
+                <i :class="['pi flex-shrink-0 transition-transform duration-300 text-slate-400', openFaq === i ? 'pi-minus' : 'pi-plus']"></i>
+              </button>
+              <Transition name="faq-expand">
+                <div v-if="openFaq === i" class="px-8 pb-6">
+                  <p class="text-slate-600 dark:text-slate-400 leading-relaxed font-medium">{{ faq.a }}</p>
+                </div>
+              </Transition>
             </div>
           </div>
         </section>
@@ -357,6 +496,22 @@
               <div class="flex flex-col sm:flex-row gap-6 w-full sm:w-auto">
                 <RouterLink :to="{ name: 'auth.register' }" class="inline-flex items-center justify-center px-10 py-5 rounded-2xl bg-white text-slate-900 font-black text-lg hover:bg-slate-100 transition-all hover:-translate-y-1 active:scale-95 shadow-2xl">Create account</RouterLink>
                 <RouterLink :to="{ name: 'auth.login' }" class="inline-flex items-center justify-center px-10 py-5 rounded-2xl bg-white/10 text-white font-black text-lg border-2 border-white/20 hover:bg-white/20 transition-all hover:-translate-y-1 active:scale-95 backdrop-blur-md">Sign in</RouterLink>
+              </div>
+              <!-- No credit card + security badges -->
+              <div class="flex flex-col items-center gap-4 mt-4">
+                <p class="text-white/60 text-sm font-medium flex items-center gap-2">
+                  <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  No credit card required · Cancel anytime · 7-day free trial
+                </p>
+                <div class="flex flex-wrap items-center justify-center gap-3">
+                  <div v-for="badge in securityBadges" :key="badge.label"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm">
+                    <svg class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="badge.icon" />
+                    </svg>
+                    <span class="text-[11px] font-bold text-white/80 uppercase tracking-wide">{{ badge.label }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -444,9 +599,10 @@
             <div>
               <h4 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-6">Platform</h4>
               <ul class="space-y-4 text-slate-500 dark:text-slate-400 font-medium">
-                <li><a href="#" class="hover:text-blue-600 transition-colors">Features</a></li>
-                <li><a href="#" class="hover:text-blue-600 transition-colors">How it works</a></li>
-                <li><a href="#" class="hover:text-blue-600 transition-colors">Pricing</a></li>
+                <li><a href="#features" class="hover:text-blue-600 transition-colors">Features</a></li>
+                <li><a href="#how-it-works" class="hover:text-blue-600 transition-colors">How it works</a></li>
+                <li><a href="#pricing" class="hover:text-blue-600 transition-colors">Pricing</a></li>
+                <li><a href="#faq" class="hover:text-blue-600 transition-colors">FAQ</a></li>
               </ul>
             </div>
             <div>
@@ -458,23 +614,61 @@
               </ul>
             </div>
           </div>
-          <div class="pt-12 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div class="text-sm font-bold text-slate-400 uppercase tracking-widest">&copy; {{ year }} AI Clinforce Partners.</div>
-            <div class="flex gap-8 text-sm font-bold text-slate-400 uppercase tracking-widest">
-              <a href="#" class="hover:text-slate-900 dark:hover:text-white transition-colors">Privacy</a>
-              <a href="#" class="hover:text-slate-900 dark:hover:text-white transition-colors">Terms</a>
-              <a href="#" class="hover:text-slate-900 dark:hover:text-white transition-colors">Cookie Policy</a>
+          <div class="pt-12 border-t border-slate-100 dark:border-slate-800 space-y-6">
+            <!-- Security badges row -->
+            <div class="flex flex-wrap items-center justify-center gap-3">
+              <div v-for="badge in securityBadges" :key="badge.label"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                <svg class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="badge.icon" />
+                </svg>
+                <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ badge.label }}</span>
+              </div>
+            </div>
+            <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div class="text-sm font-bold text-slate-400 uppercase tracking-widest">&copy; {{ year }} AI Clinforce Partners.</div>
+              <div class="flex gap-8 text-sm font-bold text-slate-400 uppercase tracking-widest">
+                <RouterLink :to="{ name: 'privacy' }" class="hover:text-slate-900 dark:hover:text-white transition-colors">Privacy</RouterLink>
+                <RouterLink :to="{ name: 'terms' }" class="hover:text-slate-900 dark:hover:text-white transition-colors">Terms</RouterLink>
+                <a href="#contact" class="hover:text-slate-900 dark:hover:text-white transition-colors">Contact</a>
+              </div>
             </div>
           </div>
         </div>
       </footer>
+      <!-- ── Sticky CTA Bar ──────────────────────────────────────────── -->
+      <Transition name="slide-up">
+        <div v-if="showStickyCta"
+          class="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-white/10 shadow-2xl">
+          <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+            <div class="hidden sm:flex items-center gap-3">
+              <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+              <span class="text-white/80 text-sm font-medium">Join 5,000+ healthcare professionals on ClinForce</span>
+            </div>
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+              <RouterLink :to="{ name: 'auth.register' }"
+                class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-all hover:-translate-y-0.5 shadow-lg shadow-blue-900/50">
+                Start hiring free
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+              </RouterLink>
+              <RouterLink :to="{ name: 'auth.login' }"
+                class="flex-1 sm:flex-none inline-flex items-center justify-center px-6 py-2.5 rounded-xl border border-white/20 text-white/80 hover:text-white hover:border-white/40 font-bold text-sm transition-all">
+                Sign in
+              </RouterLink>
+              <button @click="showStickyCta = false" class="text-white/40 hover:text-white/80 transition-colors p-1 flex-shrink-0">
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
     </div>
   </AppLayout>
 </template>
 
 <script setup>
 import { RouterLink } from "vue-router";
-import { ref, onMounted, reactive } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, reactive } from "vue";
 import AppLayout from "@/Components/AppLayout.vue";
 import DarkModeToggle from "@/Components/DarkModeToggle.vue";
 import banner1 from "../../assets/banner.png";
@@ -487,7 +681,207 @@ const { initDarkMode } = useDarkMode();
 const year = new Date().getFullYear();
 const mobileOpen = ref(false);
 const showAnnouncement = ref(true);
+const showStickyCta = ref(false);
 
+// ── Sticky CTA — show after scrolling past hero ──────────────────────
+function handleScroll() {
+  showStickyCta.value = window.scrollY > 600;
+}
+
+// ── Animated demo data ───────────────────────────────────────────────
+const demoKpis = [
+  { label: 'Candidates', value: '1,248' },
+  { label: 'Active Jobs', value: '12' },
+  { label: 'Hired', value: '34' },
+];
+const demoStages = [
+  { label: 'Applied',     count: 48, pct: 100, color: '#3b82f6' },
+  { label: 'Shortlisted', count: 22, pct: 46,  color: '#6366f1' },
+  { label: 'Interview',   count: 11, pct: 23,  color: '#f59e0b' },
+  { label: 'Hired',       count: 4,  pct: 8,   color: '#10b981' },
+];
+const demoActivity = [
+  { initials: 'JS', name: 'James S.', action: 'Applied for Senior ICU Nurse', tag: 'New', bg: '#ede9fe', color: '#7c3aed', tagBg: '#eff6ff', tagColor: '#2563eb' },
+  { initials: 'AL', name: 'Ana L.',   action: 'Interview confirmed',           tag: '✓',   bg: '#d1fae5', color: '#059669', tagBg: '#d1fae5', tagColor: '#059669' },
+  { initials: 'MR', name: 'Maria R.', action: 'AI score: 92% match',           tag: 'AI',  bg: '#fef3c7', color: '#d97706', tagBg: '#fef3c7', tagColor: '#d97706' },
+];
+const demoHighlight = ref(0);
+
+// ── Live job ticker ──────────────────────────────────────────────────
+const tickerJobs = ref([
+  { title: 'Senior ICU Nurse', location: 'Manila, PH' },
+  { title: 'ER Physician', location: 'Cebu, PH' },
+  { title: 'Physical Therapist', location: 'New York, US' },
+  { title: 'Registered Nurse', location: 'Quezon City, PH' },
+  { title: 'Medical Technologist', location: 'Dubai, UAE' },
+  { title: 'Occupational Therapist', location: 'London, UK' },
+  { title: 'Radiologic Technologist', location: 'Davao, PH' },
+  { title: 'Clinical Pharmacist', location: 'Singapore' },
+]);
+
+async function loadTickerJobs() {
+  try {
+    const { get } = await import('@/lib/http');
+    const res = await get('/public/jobs', { params: { per_page: 8 } });
+    const items = res.data?.data?.data || res.data?.data || [];
+    if (items.length >= 4) {
+      tickerJobs.value = items.map(j => ({
+        title: j.title,
+        location: [j.city, j.country_code].filter(Boolean).join(', ') || '—',
+      }));
+    }
+  } catch {}
+}
+
+// ── Stats counter ────────────────────────────────────────────────────
+const statsSection = ref(null);
+const stats = reactive([
+  { label: 'Clinicians registered', target: 5000, displayed: 0, suffix: '+', prefix: '' },
+  { label: 'Healthcare employers', target: 200,  displayed: 0, suffix: '+', prefix: '' },
+  { label: 'Avg. time to hire',    target: 48,   displayed: 0, suffix: 'h', prefix: '' },
+  { label: 'Interviews scheduled', target: 1200, displayed: 0, suffix: '+', prefix: '' },
+]);
+
+function animateCounter(stat) {
+  const duration = 1800;
+  const steps = 60;
+  const increment = stat.target / steps;
+  let current = 0;
+  const timer = setInterval(() => {
+    current = Math.min(current + increment, stat.target);
+    stat.displayed = Math.floor(current);
+    if (current >= stat.target) clearInterval(timer);
+  }, duration / steps);
+}
+
+// ── Testimonials with avatars ────────────────────────────────────────
+const testimonials = [
+  {
+    quote: 'We filled critical shifts in days, not weeks. The platform is intuitive and incredibly efficient.',
+    name: 'Maria Santos',
+    role: 'HR Manager · Regional Hospital',
+    avatar: 'https://api.dicebear.com/9.x/personas/svg?seed=Maria&backgroundColor=b6e3f4',
+  },
+  {
+    quote: 'The interview scheduling saved so much back-and-forth. Our workflow has never been smoother.',
+    name: 'Dr. James Reyes',
+    role: 'Clinic Director · HealthCare Plus',
+    avatar: 'https://api.dicebear.com/9.x/personas/svg?seed=James&backgroundColor=c0aede',
+  },
+  {
+    quote: 'I found a role that matches my preferred shifts perfectly. The AI matching is spot on!',
+    name: 'Ana Lim, RN',
+    role: 'Registered Nurse · Independent',
+    avatar: 'https://api.dicebear.com/9.x/personas/svg?seed=Ana&backgroundColor=d1d4f9',
+  },
+];
+
+// ── Pricing ──────────────────────────────────────────────────────────
+const pricingRegion = ref('ph');
+
+const pricingData = {
+  ph: [
+    {
+      name: 'Starter',
+      duration: '3 Months',
+      price: '₱299',
+      currency: '/ 3 months',
+      popular: false,
+      features: ['Up to 20 job posts', 'AI candidate screening', 'Analytics dashboard', 'Email & chat support'],
+    },
+    {
+      name: 'Growth',
+      duration: '6 Months',
+      price: '₱499',
+      currency: '/ 6 months',
+      popular: true,
+      features: ['Up to 50 job posts', 'AI candidate screening', 'Advanced analytics', 'Priority support', 'Talent search'],
+    },
+    {
+      name: 'Pro',
+      duration: '1 Year',
+      price: '₱999',
+      currency: '/ year',
+      popular: false,
+      features: ['Unlimited job posts', 'AI candidate screening', 'Advanced analytics', 'Dedicated support', 'Custom branding'],
+    },
+  ],
+  intl: [
+    {
+      name: 'Starter',
+      duration: '3 Months',
+      price: '$49.99',
+      currency: '/ 3 months',
+      popular: false,
+      features: ['Up to 20 job posts', 'AI candidate screening', 'Analytics dashboard', 'Email & chat support'],
+    },
+    {
+      name: 'Growth',
+      duration: '6 Months',
+      price: '$79.99',
+      currency: '/ 6 months',
+      popular: true,
+      features: ['Up to 50 job posts', 'AI candidate screening', 'Advanced analytics', 'Priority support', 'Talent search'],
+    },
+    {
+      name: 'Pro',
+      duration: '1 Year',
+      price: '$129.99',
+      currency: '/ year',
+      popular: false,
+      features: ['Unlimited job posts', 'AI candidate screening', 'Advanced analytics', 'Dedicated support', 'Custom branding'],
+    },
+  ],
+};
+
+const activePlans = computed(() => pricingData[pricingRegion.value]);
+
+// ── FAQ ──────────────────────────────────────────────────────────────
+const openFaq = ref(null);
+const faqs = [
+  {
+    q: 'Is there a free trial?',
+    a: 'Yes — every new employer account gets a 7-day free trial with up to 5 job posts. No credit card required to start.',
+  },
+  {
+    q: 'How does AI screening work?',
+    a: 'When a candidate applies, our AI analyzes their profile, resume, and cover letter against your job requirements and generates a match score with a summary. You can review it before deciding who to shortlist.',
+  },
+  {
+    q: 'Can I cancel my subscription?',
+    a: 'Yes, you can cancel at any time from your billing settings. Your access continues until the end of the current billing period.',
+  },
+  {
+    q: 'Is candidate contact information visible immediately?',
+    a: 'Messaging, interviews, and hiring workflows are unlocked with a subscription. Full contact details and resume downloads require a separate one-time document access payment per candidate — this protects candidate privacy.',
+  },
+  {
+    q: 'What currencies are supported?',
+    a: 'Philippine employers are billed in PHP (₱). International employers are billed in USD ($). Currency is set automatically based on your billing country.',
+  },
+  {
+    q: 'Is the platform HIPAA compliant?',
+    a: 'We follow healthcare data best practices including encrypted storage, access controls, and audit logging. For specific compliance requirements, please contact our team.',
+  },
+];
+
+// ── Trusted orgs ─────────────────────────────────────────────────────
+const trustedOrgs = [
+  { name: 'St. Luke\'s Medical',  color: '#2563eb', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+  { name: 'Makati Medical',       color: '#7c3aed', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+  { name: 'Philippine Heart',     color: '#dc2626', icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' },
+  { name: 'HealthFirst Agency',   color: '#059669', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+  { name: 'MedStaff PH',          color: '#d97706', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+  { name: 'ClinCare Network',     color: '#0891b2', icon: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9' },
+];
+
+// ── Security badges ───────────────────────────────────────────────────
+const securityBadges = [
+  { label: 'HIPAA Compliant',    icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+  { label: 'SSL Encrypted',      icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' },
+  { label: 'Data Protected',     icon: 'M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+  { label: '99.9% Uptime',       icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+];
 const contactForm = reactive({ name: '', email: '', subject: '', message: '' });
 const contactLoading = ref(false);
 const contactSuccess = ref(false);
@@ -502,7 +896,6 @@ const submitContact = async () => {
     contactForm.subject = '';
     contactForm.message = '';
   } catch (error) {
-    console.error('Failed to send message:', error);
     alert('Failed to send message. Please try again later.');
   } finally {
     contactLoading.value = false;
@@ -512,12 +905,40 @@ const submitContact = async () => {
 onMounted(() => {
   initDarkMode();
   showAnnouncement.value = true;
+
+  // Scroll listener for sticky CTA
+  window.addEventListener('scroll', handleScroll, { passive: true });
+
+  // Intersection observer for reveal animations
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) entry.target.classList.add('reveal-visible');
     });
   }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
   document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // Stats counter — trigger when stats section enters viewport
+  const statsObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        stats.forEach(s => animateCounter(s));
+        statsObserver.disconnect();
+      }
+    });
+  }, { threshold: 0.3 });
+  if (statsSection.value) statsObserver.observe(statsSection.value);
+
+  // Demo highlight cycle
+  setInterval(() => {
+    demoHighlight.value = (demoHighlight.value + 1) % demoActivity.length;
+  }, 2000);
+
+  // Load real jobs for ticker
+  loadTickerJobs();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', handleScroll);
 });
 </script>
 
@@ -536,6 +957,22 @@ onMounted(() => {
 @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 .animate-fade-in { animation: fadeIn 0.5s ease-out both; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.faq-expand-enter-active, .faq-expand-leave-active { transition: all 0.3s ease; overflow: hidden; }
+.faq-expand-enter-from, .faq-expand-leave-to { opacity: 0; max-height: 0; }
+.faq-expand-enter-to, .faq-expand-leave-from { opacity: 1; max-height: 300px; }
+.slide-up-enter-active, .slide-up-leave-active { transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.slide-up-enter-from, .slide-up-leave-to { opacity: 0; transform: translateY(100%); }
+.ticker-track {
+  animation: ticker 30s linear infinite;
+  width: max-content;
+}
+.ticker-track:hover { animation-play-state: paused; }
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.demo-bar { transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.demo-highlight { background: rgba(59,130,246,0.06); border-radius: 0.75rem; }
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-track { background: #f8fafc; }
 ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 5px; }

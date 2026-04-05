@@ -31,6 +31,15 @@
                       <span class="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-700">
                         Candidate
                       </span>
+                      <!-- Open to work toggle -->
+                      <button @click="form.open_to_work = !form.open_to_work; saveProfile()"
+                        :class="['inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all',
+                          form.open_to_work
+                            ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                            : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200']">
+                        <span class="w-1.5 h-1.5 rounded-full" :class="form.open_to_work ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+                        {{ form.open_to_work ? 'Open to work' : 'Not looking' }}
+                      </button>
                     </div>
                     <p class="text-sm text-slate-500 max-w-xl">
                       {{ form.headline || 'Add a short professional headline so employers understand your role at a glance.' }}
@@ -306,7 +315,8 @@
                       <div
                         v-for="d in docs"
                         :key="d.id"
-                        class="bg-white rounded-xl p-4 shadow-sm flex flex-col gap-2"
+                        class="bg-white rounded-xl p-4 shadow-sm flex flex-col gap-2 border"
+                        :class="d.status === 'active' ? 'border-emerald-200' : 'border-slate-100 opacity-75'"
                       >
                           <div class="flex justify-between items-start gap-2">
                             <div class="flex items-start gap-3 min-w-0">
@@ -314,8 +324,12 @@
                                 <i class="pi pi-file text-xs"></i>
                               </div>
                               <div class="flex flex-col gap-1 min-w-0">
-                                <div class="font-semibold text-slate-900 truncate">
+                                <div class="font-semibold text-slate-900 truncate flex items-center gap-2">
                                   {{ d.file_name || "Document" }}
+                                  <span v-if="d.status === 'active' && d.doc_type === 'resume'"
+                                    class="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-semibold">Active</span>
+                                  <span v-else-if="d.doc_type === 'resume'"
+                                    class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">Inactive</span>
                                 </div>
                                 <div class="flex items-center flex-wrap gap-2 text-[11px] text-slate-600">
                                   <Tag :value="d.doc_type || '—'" severity="secondary" />
@@ -327,6 +341,17 @@
                             </div>
                             <div class="flex items-center gap-1">
                               <div class="hidden sm:flex items-center gap-1">
+                                <!-- Set as active resume -->
+                                <Button
+                                  v-if="d.doc_type === 'resume' && d.status !== 'active'"
+                                  label="Set active"
+                                  size="small"
+                                  severity="success"
+                                  outlined
+                                  class="!text-xs !py-1"
+                                  :loading="settingActiveId === d.id"
+                                  @click.stop="setActiveResume(d)"
+                                />
                                 <Button
                                   v-if="d.mime_type === 'application/pdf' || (d.file_name || '').endsWith('.pdf')"
                                   icon="pi pi-eye"
@@ -334,7 +359,7 @@
                                   rounded
                                   size="small"
                                   aria-label="Preview"
-                                  @click.stop="openDocPreview(d)"
+                                  @click.stop="previewDoc(d)"
                                 />
                                 <a
                                   v-if="d.file_url"
@@ -412,14 +437,10 @@
         </div>
 
         <!-- Document Preview Dialog -->
-        <Dialog v-model:visible="showDocPreview" modal :header="previewDoc?.file_name || 'Preview'" :style="{ width: '90vw', maxWidth: '900px' }" :contentStyle="{ padding: 0 }" @hide="closeDocPreview">
-          <div v-if="docPreviewLoading" class="flex justify-center items-center h-64">
-            <i class="pi pi-spin pi-spinner text-3xl text-slate-400"></i>
-          </div>
-          <div v-else-if="docPreviewError" class="p-6 text-center text-red-500 text-sm">{{ docPreviewError }}</div>
+        <Dialog v-model:visible="showPreview" modal :header="'Preview'" :style="{ width: '90vw', maxWidth: '900px' }" :contentStyle="{ padding: 0 }" @hide="closePreview">
           <iframe
-            v-else-if="docPreviewBlobUrl"
-            :src="docPreviewBlobUrl"
+            v-if="previewUrl"
+            :src="previewUrl"
             class="w-full"
             style="height: 80vh; border: none;"
             title="Document Preview"
@@ -490,6 +511,23 @@ const saving = ref(false);
 const docsLoading = ref(false);
 const uploading = ref(false);
 const removingId = ref(null);
+const settingActiveId = ref(null);
+
+async function setActiveResume(doc) {
+  settingActiveId.value = doc.id
+  try {
+    await api.patch(`/documents/${doc.id}/set-active`)
+    // Update local state — deactivate all resumes, activate this one
+    docs.value.forEach(d => {
+      if (d.doc_type === 'resume') d.status = d.id === doc.id ? 'active' : 'inactive'
+    })
+    await toast('success', 'Active resume updated')
+  } catch (e) {
+    await Swal.fire({ icon: 'error', title: 'Failed', text: e?.response?.data?.message || 'Could not update' })
+  } finally {
+    settingActiveId.value = null
+  }
+}
 
 const error = ref("");
 const success = ref("");
@@ -505,6 +543,7 @@ const form = ref({
   country: "",
   state: "",
   city: "",
+  open_to_work: false,
 });
 
 // Portfolio links
@@ -565,7 +604,7 @@ function buildAvatarUrl(raw) {
 const displayName = computed(() => {
   const f = (form.value.first_name || "").trim();
   const l = (form.value.last_name || "").trim();
-  return (f || l) ? `${f} ${l}`.trim() : "Applicant";
+  return (f || l) ? `${f} ${l}`.trim() : "User";
 });
 
 const initials = computed(() => {
@@ -615,13 +654,13 @@ function focusField(fieldId) {
 
 // Document preview
 const showDocPreview = ref(false);
-const previewDoc = ref(null);
+const previewDocItem = ref(null);
 const docPreviewLoading = ref(false);
 const docPreviewError = ref('');
 const docPreviewBlobUrl = ref('');
 
 async function openDocPreview(d) {
-  previewDoc.value = d;
+  previewDocItem.value = d;
   showDocPreview.value = true;
   docPreviewLoading.value = true;
   docPreviewError.value = '';
@@ -646,7 +685,7 @@ function closeDocPreview() {
     URL.revokeObjectURL(docPreviewBlobUrl.value);
     docPreviewBlobUrl.value = '';
   }
-  previewDoc.value = null;
+  previewDocItem.value = null;
 }
 
 function formatDate(v) {
@@ -717,6 +756,7 @@ async function fetchMe() {
     country: ap?.country ?? ap?.country_code ?? "",
     state: ap?.state ?? "",
     city: ap?.city ?? "",
+    open_to_work: ap?.open_to_work ?? false,
   };
   portfolioLinks.value = Array.isArray(ap?.portfolio_links) ? [...ap.portfolio_links] : [];
 }
@@ -867,17 +907,42 @@ async function openDocActions(d) {
     icon: "question",
     title: d.file_name || "Document",
     showCancelButton: true,
-    showDenyButton: !!d.file_url,
+    showDenyButton: true,
     confirmButtonText: "Remove",
-    denyButtonText: d.file_url ? "Open" : undefined,
+    denyButtonText: "Preview",
     cancelButtonText: "Cancel",
   });
 
-  if (result.isDenied && d.file_url) {
-    window.open(d.file_url, "_blank", "noopener");
+  if (result.isDenied) {
+    previewDoc(d);
   } else if (result.isConfirmed) {
     await removeDoc(d);
   }
+}
+
+const previewUrl = ref(null);
+const showPreview = ref(false);
+
+async function previewDoc(d) {
+  if (!d?.id) return;
+  try {
+    const response = await api.get(`/documents/${d.id}/stream`, {
+      responseType: 'blob'
+    });
+    const blob = new Blob([response.data], { type: response.data.type || 'application/pdf' });
+    previewUrl.value = window.URL.createObjectURL(blob);
+    showPreview.value = true;
+  } catch (e) {
+    await Swal.fire({ icon: 'error', title: 'Preview failed', text: 'Could not load document preview.' });
+  }
+}
+
+function closePreview() {
+  if (previewUrl.value) {
+    window.URL.revokeObjectURL(previewUrl.value);
+  }
+  previewUrl.value = null;
+  showPreview.value = false;
 }
 
 async function confirmRemoveDoc(d) {

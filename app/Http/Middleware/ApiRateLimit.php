@@ -22,6 +22,14 @@ class ApiRateLimit
         }
 
         $user = $request->user();
+        if (!$user) {
+            try {
+                $user = \Laravel\Sanctum\Sanctum::authenticate($request);
+            } catch (\Throwable $e) {
+                $user = null;
+            }
+        }
+        
         $role = $user?->role ?: 'guest';
         $isAuthed = (bool) $user;
 

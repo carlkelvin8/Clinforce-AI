@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Job;
 use App\Models\JobApplication;
-use App\Models\ApplicationStatusHistory;
 use App\Models\Interview;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class AnalyticsController extends ApiController
@@ -21,8 +21,13 @@ class AnalyticsController extends ApiController
         }
 
         $days = (int) $request->query('days', 30);
-        $days = in_array($days, [7, 30, 90, 365], true) ? $days : 30;
+        $days = in_array($days, [7, 30, 60, 90, 365], true) ? $days : 30;
         $since = now()->subDays($days);
+
+        // Cache per user + days — 5 minute TTL
+        $cacheKey = "analytics:employer:{$u->id}:days:{$days}";
+        $cached = Cache::get($cacheKey);
+        if ($cached) return $this->ok($cached);
 
         // Base job query for this employer
         $jobQuery = Job::query();
@@ -46,15 +51,16 @@ class AnalyticsController extends ApiController
             ->get();
 
         // Time-to-hire: avg days from submitted to hired
-        $timeToHire = ApplicationStatusHistory::query()
-            ->whereIn('application_id', function ($q) use ($jobIds) {
-                $q->select('id')->from('job_applications')->whereIn('job_id', $jobIds);
-            })
-            ->where('to_status', 'hired')
-            ->where('created_at', '>=', $since)
-            ->join('job_applications', 'application_status_histories.application_id', '=', 'job_applications.id')
-            ->select(DB::raw('AVG(DATEDIFF(application_status_histories.created_at, job_applications.created_at)) as avg_days'))
-            ->value('avg_days');
+        $timeToHire = null;
+        try {
+            $timeToHire = DB::table('application_status_history as ash')
+                ->join('job_applications as ja', 'ash.application_id', '=', 'ja.id')
+                ->whereIn('ja.job_id', $jobIds)
+                ->where('ash.to_status', 'hired')
+                ->where('ash.created_at', '>=', $since)
+                ->selectRaw('AVG(DATEDIFF(ash.created_at, ja.created_at)) as avg_days')
+                ->value('avg_days');
+        } catch (\Exception $e) {}
 
         // Pipeline totals
         $pipeline = JobApplication::query()
@@ -83,15 +89,15 @@ class AnalyticsController extends ApiController
             ->orderBy('day')
             ->get();
 
-        return $this->ok([
+        $result = [
             'days' => $days,
             'kpis' => [
-                'total_applications'   => $total,
-                'hired'                => $hired,
-                'conversion_rate'      => $conversionRate,
+                'total_applications'    => $total,
+                'hired'                 => $hired,
+                'conversion_rate'       => $conversionRate,
                 'avg_time_to_hire_days' => $timeToHire ? round((float)$timeToHire, 1) : null,
-                'interviews_scheduled' => $interviewCount,
-                'active_jobs'          => $jobIds->count(),
+                'interviews_scheduled'  => $interviewCount,
+                'active_jobs'           => $jobIds->count(),
             ],
             'applications_per_job' => $appsPerJob->map(fn($item) => [
                 'job_id'          => $item->job_id,
@@ -102,8 +108,12 @@ class AnalyticsController extends ApiController
                 'rejected'        => (int) $item->rejected,
                 'conversion_rate' => $item->total > 0 ? round(($item->hired / $item->total) * 100, 1) : 0,
             ]),
-            'trend' => $trend->map(fn($t) => ['date' => $t->day, 'count' => (int) $t->count]),
+            'trend'    => $trend->map(fn($t) => ['date' => $t->day, 'count' => (int) $t->count]),
             'pipeline' => $pipeline,
-        ]);
+        ];
+
+        Cache::put($cacheKey, $result, now()->addMinutes(5));
+
+        return $this->ok($result);
     }
 }

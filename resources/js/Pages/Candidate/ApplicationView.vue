@@ -47,6 +47,28 @@
                                 </div>
                             </div>
 
+                            <!-- Visual status stepper -->
+                            <div class="mt-4 mb-6">
+                              <div class="flex items-center gap-0">
+                                <template v-for="(step, i) in statusSteps" :key="step.key">
+                                  <div class="flex flex-col items-center flex-1 min-w-0">
+                                    <div class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all"
+                                      :class="stepClass(step.key, app.status)">
+                                      <i :class="step.icon + ' text-xs'"></i>
+                                    </div>
+                                    <div class="text-[10px] font-semibold mt-1.5 text-center leading-tight"
+                                      :class="stepLabelClass(step.key, app.status)">
+                                      {{ step.label }}
+                                    </div>
+                                  </div>
+                                  <div v-if="i < statusSteps.length - 1"
+                                    class="h-0.5 flex-1 mb-5 transition-all"
+                                    :class="isStepPast(statusSteps[i+1].key, app.status) ? 'bg-blue-400' : 'bg-gray-200'">
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+
                             <div v-if="app.cover_letter" class="mt-6 p-4 bg-gray-50 rounded-lg">
                                 <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cover Letter</h3>
                                 <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{{ app.cover_letter }}</p>
@@ -181,6 +203,44 @@ const busy = ref(false);
 const error = ref("");
 const app = ref(null);
 
+// Status stepper
+const statusSteps = [
+  { key: 'submitted',   label: 'Applied',    icon: 'pi pi-send' },
+  { key: 'shortlisted', label: 'Reviewed',   icon: 'pi pi-star' },
+  { key: 'interview',   label: 'Interview',  icon: 'pi pi-calendar' },
+  { key: 'hired',       label: 'Decision',   icon: 'pi pi-check-circle' },
+];
+const stepOrder = ['submitted', 'shortlisted', 'interview', 'hired', 'rejected', 'withdrawn'];
+
+function currentStepIndex(status) {
+  const idx = stepOrder.indexOf(status);
+  return idx === -1 ? 0 : idx;
+}
+
+function isStepPast(stepKey, currentStatus) {
+  if (['rejected', 'withdrawn'].includes(currentStatus)) return false;
+  return stepOrder.indexOf(stepKey) <= stepOrder.indexOf(currentStatus);
+}
+
+function stepClass(stepKey, currentStatus) {
+  if (currentStatus === 'rejected' && stepKey === 'hired') {
+    return 'border-red-400 bg-red-50 text-red-500';
+  }
+  if (stepKey === currentStatus) {
+    return 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-200';
+  }
+  if (isStepPast(stepKey, currentStatus)) {
+    return 'border-blue-400 bg-blue-50 text-blue-600';
+  }
+  return 'border-gray-200 bg-white text-gray-300';
+}
+
+function stepLabelClass(stepKey, currentStatus) {
+  if (stepKey === currentStatus) return 'text-blue-700 font-bold';
+  if (isStepPast(stepKey, currentStatus)) return 'text-blue-500';
+  return 'text-gray-400';
+}
+
 const id = computed(() => String(route.params.id || "").trim());
 
 const history = computed(() => {
@@ -279,32 +339,29 @@ function goBack() {
     router.push({ name: "candidate.myapplications" });
 }
 
-function confirmWithdraw() {
-    confirm.require({
-        message: 'This will mark your application as withdrawn.',
-        header: 'Withdraw application?',
-        icon: 'pi pi-exclamation-triangle',
-        rejectProps: {
-            label: 'Cancel',
-            severity: 'secondary',
-            outlined: true
-        },
-        acceptProps: {
-            label: 'Withdraw',
-            severity: 'danger'
-        },
-        accept: () => {
-            withdraw();
-        }
-    });
+async function confirmWithdraw() {
+    const Swal = (await import('sweetalert2')).default
+    const { value: reason, isConfirmed } = await Swal.fire({
+        title: 'Withdraw application?',
+        input: 'textarea',
+        inputLabel: 'Reason (optional — visible to employer)',
+        inputPlaceholder: 'e.g. I accepted another offer, scheduling conflict...',
+        inputAttributes: { rows: '3' },
+        showCancelButton: true,
+        confirmButtonText: 'Withdraw',
+        confirmButtonColor: '#ef4444',
+        cancelButtonText: 'Cancel',
+    })
+    if (!isConfirmed) return
+    await withdraw(reason || '')
 }
 
-async function withdraw() {
+async function withdraw(reason = '') {
     if (!app.value?.id) return;
 
     busy.value = true;
     try {
-        await api.post(`/applications/${app.value.id}/status`, { status: "withdrawn" });
+        await api.post(`/applications/${app.value.id}/withdraw`, { reason });
         await fetchData();
         toast.add({ severity: 'success', summary: 'Withdrawn', detail: 'Application withdrawn successfully', life: 3000 });
     } catch (e) {

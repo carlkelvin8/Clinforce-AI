@@ -13,6 +13,14 @@ class UsersSeeder extends Seeder
 {
     public function run(): void
     {
+        // Admin
+        User::firstOrCreate(['email' => 'admin@demo.com'], [
+            'role' => 'admin',
+            'password_hash' => Hash::make('Password1!'),
+            'status' => 'active',
+            'email_verified_at' => now(),
+        ]);
+
         // Employers
         $employers = [
             ['email' => 'employer1@demo.com', 'business_name' => 'City General Hospital', 'business_type' => 'hospital', 'country' => 'US', 'state' => 'NY', 'city' => 'New York'],
@@ -68,5 +76,13 @@ class UsersSeeder extends Seeder
                 'public_display_name' => $a['first_name'] . ' ' . $a['last_name'],
             ]);
         }
+
+        // Admin
+        User::firstOrCreate(['email' => 'admin@demo.com'], [
+            'role' => 'admin',
+            'password_hash' => Hash::make('Password1!'),
+            'status' => 'active',
+            'email_verified_at' => now(),
+        ]);
     }
 }

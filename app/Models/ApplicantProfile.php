@@ -28,6 +28,7 @@ class ApplicantProfile extends Model
         'work_experience',
         'education',
         'portfolio_links',
+        'open_to_work',
     ];
 
     protected $casts = [
@@ -36,6 +37,7 @@ class ApplicantProfile extends Model
         'work_experience' => 'array',
         'education' => 'array',
         'portfolio_links' => 'array',
+        'open_to_work' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

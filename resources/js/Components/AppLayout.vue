@@ -36,10 +36,14 @@ const props = defineProps({
 
 // Auth Logic
 const user = ref({});
+const isImpersonating = ref(false);
 
 function loadUser() {
     try {
         user.value = JSON.parse(localStorage.getItem('auth_user') || '{}');
+        // Detect impersonation token name
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('CLINFORCE_TOKEN');
+        isImpersonating.value = !!token && (localStorage.getItem('impersonating') === '1');
     } catch { user.value = {}; }
 }
 
@@ -205,6 +209,15 @@ async function logout() {
     });
 }
 
+function stopImpersonating() {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('CLINFORCE_TOKEN');
+    localStorage.removeItem('auth_user');
+    localStorage.removeItem('impersonating');
+    window.dispatchEvent(new Event('auth:changed'));
+    window.location.href = '/admin/users';
+}
+
 // Navigation Groups
 const employerNavGroups = [
     {
@@ -287,7 +300,18 @@ onMounted(() => {
 
         <!-- Authed View -->
         <div v-else class="flex flex-col min-h-screen">
-            <!-- Trial Banner -->
+        <!-- Impersonation Banner -->
+        <div v-if="isImpersonating"
+          class="bg-amber-500 text-white px-4 py-2 text-sm text-center font-semibold z-50 flex items-center justify-center gap-3">
+          <i class="pi pi-eye text-white"></i>
+          <span>You are impersonating <strong>{{ user.email }}</strong> ({{ user.role }})</span>
+          <button @click="stopImpersonating"
+            class="ml-4 px-3 py-1 bg-white text-amber-700 rounded-lg text-xs font-bold hover:bg-amber-50 transition-colors">
+            Stop impersonating
+          </button>
+        </div>
+
+        <!-- Trial Banner -->
             <div v-if="trialStatus === 'trial_active'" class="bg-indigo-600 text-white px-4 py-2 text-sm text-center font-medium z-50">
               Your free trial ends in {{ trialDaysLeft }} days. <span class="underline cursor-pointer ml-1 font-bold" @click="goToBilling">Subscribe now</span> to keep access.
             </div>
@@ -334,9 +358,9 @@ onMounted(() => {
                     <DarkModeToggle />
                     <Button icon="pi pi-question-circle" text rounded severity="secondary" class="text-gray-500" />
                     <OverlayBadge :value="unreadCount" severity="danger" v-if="unreadCount > 0">
-                        <Button icon="pi pi-bell" text rounded severity="secondary" @click="(e) => notificationPanel.toggle(e)" class="text-gray-500" />
+                        <Button icon="pi pi-bell" text rounded severity="secondary" @click="(e) => notificationPanel.show(e)" class="text-gray-500" />
                     </OverlayBadge>
-                    <Button v-else icon="pi pi-bell" text rounded severity="secondary" @click="(e) => notificationPanel.toggle(e)" class="text-gray-500" />
+                    <Button v-else icon="pi pi-bell" text rounded severity="secondary" @click="(e) => notificationPanel.show(e)" class="text-gray-500" />
                     
                     <div class="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
                     
@@ -469,21 +493,23 @@ onMounted(() => {
             <Menu ref="userMenu" :model="menuItems" :popup="true" />
             <Popover ref="notificationPanel" class="w-80">
                 <div class="flex flex-col gap-3">
-                    <span class="font-bold text-main">Notifications</span>
-                    <div v-if="!notifications.length" class="text-sm text-muted">No notifications.</div>
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-main">Notifications</span>
+                        <button @click="notificationPanel.hide()" class="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+                    </div>
+                    <div v-if="!notifications.length" class="text-sm text-muted py-4 text-center">No new notifications.</div>
                     <ul v-else class="flex flex-col gap-2 max-h-80 overflow-auto">
                         <li v-for="n in notifications" :key="n.id" class="p-2 rounded border border-slate-200 bg-white">
                             <div class="text-sm font-medium text-slate-900">{{ n.title }}</div>
                             <div class="text-xs text-slate-600">{{ n.body }}</div>
                             <div class="flex gap-2 mt-2">
-                                <Button v-if="n.url" size="small" text label="Open" @click="$router.push(n.url)" />
+                                <Button v-if="n.url" size="small" text label="Open" @click="() => { notificationPanel.hide(); router.push(n.url); }" />
                                 <Button size="small" text label="Mark read" @click="markRead([n.id])" />
                             </div>
                         </li>
                     </ul>
                     <div class="flex justify-between items-center mt-2">
                         <Button size="small" text label="Mark all read" @click="markAllRead" />
-                        <RouterLink :to="isEmployer ? {name:'employer.dashboard'} : {name:'candidate.dashboard'}" class="text-xs text-blue-600">View more</RouterLink>
                     </div>
                 </div>
             </Popover>

@@ -41,9 +41,9 @@ class ProfilesController extends ApiController
 
         $data = [
             'id' => $target->id,
-            'name' => $p?->public_display_name ?? ($p?->first_name ? $p->first_name . ' ' . substr($p->last_name ?? '', 0, 1) . '.' : 'Candidate'),
+            'name' => trim($p->first_name . ' ' . $p->last_name) ?: ($p->public_display_name ?: 'Candidate'),
             'first_name' => $p?->first_name,
-            'last_name' => $p?->last_name, // Maybe hide full last name depending on privacy? Assuming ok for now.
+            'last_name' => $p?->last_name, 
             'headline' => $p?->headline,
             'summary' => $p?->summary,
             'city' => $p?->city,
@@ -96,6 +96,7 @@ class ProfilesController extends ApiController
             'address_line' => $p->address_line,
             'website_url' => $p->website_url,
             'verification_status' => $p->verification_status,
+            'data_retention_days' => $p->data_retention_days,
             'updated_at' => optional($p->updated_at)->toISOString(),
         ];
 
@@ -153,7 +154,7 @@ class ProfilesController extends ApiController
         // Only update public_display_name when name fields are provided
         $extra = [];
         if (isset($v['first_name']) && isset($v['last_name'])) {
-            $extra['public_display_name'] = $v['first_name'] . ' ' . mb_substr($v['last_name'], 0, 1) . '.';
+            $extra['public_display_name'] = $v['first_name'] . ' ' . $v['last_name'];
         }
 
         if ($existing) {

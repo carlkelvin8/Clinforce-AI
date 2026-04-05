@@ -49,6 +49,7 @@ class JobUpdateRequest extends ApiRequest
             'salary_min' => ['sometimes','nullable','numeric','min:0'],
             'salary_max' => ['sometimes','nullable','numeric','min:0','gte:salary_min'],
             'salary_currency' => ['sometimes','nullable','string','size:3'],
+            'closes_at'       => ['sometimes','nullable','date'],
 
             // forbid sensitive fields
             'status' => ['prohibited'],

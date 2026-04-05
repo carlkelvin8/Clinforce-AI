@@ -22,7 +22,7 @@ class PlansSeeder extends Seeder
                 'job_post_limit'       => 20,
                 'ai_screening_enabled' => true,
                 'analytics_enabled'    => true,
-                'price_cents'          => 299999,   // ₱2,999.99
+                'price_cents'          => 29900,   // ₱299
                 'currency'             => 'PHP',
                 'is_active'            => true,
                 'features_json'        => [
@@ -42,7 +42,7 @@ class PlansSeeder extends Seeder
                 'job_post_limit'       => 50,
                 'ai_screening_enabled' => true,
                 'analytics_enabled'    => true,
-                'price_cents'          => 499999,   // ₱4,999.99
+                'price_cents'          => 49900,   // ₱499
                 'currency'             => 'PHP',
                 'is_active'            => true,
                 'features_json'        => [
@@ -62,7 +62,7 @@ class PlansSeeder extends Seeder
                 'job_post_limit'       => 999,
                 'ai_screening_enabled' => true,
                 'analytics_enabled'    => true,
-                'price_cents'          => 799999,   // ₱7,999.99
+                'price_cents'          => 99900,   // ₱999
                 'currency'             => 'PHP',
                 'is_active'            => true,
                 'features_json'        => [

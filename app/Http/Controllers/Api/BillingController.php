@@ -39,19 +39,21 @@ class BillingController extends ApiController
 
         $userCurrency = $ctx['currency_code']; // e.g. 'PHP' or 'USD'
 
-        $plans = Plan::query()
-            ->where('is_active', 1)
-            ->where(function ($q) use ($userCurrency) {
-                if ($userCurrency === 'PHP') {
-                    // PH users see PHP plans only
-                    $q->where('currency', 'PHP');
-                } else {
-                    // International users see USD plans only
-                    $q->where('currency', 'USD');
-                }
-            })
-            ->orderBy('price_cents')
-            ->get();
+        // Cache plans per currency for 10 minutes — they rarely change
+        $plansCacheKey = "billing_plans:{$userCurrency}";
+        $plans = \Illuminate\Support\Facades\Cache::remember($plansCacheKey, now()->addMinutes(10), function () use ($userCurrency) {
+            return Plan::query()
+                ->where('is_active', 1)
+                ->where(function ($q) use ($userCurrency) {
+                    if ($userCurrency === 'PHP') {
+                        $q->where('currency', 'PHP');
+                    } else {
+                        $q->where('currency', 'USD');
+                    }
+                })
+                ->orderBy('price_cents')
+                ->get();
+        });
 
         $converted = [];
 

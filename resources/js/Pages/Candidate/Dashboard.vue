@@ -8,7 +8,7 @@
             <Avatar :image="meAvatarUrl" :label="!meAvatarUrl ? meInitials : null" size="xlarge" shape="circle" class="shadow-sm border border-slate-200 bg-white text-blue-600" />
             <div>
               <h1 class="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">
-                Good day, {{ firstName || 'Candidate' }}
+                Good Day{{ firstName ? ', ' + firstName : '' }}
               </h1>
               <p class="text-slate-500 mt-2 text-lg">
                 Here's what's happening with your job search today.
@@ -22,6 +22,57 @@
             </RouterLink>
             <RouterLink :to="{ name: 'candidate.profile' }">
               <Button label="Edit Profile" icon="pi pi-user-edit" severity="secondary" outlined class="!bg-white !text-slate-700 !border-slate-300 hover:!bg-slate-50 !rounded-lg" />
+            </RouterLink>
+          </div>
+        </div>
+
+        <!-- ── Next Steps / Action Prompts ──────────────────────────────── -->
+        <div v-if="nextSteps.length" class="mb-10 space-y-3">
+          <h2 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-3">Next steps</h2>
+          <div v-for="step in nextSteps" :key="step.id"
+            class="flex items-center gap-4 p-4 rounded-2xl border transition-all hover:-translate-y-0.5 hover:shadow-md"
+            :class="step.urgent ? 'bg-amber-50 border-amber-200' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              :class="step.urgent ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-600'">
+              <i :class="['pi text-sm', step.icon]"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-slate-900 dark:text-slate-100 text-sm">{{ step.title }}</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ step.desc }}</div>
+            </div>
+            <RouterLink :to="step.to" class="flex-shrink-0">
+              <button class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                :class="step.urgent ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-blue-600 text-white hover:bg-blue-700'">
+                {{ step.cta }}
+              </button>
+            </RouterLink>
+          </div>
+        </div>
+
+        <!-- ── Profile Strength Tips ──────────────────────────────────────── -->
+        <div v-if="profileTips.length && stats.profileCompleteness < 100" class="mb-10">
+          <div class="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-slate-800 dark:to-slate-800 rounded-2xl border border-indigo-100 dark:border-slate-700 p-5">
+            <div class="flex items-center gap-2 mb-4">
+              <i class="pi pi-lightbulb text-indigo-500"></i>
+              <h2 class="text-sm font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-widest">Profile tips</h2>
+              <span class="ml-auto text-xs font-bold text-indigo-500">{{ stats.profileCompleteness }}% complete</span>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-3">
+              <div v-for="tip in profileTips" :key="tip.field"
+                class="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-indigo-100 dark:border-slate-700">
+                <div class="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <i :class="['pi text-xs text-indigo-600', tip.icon]"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-xs font-bold text-slate-900 dark:text-slate-100">{{ tip.title }}</div>
+                  <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{{ tip.benefit }}</div>
+                </div>
+              </div>
+            </div>
+            <RouterLink :to="{ name: 'candidate.profile' }" class="mt-4 block">
+              <button class="w-full py-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                Complete your profile →
+              </button>
             </RouterLink>
           </div>
         </div>
@@ -367,6 +418,83 @@ const stats = computed(() => {
   return { active, interviewStage, upcomingInterviews, profileCompleteness, matchStrength };
 });
 
+// Next steps prompts
+const nextSteps = computed(() => {
+  const steps = []
+  const ap = meUser.value?.applicant_profile || meUser.value?.applicantProfile || null
+
+  // Pending interview confirmations
+  const pendingInterviews = interviews.value.filter(i => i.status === 'proposed' || i.status === 'rescheduled')
+  if (pendingInterviews.length) {
+    steps.push({
+      id: 'interviews',
+      urgent: true,
+      icon: 'pi-calendar',
+      title: `${pendingInterviews.length} interview${pendingInterviews.length > 1 ? 's' : ''} awaiting confirmation`,
+      desc: 'Confirm or decline your scheduled interviews',
+      cta: 'Respond now',
+      to: { name: 'candidate.interviews' },
+    })
+  }
+
+  // Profile completeness
+  const completeness = calcProfileCompleteness(meUser.value)
+  if (completeness < 60) {
+    steps.push({
+      id: 'profile',
+      urgent: false,
+      icon: 'pi-user-edit',
+      title: 'Complete your profile to get more matches',
+      desc: `Your profile is ${completeness}% complete. Employers prefer complete profiles.`,
+      cta: 'Complete now',
+      to: { name: 'candidate.profile' },
+    })
+  }
+
+  // No resume uploaded
+  if (!ap?.avatar && !meUser.value?.avatar_url) {
+    steps.push({
+      id: 'photo',
+      urgent: false,
+      icon: 'pi-camera',
+      title: 'Add a profile photo',
+      desc: 'Profiles with photos get 3x more views from employers',
+      cta: 'Add photo',
+      to: { name: 'candidate.settings' },
+    })
+  }
+
+  // No applications yet
+  if (apps.value.length === 0) {
+    steps.push({
+      id: 'apply',
+      urgent: false,
+      icon: 'pi-send',
+      title: 'Start applying to jobs',
+      desc: 'Browse open healthcare roles and submit your first application',
+      cta: 'Browse jobs',
+      to: { name: 'candidate.jobs' },
+    })
+  }
+
+  return steps.slice(0, 3)
+})
+
+// Profile strength tips
+const profileTips = computed(() => {
+  const tips = []
+  const ap = meUser.value?.applicant_profile || meUser.value?.applicantProfile || null
+  if (!ap) return tips
+
+  if (!ap.headline) tips.push({ field: 'headline', icon: 'pi-tag', title: 'Add a professional headline', benefit: 'Candidates with headlines get 3x more employer views' })
+  if (!ap.summary) tips.push({ field: 'summary', icon: 'pi-align-left', title: 'Write a short summary', benefit: 'Helps employers understand your background quickly' })
+  if (!ap.years_experience) tips.push({ field: 'experience', icon: 'pi-briefcase', title: 'Add years of experience', benefit: 'Improves your match score on job listings' })
+  if (!ap.city) tips.push({ field: 'city', icon: 'pi-map-marker', title: 'Add your city', benefit: 'Employers filter by location — be discoverable' })
+  if (!ap.country) tips.push({ field: 'country', icon: 'pi-flag', title: 'Set your country', benefit: 'Required for international job matching' })
+
+  return tips.slice(0, 4)
+})
+
 const upcomingInterviewRows = computed(() => {
   return apps.value
     .filter((a) => a.status === "interview")
@@ -392,9 +520,9 @@ async function fetchMe() {
     const fn = ap?.first_name;
     const ln = ap?.last_name;
     const profileName = publicName || [fn, ln].filter(Boolean).join(" ").trim();
-    meName.value = profileName || u?.full_name || u?.name || u?.user?.name || "Candidate";
+    meName.value = profileName || u?.full_name || u?.name || u?.user?.name || "";
     meAvatarUrl.value = u?.avatar_url || u?.avatar || buildAvatarUrl(ap?.avatar) || null;
-    meInitials.value = (meName.value || "C").charAt(0).toUpperCase();
+    meInitials.value = (meName.value || "U").charAt(0).toUpperCase();
 
     try {
       const prevRaw = localStorage.getItem("auth_user") || "{}";
@@ -475,9 +603,9 @@ onMounted(async () => {
         cached.name ||
         cached.full_name ||
         cached.email ||
-        "Candidate";
+        "User";
       meAvatarUrl.value = cached.avatar_url || cached.avatar || null;
-      meInitials.value = (meName.value || "C").charAt(0).toUpperCase();
+      meInitials.value = (meName.value || "U").charAt(0).toUpperCase();
     }
   } catch {}
 

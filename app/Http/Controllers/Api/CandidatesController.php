@@ -150,10 +150,16 @@ class CandidatesController extends ApiController
         // Serve file securely
         $filePath = $resume->file_url;
         
-        // Remove leading slash and public prefix if present
-        $filePath = ltrim($filePath, '/');
-        if (str_starts_with($filePath, 'public/')) {
-            $filePath = substr($filePath, 7);
+        // If it's a full URL, we need to extract the relative path after /storage/
+        if (str_contains($filePath, '/storage/')) {
+            $pos = strpos($filePath, '/storage/');
+            $filePath = substr($filePath, $pos + 9); // length of "/storage/"
+        } else {
+            // Remove leading slash and public prefix if present
+            $filePath = ltrim($filePath, '/');
+            if (str_starts_with($filePath, 'public/')) {
+                $filePath = substr($filePath, 7);
+            }
         }
 
         if (!Storage::disk('public')->exists($filePath)) {

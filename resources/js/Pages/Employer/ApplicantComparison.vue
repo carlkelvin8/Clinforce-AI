@@ -10,6 +10,7 @@ import Tag from 'primevue/tag'
 import Avatar from 'primevue/avatar'
 import ProgressSpinner from 'primevue/progressspinner'
 import Message from 'primevue/message'
+import Textarea from 'primevue/textarea'
 
 const router = useRouter()
 const route = useRoute()
@@ -36,8 +37,10 @@ function avatarUrl(appId) {
 
 function candidateName(a) {
   const p = a.applicant?.applicant_profile || a.applicant?.applicantProfile
-  if (p?.first_name || p?.last_name) return `${p.first_name || ''} ${p.last_name || ''}`.trim()
-  return a.applicant_name || a.applicant?.name || a.applicant?.email || `App #${a.id}`
+  const first = (p?.first_name || '').trim()
+  const last  = (p?.last_name  || '').trim()
+  if (first) return last ? `${first} ${last[0].toUpperCase()}.` : first
+  return a.applicant_name || a.applicant?.name || `App #${a.id}`
 }
 
 async function loadApplications() {
@@ -61,7 +64,7 @@ async function loadProfile(appId) {
     const res = await api.get(`/applications/${appId}`)
     profiles.value[appId] = res.data?.data ?? res.data
   } catch (e) {
-    toast.error('Failed to load applicant details')
+    toast.error('Failed to load candidate details')
   } finally {
     loading.value = false
   }
@@ -153,9 +156,14 @@ const ROWS = [
   { label: 'Applied', key: 'applied' },
   { label: 'Cover letter', key: 'cover' },
   { label: 'Resume', key: 'resume' },
+  { label: 'Notes', key: 'notes' },
 ]
 
+// Per-slot notes (stored locally, not persisted — just for comparison session)
+const slotNotes = ref({ 0: '', 1: '', 2: '' })
+
 function rowValue(row, appId) {
+  if (row.key === 'notes') return null // handled separately in template
   switch (row.key) {
     case 'status': return getApp(appId)?.status || '—'
     case 'headline': return headline(appId)
@@ -175,7 +183,7 @@ function rowValue(row, appId) {
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900 tracking-tight">Compare Applicants</h1>
+          <h1 class="text-3xl font-bold text-gray-900 tracking-tight">Compare Candidates</h1>
           <p class="text-gray-500 mt-1">Select up to 3 candidates to compare side-by-side.</p>
         </div>
         <Button icon="pi pi-refresh" text severity="secondary" :loading="appsLoading" @click="loadApplications" />
@@ -191,7 +199,7 @@ function rowValue(row, appId) {
               :options="appOptions"
               optionLabel="label"
               optionValue="value"
-              placeholder="Select applicant..."
+              placeholder="Select candidate..."
               filter
               class="flex-1"
               :loading="appsLoading"
@@ -262,13 +270,21 @@ function rowValue(row, appId) {
 
           <!-- Values -->
           <div
-            v-for="appId in activeSlots"
+            v-for="(appId, slotIdx) in activeSlots"
             :key="appId"
             class="p-4 border-r border-gray-100 last:border-r-0 flex items-start"
           >
+            <!-- Notes row — editable textarea -->
+            <Textarea
+              v-if="row.key === 'notes'"
+              v-model="slotNotes[slotIdx]"
+              rows="3"
+              placeholder="Add notes for this candidate..."
+              class="w-full !text-xs !rounded-xl !border-slate-200"
+            />
             <!-- Status gets a Tag -->
             <Tag
-              v-if="row.key === 'status'"
+              v-else-if="row.key === 'status'"
               :value="rowValue(row, appId)"
               :severity="statusSeverity(rowValue(row, appId))"
               class="capitalize"
@@ -296,7 +312,7 @@ function rowValue(row, appId) {
       <div v-else class="bg-white rounded-2xl border border-dashed border-gray-200 py-16 text-center">
         <i class="pi pi-users text-4xl text-gray-300 mb-3 block"></i>
         <p class="text-gray-600 font-medium">Select candidates above to compare</p>
-        <p class="text-sm text-gray-400 mt-1">Choose up to 3 applicants from your pipeline.</p>
+        <p class="text-sm text-gray-400 mt-1">Choose up to 3 candidates from your pipeline.</p>
       </div>
     </div>
   </AppLayout>

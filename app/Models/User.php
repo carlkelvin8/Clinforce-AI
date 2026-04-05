@@ -74,7 +74,29 @@ class User extends Authenticatable implements MustVerifyEmailContract
         return $this->trial_ends_at && $this->trial_ends_at->isPast();
     }
 
-    protected $appends = ['avatar_url'];
+    protected $appends = ['avatar_url', 'name'];
+
+    public function getNameAttribute(): string
+    {
+        if ($this->role === 'applicant') {
+            $profile = $this->applicantProfile;
+            if ($profile) {
+                return trim(($profile->first_name ?? '') . ' ' . ($profile->last_name ?? '')) ?: ($profile->public_display_name ?: ($this->email ?? 'Candidate'));
+            }
+        } elseif ($this->role === 'employer') {
+            $profile = $this->employerProfile;
+            if ($profile) {
+                return $profile->business_name ?: ($this->email ?? 'Employer');
+            }
+        } elseif ($this->role === 'agency') {
+            $profile = $this->agencyProfile;
+            if ($profile) {
+                return $profile->agency_name ?: ($this->email ?? 'Agency');
+            }
+        }
+
+        return $this->email ?? 'User';
+    }
 
     public function getAvatarUrlAttribute(): ?string
     {
@@ -99,16 +121,23 @@ class User extends Authenticatable implements MustVerifyEmailContract
             return $p;
         }
 
+        // Handle cases where the path might already contain storage/
+        if (str_starts_with($p, 'storage/')) {
+            return asset($p);
+        }
+
+        // Handle uploads/avatars/ or uploads/
         if (str_contains($p, 'uploads/avatars/')) {
             $pos = strpos($p, 'uploads/avatars/');
-            $p = substr($p, $pos);
+            return asset(substr($p, $pos));
         }
 
         if (str_starts_with($p, 'uploads/')) {
-            return '/' . $p;
+            return asset($p);
         }
 
-        return '/' . $p;
+        // Default to storage disk path
+        return asset('storage/' . $p);
     }
 
     // Profiles

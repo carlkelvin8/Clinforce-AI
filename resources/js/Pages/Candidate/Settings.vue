@@ -18,11 +18,101 @@ import 'vue-advanced-cropper/dist/style.css';
 
 const toast = useToast();
 const user = ref(null)
+// Sessions
+const sessions = ref([])
+const sessionsLoading = ref(false)
+
+async function loadSessions() {
+  sessionsLoading.value = true
+  try {
+    const res = await http.get('/user/sessions')
+    sessions.value = res.data?.data ?? res.data ?? []
+  } catch {} finally { sessionsLoading.value = false }
+}
+
+async function revokeSession(tokenId) {
+  try {
+    await http.delete(`/user/sessions/${tokenId}`)
+    sessions.value = sessions.value.filter(s => s.id !== tokenId)
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e?.response?.data?.message || 'Failed', life: 3000 })
+  }
+}
+
+async function revokeAllSessions() {
+  try {
+    await http.delete('/user/sessions')
+    sessions.value = sessions.value.filter(s => s.is_current)
+    toast.add({ severity: 'success', summary: 'Done', detail: 'All other sessions revoked.', life: 2000 })
+  } catch {}
+}
+
 const loading = ref(false)
 const saving = ref(false)
 
+// GDPR & account deletion
+const exportingData = ref(false)
+const requestingDeletion = ref(false)
+const deletionPending = ref(null)
+
+async function loadDeletionStatus() {
+  try {
+    const res = await http.get('/user/deletion-status')
+    deletionPending.value = res.data?.data?.pending || null
+  } catch {}
+}
+
+async function exportGdprData() {
+  exportingData.value = true
+  try {
+    const res = await http.get('/user/gdpr-export', { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'application/json' }))
+    const a = document.createElement('a'); a.href = url; a.download = 'my-clinforce-data.json'; a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Export failed', life: 3000 })
+  } finally { exportingData.value = false }
+}
+
+async function requestAccountDeletion() {
+  const Swal = (await import('sweetalert2')).default
+  const { value: reason, isConfirmed } = await Swal.fire({
+    title: 'Delete your account?',
+    html: '<p class="text-sm text-slate-600">Your account will be permanently deleted after 30 days. You can cancel before then.</p>',
+    input: 'text',
+    inputLabel: 'Reason (optional)',
+    inputPlaceholder: 'e.g. No longer looking for work',
+    showCancelButton: true,
+    confirmButtonText: 'Schedule deletion',
+    confirmButtonColor: '#ef4444',
+  })
+  if (!isConfirmed) return
+  requestingDeletion.value = true
+  try {
+    const res = await http.post('/user/request-deletion', { reason: reason || null })
+    deletionPending.value = res.data?.data || { delete_at: new Date(Date.now() + 30 * 86400000).toISOString() }
+    toast.add({ severity: 'warn', summary: 'Scheduled', detail: 'Account deletion scheduled. Check your email.', life: 5000 })
+  } catch (e) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e?.response?.data?.message || 'Failed', life: 3000 })
+  } finally { requestingDeletion.value = false }
+}
+
+async function cancelAccountDeletion() {
+  try {
+    await http.delete('/user/cancel-deletion')
+    deletionPending.value = null
+    toast.add({ severity: 'success', summary: 'Cancelled', detail: 'Account deletion cancelled.', life: 3000 })
+  } catch {}
+}
+
 // Notification preferences
-const notif = ref({ frequency: 'immediate' })
+const notif = ref({ frequency: 'immediate', category_toggles: {
+  status_changes: true,
+  interviews: true,
+  messages: true,
+  job_alerts: true,
+  invitations: true,
+} })
 const notifLoading = ref(false)
 const notifSaving = ref(false)
 const frequencyOptions = [
@@ -30,13 +120,25 @@ const frequencyOptions = [
   { label: 'Daily digest', value: 'daily' },
   { label: 'Weekly summary', value: 'weekly' },
 ]
+const notifTypes = [
+  { key: 'status_changes', label: 'Application status changes', icon: 'pi-file' },
+  { key: 'interviews',     label: 'Interview invitations',       icon: 'pi-calendar' },
+  { key: 'messages',       label: 'New messages',                icon: 'pi-envelope' },
+  { key: 'job_alerts',     label: 'Job alerts',                  icon: 'pi-bell' },
+  { key: 'invitations',    label: 'Employer invitations',        icon: 'pi-send' },
+]
 
 async function loadNotificationPrefs() {
   notifLoading.value = true
   try {
     const res = await http.get('/notifications/preferences')
     const p = res?.data?.data
-    if (p && typeof p.frequency === 'string') notif.value.frequency = p.frequency
+    if (p) {
+      if (typeof p.frequency === 'string') notif.value.frequency = p.frequency
+      if (p.category_toggles && typeof p.category_toggles === 'object') {
+        notif.value.category_toggles = { ...notif.value.category_toggles, ...p.category_toggles }
+      }
+    }
   } catch {}
   finally { notifLoading.value = false }
 }
@@ -44,7 +146,10 @@ async function loadNotificationPrefs() {
 async function saveNotificationPrefs() {
   notifSaving.value = true
   try {
-    await http.put('/notifications/preferences', { frequency: notif.value.frequency })
+    await http.put('/notifications/preferences', {
+      frequency: notif.value.frequency,
+      category_toggles: notif.value.category_toggles,
+    })
     toast.add({ severity: 'success', summary: 'Saved', detail: 'Notification preferences updated.', life: 3000 })
   } catch (e) {
     toast.add({ severity: 'error', summary: 'Error', detail: e?.response?.data?.message || 'Failed to save preferences.', life: 5000 })
@@ -152,6 +257,8 @@ onMounted(() => {
   } catch {}
   fetchUser()
   loadNotificationPrefs()
+  loadSessions()
+  loadDeletionStatus()
 })
 
 function onFileSelect(event) {
@@ -471,7 +578,7 @@ async function saveSettings() {
                 <span class="text-xs text-slate-500">Choose how often you receive notifications.</span>
               </template>
               <template #content>
-                <div class="pt-1 space-y-4">
+                <div class="pt-1 space-y-5">
                   <div class="flex flex-col gap-2">
                     <label class="font-medium text-xs uppercase tracking-wide text-slate-500">Frequency</label>
                     <Select
@@ -483,8 +590,95 @@ async function saveSettings() {
                       class="w-full md:w-64"
                     />
                   </div>
+                  <div class="space-y-2">
+                    <label class="font-medium text-xs uppercase tracking-wide text-slate-500">Notify me about</label>
+                    <div v-for="t in notifTypes" :key="t.key"
+                      class="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+                      <div class="flex items-center gap-2.5">
+                        <i :class="['pi text-sm text-slate-400', t.icon]"></i>
+                        <span class="text-sm font-medium text-slate-700">{{ t.label }}</span>
+                      </div>
+                      <button @click="notif.category_toggles[t.key] = !notif.category_toggles[t.key]"
+                        :class="['relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                          notif.category_toggles[t.key] ? 'bg-sky-600' : 'bg-slate-200']">
+                        <span :class="['inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform',
+                          notif.category_toggles[t.key] ? 'translate-x-4' : 'translate-x-1']"></span>
+                      </button>
+                    </div>
+                  </div>
                   <div class="flex justify-end">
                     <Button label="Save preferences" icon="pi pi-save" size="small" :loading="notifSaving" @click="saveNotificationPrefs" class="!rounded-full !bg-slate-900 hover:!bg-slate-800 !border-slate-900 !text-sm" />
+                  </div>
+                </div>
+              </template>
+            </Card>
+
+            <Card class="shadow-sm border border-slate-100 bg-white rounded-2xl">
+              <template #title><span class="text-sm font-semibold text-slate-900">Active Sessions</span></template>
+              <template #subtitle><span class="text-xs text-slate-500">Manage where you're logged in.</span></template>
+              <template #content>
+                <div v-if="sessionsLoading" class="py-4 text-center text-slate-400"><i class="pi pi-spin pi-spinner"></i></div>
+                <div v-else class="space-y-2 pt-1">
+                  <div v-for="s in sessions" :key="s.id"
+                    class="flex items-center justify-between p-3 rounded-xl border"
+                    :class="s.is_current ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-slate-50'">
+                    <div>
+                      <div class="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                        {{ s.name }}
+                        <span v-if="s.is_current" class="text-[10px] bg-sky-600 text-white px-1.5 py-0.5 rounded-full">Current</span>
+                      </div>
+                      <div class="text-xs text-slate-500 mt-0.5">
+                        Last active: {{ s.last_used_at ? new Date(s.last_used_at).toLocaleString() : 'Never' }}
+                      </div>
+                    </div>
+                    <Button v-if="!s.is_current" icon="pi pi-times" size="small" severity="danger" outlined
+                      v-tooltip="'Revoke'" @click="revokeSession(s.id)" />
+                  </div>
+                  <div v-if="!sessions.length" class="text-sm text-slate-400 py-2">No active sessions.</div>
+                  <div class="flex justify-end pt-1">
+                    <Button label="Revoke all other sessions" size="small" severity="secondary" outlined
+                      class="!rounded-full !text-sm"
+                      :disabled="sessions.filter(s => !s.is_current).length === 0"
+                      @click="revokeAllSessions" />
+                  </div>
+                </div>
+              </template>
+            </Card>
+
+            <!-- GDPR + Account Deletion -->
+            <Card class="shadow-sm border border-slate-100 bg-white rounded-2xl">
+              <template #title><span class="text-sm font-semibold text-slate-900">Privacy & Data</span></template>
+              <template #subtitle><span class="text-xs text-slate-500">Your data rights under GDPR.</span></template>
+              <template #content>
+                <div class="pt-1 space-y-4">
+                  <!-- Data export -->
+                  <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <div>
+                      <div class="text-sm font-semibold text-slate-900">Export my data</div>
+                      <div class="text-xs text-slate-500 mt-0.5">Download all your profile, applications, and messages as JSON.</div>
+                    </div>
+                    <Button label="Download" icon="pi pi-download" size="small" severity="secondary" outlined
+                      :loading="exportingData" @click="exportGdprData" class="!rounded-full !text-sm flex-shrink-0 ml-4" />
+                  </div>
+                  <!-- Account deletion -->
+                  <div class="flex items-center justify-between p-4 rounded-xl border"
+                    :class="deletionPending ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100'">
+                    <div>
+                      <div class="text-sm font-semibold" :class="deletionPending ? 'text-red-700' : 'text-slate-900'">
+                        {{ deletionPending ? 'Account deletion scheduled' : 'Delete my account' }}
+                      </div>
+                      <div class="text-xs mt-0.5" :class="deletionPending ? 'text-red-500' : 'text-slate-500'">
+                        {{ deletionPending
+                          ? `Your account will be deleted on ${new Date(deletionPending.delete_at).toLocaleDateString()}. Log in before then to cancel.`
+                          : 'Permanently delete your account after a 30-day grace period.' }}
+                      </div>
+                    </div>
+                    <div class="flex-shrink-0 ml-4">
+                      <Button v-if="!deletionPending" label="Delete account" icon="pi pi-trash" size="small" severity="danger" outlined
+                        :loading="requestingDeletion" @click="requestAccountDeletion" class="!rounded-full !text-sm" />
+                      <Button v-else label="Cancel deletion" icon="pi pi-times" size="small" severity="secondary" outlined
+                        @click="cancelAccountDeletion" class="!rounded-full !text-sm" />
+                    </div>
                   </div>
                 </div>
               </template>

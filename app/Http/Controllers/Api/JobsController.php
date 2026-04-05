@@ -244,20 +244,112 @@ class JobsController extends Controller
     }
 
     /**
+     * GET /api/jobs/{job}/pipeline-report — CSV export of pipeline stats
+     */
+    public function pipelineReport(Request $request, Job $job): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $this->assertCanAccess($request->user(), $job);
+
+        $apps = $job->applications()
+            ->with('applicant:id,email,phone')
+            ->get();
+
+        $counts = [
+            'submitted'   => 0,
+            'shortlisted' => 0,
+            'interview'   => 0,
+            'offered'     => 0,
+            'hired'       => 0,
+            'rejected'    => 0,
+            'withdrawn'   => 0,
+        ];
+        foreach ($apps as $a) {
+            $s = $a->status ?? 'submitted';
+            if (isset($counts[$s])) $counts[$s]++;
+        }
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="pipeline-' . $job->id . '.csv"',
+        ];
+
+        return response()->stream(function () use ($job, $apps, $counts) {
+            $h = fopen('php://output', 'w');
+
+            // Summary
+            fputcsv($h, ['Pipeline Report — ' . $job->title]);
+            fputcsv($h, ['Generated', now()->toDateTimeString()]);
+            fputcsv($h, []);
+            fputcsv($h, ['Stage', 'Count']);
+            foreach ($counts as $stage => $count) {
+                fputcsv($h, [ucfirst($stage), $count]);
+            }
+            fputcsv($h, ['Total', $apps->count()]);
+            fputcsv($h, []);
+
+            // Individual applications
+            fputcsv($h, ['Application ID', 'Candidate Email', 'Status', 'Applied At', 'Rating']);
+            foreach ($apps as $a) {
+                fputcsv($h, [
+                    $a->id,
+                    $a->applicant?->email ?? '',
+                    $a->status,
+                    $a->submitted_at?->toDateString() ?? '',
+                    $a->employer_rating ?? '',
+                ]);
+            }
+
+            fclose($h);
+        }, 200, $headers);
+    }
+
+    /**
+     * GET /api/jobs/{job}/duplicate-check — check for similar titles
+     */
+    public function duplicateCheck(Request $request, string $title): \Illuminate\Http\JsonResponse
+    {
+        $u = $request->user();
+        if (!$u) return response()->json(['message' => 'Unauthenticated'], 401);
+
+        $t = trim($title);
+        if (strlen($t) < 5) return response()->json(['data' => ['duplicates' => []]]);
+
+        $similar = Job::query()
+            ->where('owner_user_id', $u->id)
+            ->where('status', 'published')
+            ->where('title', 'like', '%' . $t . '%')
+            ->limit(3)
+            ->get(['id', 'title', 'status', 'created_at']);
+
+        return response()->json(['data' => ['duplicates' => $similar]]);
+    }
+
+    /**
      * GET /api/public/jobs
      * Candidate browsing endpoint
      */
     public function publicIndex(Request $request): JsonResponse
     {
+        // Cache only unfiltered first-page requests for 5 minutes
+        $hasFilters = $request->filled('q') || $request->filled('city') ||
+                      $request->filled('employment_type') || $request->filled('work_mode') ||
+                      $request->filled('salary_min') || $request->filled('salary_max') ||
+                      $request->filled('employer_id');
+        $page = (int) $request->query('page', 1);
+        $cacheKey = 'public_jobs_p' . $page;
+
+        if (!$hasFilters) {
+            $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+            if ($cached) return response()->json($cached);
+        }
+
         $q = Job::query()
             ->where('status', 'published')
             ->whereNotNull('published_at');
 
         if ($request->filled('employer_id')) {
             $employerId = (int) $request->query('employer_id');
-            if ($employerId > 0) {
-                $q->where('owner_user_id', $employerId);
-            }
+            if ($employerId > 0) $q->where('owner_user_id', $employerId);
         }
 
         if ($request->filled('q')) {
@@ -268,37 +360,25 @@ class JobsController extends Controller
             });
         }
 
-        if ($request->filled('city')) {
-            $q->where('city', $request->city);
-        }
-
-        if ($request->filled('employment_type')) {
-            $q->where('employment_type', $request->employment_type);
-        }
-
-        if ($request->filled('work_mode')) {
-            $q->where('work_mode', $request->work_mode);
-        }
+        if ($request->filled('city'))            $q->where('city', $request->city);
+        if ($request->filled('employment_type')) $q->where('employment_type', $request->employment_type);
+        if ($request->filled('work_mode'))       $q->where('work_mode', $request->work_mode);
 
         if ($request->filled('salary_min')) {
-            $q->where(function ($sq) use ($request) {
-                $sq->whereNull('salary_max')
-                   ->orWhere('salary_max', '>=', (float) $request->salary_min);
-            });
+            $q->where(fn($sq) => $sq->whereNull('salary_max')->orWhere('salary_max', '>=', (float) $request->salary_min));
         }
-
         if ($request->filled('salary_max')) {
-            $q->where(function ($sq) use ($request) {
-                $sq->whereNull('salary_min')
-                   ->orWhere('salary_min', '<=', (float) $request->salary_max);
-            });
+            $q->where(fn($sq) => $sq->whereNull('salary_min')->orWhere('salary_min', '<=', (float) $request->salary_max));
         }
 
         $q->orderByDesc('published_at');
+        $result = $q->paginate(10);
 
-        return response()->json(
-            $q->paginate(10)
-        );
+        if (!$hasFilters) {
+            \Illuminate\Support\Facades\Cache::put($cacheKey, $result->toArray(), now()->addMinutes(5));
+        }
+
+        return response()->json($result);
     }
 
     /**
@@ -309,6 +389,17 @@ class JobsController extends Controller
         if ($job->status !== 'published') {
             return response()->json(['message' => 'Not found.'], 404);
         }
+
+        // Increment view count (throttled per IP — once per hour)
+        $viewKey = 'job_view:' . $job->id . ':' . md5($request->ip());
+        if (!\Illuminate\Support\Facades\Cache::has($viewKey)) {
+            $job->increment('view_count');
+            \Illuminate\Support\Facades\Cache::put($viewKey, 1, now()->addHour());
+        }
+
+        $job->load(['owner' => function($q) {
+            $q->select('id', 'email', 'role');
+        }, 'owner.employerProfile', 'owner.agencyProfile']);
 
         return response()->json(['data' => $job]);
     }

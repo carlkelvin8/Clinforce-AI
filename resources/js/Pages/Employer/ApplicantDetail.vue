@@ -79,14 +79,24 @@
               <i class="pi pi-envelope text-blue-600 text-xl"></i>
               <div>
                 <p class="text-xs text-gray-500">Email</p>
-                <p class="font-semibold">{{ applicant.email }}</p>
+                <p v-if="hasDocumentAccess" class="font-semibold">{{ applicant.email }}</p>
+                <p v-else class="font-semibold text-slate-400 flex items-center gap-1.5">
+                  <i class="pi pi-lock text-xs"></i>
+                  <span class="blur-sm select-none">hidden@email.com</span>
+                  <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full ml-1 no-blur">Purchase access</span>
+                </p>
               </div>
             </div>
-            <div v-if="applicant.phone" class="flex items-center gap-3">
+            <div class="flex items-center gap-3">
               <i class="pi pi-phone text-blue-600 text-xl"></i>
               <div>
                 <p class="text-xs text-gray-500">Phone</p>
-                <p class="font-semibold">{{ applicant.phone }}</p>
+                <p v-if="hasDocumentAccess && applicant.phone" class="font-semibold">{{ applicant.phone }}</p>
+                <p v-else-if="!hasDocumentAccess" class="font-semibold text-slate-400 flex items-center gap-1.5">
+                  <i class="pi pi-lock text-xs"></i>
+                  <span class="blur-sm select-none">+63 9XX XXX XXXX</span>
+                </p>
+                <p v-else class="text-sm text-slate-400">Not provided</p>
               </div>
             </div>
           </div>
@@ -157,6 +167,7 @@ const route = useRoute();
 const loading = ref(true);
 const locked = ref(false);
 const applicant = ref(null);
+const hasDocumentAccess = ref(false);
 
 const loadApplicant = async () => {
   try {
@@ -168,6 +179,13 @@ const loadApplicant = async () => {
       locked.value = true;
     } else {
       applicant.value = response.data.applicant;
+      // Check document access
+      try {
+        const accessRes = await http.get('/document-access/check', {
+          params: { applicant_id: applicantId }
+        })
+        hasDocumentAccess.value = accessRes.data?.data?.has_access || false
+      } catch { hasDocumentAccess.value = false }
     }
   } catch (error) {
     if (error.response?.status === 403) {

@@ -4,6 +4,7 @@ import { RouterLink, useRoute, useRouter } from "vue-router";
 import Button from "primevue/button";
 import Message from "primevue/message";
 import Tag from "primevue/tag";
+import Dialog from "primevue/dialog";
 import AppLayout from "@/Components/AppLayout.vue";
 import { http } from "../../../lib/http";
 
@@ -19,6 +20,11 @@ const error = ref("");
 const job = ref(null);
 const apps = ref([]);
 const appsError = ref("");
+const analytics = ref(null);
+const exportingReport = ref(false);
+const bulkMessageDialog = ref(false);
+const bulkMessageText = ref('');
+const sendingBulk = ref(false);
 
 function normalizeJob(payload) {
   return payload?.data ?? payload ?? null;
@@ -129,6 +135,40 @@ async function copyShareLink() {
 }
 
 onMounted(load);
+
+async function loadAnalytics() {
+  if (!id.value) return
+  try {
+    const res = await http.get(`/jobs/${id.value}/analytics`)
+    analytics.value = res.data?.data ?? res.data
+  } catch {}
+}
+
+async function downloadPipelineReport() {
+  exportingReport.value = true
+  try {
+    const res = await http.get(`/jobs/${id.value}/pipeline-report`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }))
+    const a = document.createElement('a'); a.href = url; a.download = `pipeline-job-${id.value}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  } catch {} finally { exportingReport.value = false }
+}
+
+async function sendBulkMessage() {
+  if (!bulkMessageText.value.trim()) return
+  sendingBulk.value = true
+  try {
+    const res = await http.post(`/jobs/${id.value}/bulk-message`, { message: bulkMessageText.value })
+    const data = res.data?.data ?? res.data
+    alert(`Sent to ${data?.sent ?? 0} candidate(s)`)
+    bulkMessageDialog.value = false
+    bulkMessageText.value = ''
+  } catch (e) {
+    alert(e?.response?.data?.message || 'Failed to send')
+  } finally { sendingBulk.value = false }
+}
+
+onMounted(() => { load(); loadAnalytics(); });
 </script>
 
 <template>
@@ -317,7 +357,48 @@ onMounted(load);
                       outlined
                       class="w-full !bg-white !border-slate-300 !text-slate-700 hover:!bg-slate-50"
                     />
+                    <Button
+                      label="Message shortlisted"
+                      icon="pi pi-envelope"
+                      @click="bulkMessageDialog = true"
+                      severity="secondary"
+                      outlined
+                      class="w-full !bg-white !border-slate-300 !text-slate-700 hover:!bg-slate-50"
+                    />
+                    <Button
+                      label="Pipeline report"
+                      icon="pi pi-download"
+                      @click="downloadPipelineReport"
+                      severity="secondary"
+                      outlined
+                      :loading="exportingReport"
+                      class="w-full !bg-white !border-slate-300 !text-slate-700 hover:!bg-slate-50"
+                    />
                 </div>
+              </div>
+
+              <!-- Job Analytics Card -->
+              <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h3 class="text-lg font-bold text-slate-900 mb-4">Analytics</h3>
+                <div v-if="analytics" class="space-y-3 text-sm">
+                  <div class="flex justify-between">
+                    <span class="text-slate-500">Views</span>
+                    <span class="font-bold text-slate-900">{{ analytics.view_count }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-slate-500">Applications</span>
+                    <span class="font-bold text-slate-900">{{ analytics.total_apps }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-slate-500">Conversion</span>
+                    <span class="font-bold text-emerald-600">{{ analytics.conversion_rate }}%</span>
+                  </div>
+                  <div v-for="(count, status) in analytics.by_status" :key="status" class="flex justify-between">
+                    <span class="text-slate-500 capitalize">{{ status }}</span>
+                    <span class="font-semibold text-slate-700">{{ count }}</span>
+                  </div>
+                </div>
+                <div v-else class="text-slate-400 text-sm">Loading...</div>
               </div>
 
               <!-- Timeline Card -->
@@ -349,6 +430,23 @@ onMounted(load);
 
     </div>
   </AppLayout>
+
+  <!-- Bulk Message Dialog -->
+  <Dialog v-model:visible="bulkMessageDialog" header="Message shortlisted candidates" :style="{ width: '480px' }" modal>
+    <div class="space-y-4 pt-2">
+      <p class="text-sm text-slate-600">Send a message to all <strong>shortlisted</strong> candidates for this job.</p>
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Message</label>
+        <textarea v-model="bulkMessageText" rows="5"
+          placeholder="e.g. We'd like to invite you to the next stage of our hiring process..."
+          class="w-full text-sm p-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:outline-none resize-none"></textarea>
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <Button label="Cancel" severity="secondary" @click="bulkMessageDialog = false" />
+        <Button label="Send to all shortlisted" icon="pi pi-send" :loading="sendingBulk" :disabled="!bulkMessageText.trim()" @click="sendBulkMessage" />
+      </div>
+    </div>
+  </Dialog>
 </template>
 
 <style scoped>

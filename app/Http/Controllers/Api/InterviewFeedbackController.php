@@ -21,7 +21,18 @@ class InterviewFeedbackController extends ApiController
     public function store(Request $request, Interview $interview): JsonResponse
     {
         $u = $this->requireAuth();
-        $this->assertCanAccess($u, $interview);
+
+        // Only employers/agencies/admins can submit feedback
+        $interview->loadMissing('application.job');
+        $job = $interview->application?->job;
+        $isOwner = $job
+            && in_array($u->role, ['employer', 'agency'], true)
+            && $job->owner_user_id === $u->id
+            && $job->owner_type === $u->role;
+
+        if ($u->role !== 'admin' && !$isOwner) {
+            return $this->fail('Only the hiring employer can submit feedback', null, 403);
+        }
 
         $v = $request->validate([
             'rating'              => ['required', 'integer', 'min:1', 'max:5'],
@@ -52,6 +63,10 @@ class InterviewFeedbackController extends ApiController
             && $job->owner_user_id === $u->id
             && $job->owner_type === $u->role;
 
-        if (!$isOwner) abort(403);
+        // Candidates can VIEW (GET) their own interview feedback
+        $isApplicant = $interview->application
+            && $interview->application->applicant_user_id === $u->id;
+
+        if (!$isOwner && !$isApplicant) abort(403);
     }
 }

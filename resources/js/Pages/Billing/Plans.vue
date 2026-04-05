@@ -3,7 +3,7 @@
     <div class="container mx-auto px-4 py-12">
       <div class="text-center mb-12">
         <h1 class="text-4xl font-bold text-gray-900 mb-4">Choose Your Plan</h1>
-        <p class="text-xl text-gray-600">Unlock full access to applicant profiles and resumes</p>
+        <p class="text-xl text-gray-600">Unlock full access to candidate profiles and resumes</p>
       </div>
 
       <!-- Loading State -->
@@ -40,7 +40,7 @@
             </li>
             <li class="flex items-start gap-2">
               <i class="pi pi-check text-green-600 mt-1"></i>
-              <span>Full applicant profiles</span>
+              <span>Full candidate profiles</span>
             </li>
             <li class="flex items-start gap-2">
               <i class="pi pi-check text-green-600 mt-1"></i>
@@ -92,7 +92,7 @@
           <div class="flex items-start gap-3">
             <i class="pi pi-users text-blue-600 text-2xl"></i>
             <div>
-              <h4 class="font-semibold text-gray-900 mb-1">Unlimited Applicants</h4>
+              <h4 class="font-semibold text-gray-900 mb-1">Unlimited Candidates</h4>
               <p class="text-gray-600 text-sm">View as many profiles as you need</p>
             </div>
           </div>

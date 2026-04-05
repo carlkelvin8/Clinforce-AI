@@ -13,6 +13,13 @@ import AdminPagination from './AdminPagination.vue';
 const { isDark, card, text, textSub, textMuted, divider, border, input, thead } = useAdminTheme();
 const setBreadcrumb = inject('setBreadcrumb', () => {});
 
+function maskName(name) {
+  if (!name) return '—'
+  const parts = String(name).trim().split(/[\s._-]+/).filter(Boolean)
+  if (parts.length >= 2) return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`
+  return name
+}
+
 const screenings = ref([]);
 const meta = ref({});
 const loading = ref(false);
@@ -86,7 +93,7 @@ function openView(s) {
             <tr v-else v-for="s in screenings" :key="s.id"
               :class="['transition-colors', isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50']">
               <td :class="['px-5 py-3.5 text-xs font-mono', textMuted]">#{{ s.id }}</td>
-              <td :class="['px-5 py-3.5 text-sm', text]">{{ s.application?.user?.email || '—' }}</td>
+              <td :class="['px-5 py-3.5 text-sm', text]">{{ maskName(s.application?.user?.email?.split('@')[0] || s.application?.applicant?.applicant_profile?.first_name || '—') }}</td>
               <td :class="['px-5 py-3.5 text-xs max-w-[180px] truncate', textSub]">{{ s.application?.job?.title || '—' }}</td>
               <td class="px-5 py-3.5">
                 <Tag v-if="s.score != null" :value="s.score + '%'" :severity="scoreSeverity(s.score)" class="text-xs" />
@@ -109,7 +116,7 @@ function openView(s) {
         <div class="grid grid-cols-2 gap-3">
           <div>
             <p :class="['text-xs font-semibold uppercase tracking-wider mb-1', textMuted]">Candidate</p>
-            <p :class="['text-sm', text]">{{ viewItem.application?.user?.email || '—' }}</p>
+            <p :class="['text-sm', text]">{{ maskName(viewItem.application?.user?.email?.split('@')[0] || '—') }}</p>
           </div>
           <div>
             <p :class="['text-xs font-semibold uppercase tracking-wider mb-1', textMuted]">Job</p>

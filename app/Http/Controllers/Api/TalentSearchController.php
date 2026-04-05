@@ -42,6 +42,11 @@ class TalentSearchController extends ApiController
             }
         }
 
+        // 4. Open to work filter
+        if ($request->boolean('open_to_work')) {
+            $query->where('open_to_work', true);
+        }
+
         $results = $query->with('user')->paginate(20);
 
         // Transform results
@@ -73,7 +78,9 @@ class TalentSearchController extends ApiController
 
             return [
                 'id' => $p->user_id,
-                'name' => $p->public_display_name ?? ($p->first_name . ' ' . substr($p->last_name, 0, 1) . '.'),
+                'name' => $p->first_name
+                    ? trim($p->first_name . ' ' . ($p->last_name ? strtoupper($p->last_name[0]) . '.' : ''))
+                    : ($p->public_display_name ?: 'Candidate'),
                 'headline' => $p->headline,
                 'summary' => $p->summary,
                 'city' => $p->city,

@@ -157,6 +157,15 @@
 
             <!-- Messages Area -->
             <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar scroll-smooth bg-white" ref="messagesEl">
+              <!-- Load older messages -->
+              <div v-if="threadPagination?.has_more" class="flex justify-center pb-2">
+                <button @click="loadOlderMessages"
+                  :disabled="loadingOlder"
+                  class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1.5 px-4 py-2 rounded-full border border-blue-200 hover:bg-blue-50 transition-colors disabled:opacity-50">
+                  <i :class="['pi text-xs', loadingOlder ? 'pi-spin pi-spinner' : 'pi-chevron-up']"></i>
+                  {{ loadingOlder ? 'Loading...' : 'Load older messages' }}
+                </button>
+              </div>
               <div v-if="loadingThread && !messages.length" class="flex justify-center py-12">
                  <ProgressSpinner style="width: 40px; height: 40px" strokeWidth="4" />
               </div>
@@ -336,6 +345,8 @@ window.addEventListener('resize', () => {
 
 const loadingList = ref(false)
 const loadingThread = ref(false)
+const loadingOlder = ref(false)
+const threadPagination = ref(null)
 const listError = ref('')
 const threadError = ref('')
 
@@ -542,7 +553,7 @@ async function fetchMe() {
     meId.value = user?.id ?? null
     // Avoid showing email in the header
     const rawName = user?.name || ''
-    meName.value = (rawName && !rawName.includes('@')) ? rawName : 'Candidate'
+    meName.value = (rawName && !rawName.includes('@')) ? rawName : 'User'
     meAvatarUrl.value = user?.avatar_url
     meInitials.value = getInitials(meName.value)
   } catch {
@@ -590,26 +601,30 @@ async function loadThread(id) {
   threadError.value = ''
   try {
     const res = await api.get(`/conversations/${id}`)
-    const c = unwrap(res.data)
+    const body = unwrap(res.data)
+
+    // Handle both old shape (conversation.messages) and new paginated shape
+    const c = body?.conversation ?? body
+    const rawMsgs = body?.messages ?? asArray(c?.messages || [])
+
     // Update local list item if needed
     const idx = conversations.value.findIndex(x => x.id === id)
-    if (idx !== -1) {
-      conversations.value[idx] = c
-    }
+    if (idx !== -1) conversations.value[idx] = c
     selected.value = c
-    
-    // Sort messages by created_at asc
-    const msgs = asArray(c.messages || [])
-    msgs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+
+    // Sort messages oldest-first for display
+    const msgs = [...rawMsgs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
     messages.value = msgs
+
+    // Store pagination info for load-more
+    if (body?.pagination) {
+      threadPagination.value = body.pagination
+    }
 
     scrollToBottom()
 
-    // If last message not read, mark read
     const lastMsg = msgs[msgs.length - 1]
-    if (lastMsg && !isMe(lastMsg)) {
-        markRead(c.id, lastMsg.id)
-    }
+    if (lastMsg && !isMe(lastMsg)) markRead(c.id, lastMsg.id)
 
   } catch (err) {
     console.error(err)
@@ -617,6 +632,21 @@ async function loadThread(id) {
   } finally {
     loadingThread.value = false
   }
+}
+
+async function loadOlderMessages() {
+  if (!selectedId.value || !threadPagination.value?.has_more || loadingOlder.value) return
+  loadingOlder.value = true
+  try {
+    const nextPage = (threadPagination.value.current_page || 1) + 1
+    const res = await api.get(`/conversations/${selectedId.value}`, { params: { page: nextPage } })
+    const body = unwrap(res.data)
+    const rawMsgs = body?.messages ?? []
+    const older = [...rawMsgs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    // Prepend older messages
+    messages.value = [...older, ...messages.value]
+    if (body?.pagination) threadPagination.value = body.pagination
+  } catch {} finally { loadingOlder.value = false }
 }
 
 async function markRead(convId, msgId) {

@@ -125,7 +125,7 @@ const roleOptions = [
   { label: 'Admin', value: 'admin' },
   { label: 'Employer', value: 'employer' },
   { label: 'Agency', value: 'agency' },
-  { label: 'Applicant', value: 'applicant' },
+  { label: 'Candidate', value: 'applicant' },
 ];
 const statusOptions = [
   { label: 'All Status', value: '' },
@@ -272,6 +272,7 @@ async function impersonate(u) {
     if (token) {
       localStorage.setItem('auth_token', token);
       localStorage.setItem('CLINFORCE_TOKEN', token);
+      localStorage.setItem('impersonating', '1');
       localStorage.removeItem('auth_user');
       window.dispatchEvent(new Event('auth:changed'));
       window.location.href = '/';

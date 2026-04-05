@@ -30,6 +30,9 @@ const currentUser = ref(null);
 const loading = ref(false);
 const threadLoading = ref(false);
 const error = ref("");
+const threadPagination = ref(null);
+
+function asArray(v) { return Array.isArray(v) ? v : [] }
 const q = ref("");
 
 const conversations = ref([]);
@@ -134,14 +137,17 @@ async function loadConversation(id, silent = false) {
       res = await api.get(`/conversations/${id}`);
     }
     const body = unwrap(res?.data);
-    
-    const oldLen = active.value?.messages?.length || 0;
-    active.value = body;
-    const newLen = body.messages?.length || 0;
 
-    if (!silent || newLen > oldLen) {
-      scrollToBottom();
-    }
+    // Handle paginated response shape
+    const conv = body?.conversation ?? body;
+    const rawMsgs = body?.messages ?? asArray(conv?.messages || []);
+    const sorted = [...rawMsgs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    const oldLen = active.value?.messages?.length || 0;
+    active.value = { ...conv, messages: sorted };
+    if (body?.pagination) threadPagination.value = body.pagination;
+
+    if (!silent || sorted.length > oldLen) scrollToBottom();
   } catch (e) {
     if (!silent) error.value = e?.response?.data?.message || "Failed to load conversation";
     if (!silent) active.value = null;
@@ -482,6 +488,10 @@ function convName(c) {
 
 function convAvatar(c) {
     const other = getOtherParticipant(c);
+    if (other?.role === 'employer') {
+        const profile = other.employer_profile || other.employerProfile;
+        if (profile?.logo_url) return profile.logo_url;
+    }
     if (other?.avatar_url) return other.avatar_url;
     return null; // Fallback to label
 }

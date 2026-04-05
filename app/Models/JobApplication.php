@@ -27,6 +27,18 @@ class JobApplication extends Model
         'updated_at' => 'datetime',
     ];
 
+    protected $appends = ['applicant_name', 'applicant_email'];
+
+    public function getApplicantNameAttribute(): string
+    {
+        return $this->applicant?->name ?? 'Unknown';
+    }
+
+    public function getApplicantEmailAttribute(): ?string
+    {
+        return $this->applicant?->email;
+    }
+
     public function job(): BelongsTo
     {
         return $this->belongsTo(Job::class, 'job_id');

@@ -41,6 +41,8 @@ class ApplicantProfileUpsertRequest extends FormRequest
             'preferred_shift' => ['nullable','in:any,day,night,rotational'],
             'start_date'      => ['nullable','date'],
             'work_setup'      => ['nullable','in:onsite,hybrid,remote'],
+            'open_to_work'    => ['nullable','boolean'],
+            'portfolio_links' => ['nullable','array'],
         ];
     }
 

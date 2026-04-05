@@ -79,18 +79,41 @@
                                   </div>
                                </div>
 
-                               <RouterLink :to="{ name: 'candidate.applications.view', params: { id: String(row.application_id) } }">
-                                  <Button label="View Application" size="small" text class="!px-0 hover:bg-transparent hover:underline" />
-                               </RouterLink>
-                               <Button
-                                  icon="pi pi-calendar-plus"
-                                  size="small"
-                                  severity="secondary"
-                                  outlined
-                                  v-tooltip.top="'Add to calendar (.ics)'"
-                                  @click="downloadIcs(row)"
-                                  aria-label="Download calendar"
-                               />
+                               <div class="flex items-center gap-2 flex-wrap">
+                                  <!-- Confirm / Decline (only when proposed/rescheduled) -->
+                                  <template v-if="row.status === 'proposed' || row.status === 'rescheduled'">
+                                    <Button label="Confirm" icon="pi pi-check" size="small" severity="success"
+                                      :loading="respondingId === row.id"
+                                      @click="respondInterview(row, 'confirmed')" />
+                                    <Button label="Decline" icon="pi pi-times" size="small" severity="danger" outlined
+                                      :loading="respondingId === row.id"
+                                      @click="respondInterview(row, 'declined')" />
+                                  </template>
+                                  <Tag v-else-if="row.status === 'confirmed'" value="Confirmed" severity="success" />
+
+                                  <RouterLink :to="{ name: 'candidate.applications.view', params: { id: String(row.application_id) } }">
+                                     <Button label="View Application" size="small" text class="!px-0 hover:bg-transparent hover:underline" />
+                                  </RouterLink>
+                                  <Button
+                                     icon="pi pi-calendar-plus"
+                                     size="small"
+                                     severity="secondary"
+                                     outlined
+                                     v-tooltip.top="'Add to calendar (.ics)'"
+                                     @click="downloadIcs(row)"
+                                     aria-label="Download calendar"
+                                  />
+                                  <!-- Feedback (completed interviews) -->
+                                  <Button
+                                    v-if="row.status === 'completed' || row.status === 'cancelled'"
+                                    icon="pi pi-star"
+                                    size="small"
+                                    severity="secondary"
+                                    outlined
+                                    v-tooltip.top="'View feedback'"
+                                    @click="viewFeedback(row)"
+                                  />
+                               </div>
                             </div>
                          </div>
                       </div>
@@ -125,6 +148,35 @@
        </div>
     </div>
   </AppLayout>
+
+  <!-- Feedback Dialog -->
+  <Dialog v-model:visible="feedbackDialog" header="Interview Feedback" :style="{ width: '460px' }" modal>
+    <div v-if="feedbackLoading" class="py-8 text-center text-slate-400"><i class="pi pi-spin pi-spinner text-2xl"></i></div>
+    <div v-else-if="!feedbackData" class="py-8 text-center text-slate-400">
+      <i class="pi pi-star text-3xl mb-3 block"></i>
+      <p class="text-sm">No feedback has been submitted for this interview yet.</p>
+    </div>
+    <div v-else class="space-y-4 pt-2">
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-semibold text-slate-600">Overall rating:</span>
+        <div class="flex gap-0.5">
+          <i v-for="n in 5" :key="n" :class="['pi pi-star-fill text-sm', n <= feedbackData.rating ? 'text-amber-400' : 'text-slate-200']"></i>
+        </div>
+        <span class="text-sm font-bold text-slate-900">{{ feedbackData.rating }}/5</span>
+      </div>
+      <div v-if="feedbackData.recommendation" class="flex items-center gap-2">
+        <span class="text-sm font-semibold text-slate-600">Recommendation:</span>
+        <span class="text-sm font-bold capitalize px-2 py-0.5 rounded-full"
+          :class="feedbackData.recommendation === 'hire' || feedbackData.recommendation === 'recommend' ? 'bg-emerald-100 text-emerald-700' : feedbackData.recommendation === 'reject' || feedbackData.recommendation === 'do_not_recommend' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'">
+          {{ feedbackData.recommendation.replace('_', ' ') }}
+        </span>
+      </div>
+      <div v-if="feedbackData.notes" class="p-4 bg-slate-50 rounded-xl">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Notes</p>
+        <p class="text-sm text-slate-700 leading-relaxed">{{ feedbackData.notes }}</p>
+      </div>
+    </div>
+  </Dialog>
 </template>
 
 <script setup>
@@ -135,6 +187,7 @@ import api from "@/lib/api";
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
 import ProgressSpinner from 'primevue/progressspinner';
+import Dialog from 'primevue/dialog';
 
 async function downloadIcs(interview) {
   try {
@@ -156,6 +209,53 @@ const meName = ref("ME");
 const loading = ref(false);
 const error = ref("");
 const interviews = ref([]);
+const respondingId = ref(null);
+
+// Feedback viewer
+const feedbackDialog = ref(false)
+const feedbackData = ref(null)
+const feedbackLoading = ref(false)
+
+async function viewFeedback(row) {
+  feedbackDialog.value = true
+  feedbackData.value = null
+  feedbackLoading.value = true
+  try {
+    const res = await api.get(`/interviews/${row.id}/feedback`)
+    feedbackData.value = res.data?.data ?? res.data ?? null
+  } catch { feedbackData.value = null }
+  finally { feedbackLoading.value = false }
+}
+
+async function respondInterview(row, response) {
+  if (response === 'declined') {
+    const { value: reason, isConfirmed } = await import('sweetalert2').then(({ default: Swal }) =>
+      Swal.fire({
+        title: 'Decline interview?',
+        input: 'text',
+        inputLabel: 'Reason (optional)',
+        inputPlaceholder: 'e.g. scheduling conflict',
+        showCancelButton: true,
+        confirmButtonText: 'Decline',
+        confirmButtonColor: '#ef4444',
+      })
+    )
+    if (!isConfirmed) return
+    respondingId.value = row.id
+    try {
+      const res = await api.post(`/interviews/${row.id}/respond`, { response: 'declined', reason: reason || '' })
+      row.status = 'cancelled'
+    } catch (e) { alert(e?.response?.data?.message || 'Failed') }
+    finally { respondingId.value = null }
+    return
+  }
+  respondingId.value = row.id
+  try {
+    await api.post(`/interviews/${row.id}/respond`, { response: 'confirmed' })
+    row.status = 'confirmed'
+  } catch (e) { alert(e?.response?.data?.message || 'Failed') }
+  finally { respondingId.value = null }
+}
 
 const tips = [
   "Review the job description and match your experience.",

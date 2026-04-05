@@ -33,6 +33,20 @@
               <Button label="Hire" icon="pi pi-check-circle" @click="hire" class="!rounded-md" severity="success" :disabled="!canHire" />
               <Button label="Schedule Interview" icon="pi pi-calendar" @click="scheduleInterview" class="!rounded-md" :disabled="!app || busy" />
               <Button label="Message" icon="pi pi-envelope" @click="goMessages" class="!rounded-md" outlined :loading="messaging" :disabled="messaging" />
+              <!-- Offer letter (only when hired) -->
+              <Button v-if="app?.status === 'hired'" label="Offer Letter" icon="pi pi-file-pdf"
+                @click="downloadOfferLetter" class="!rounded-md" severity="secondary" outlined :loading="generatingOffer" />
+              <!-- Blacklist -->
+              <Button v-if="!isBlacklisted" icon="pi pi-ban" v-tooltip="'Add to do-not-contact list'"
+                @click="addToBlacklist" class="!rounded-md" severity="danger" text :disabled="!app" />
+              <Button v-else icon="pi pi-ban" label="Blacklisted" v-tooltip="'Remove from blacklist'"
+                @click="removeFromBlacklist" class="!rounded-md !text-red-500" severity="danger" outlined />
+              <!-- Star rating -->
+              <div class="flex items-center gap-0.5 ml-1" v-if="app">
+                <button v-for="star in 5" :key="star" @click="rateApp(star)"
+                  class="text-xl transition-colors leading-none"
+                  :class="star <= (app.employer_rating || 0) ? 'text-amber-400' : 'text-gray-200 hover:text-amber-300'">★</button>
+              </div>
             </div>
           </div>
         </div>
@@ -49,7 +63,7 @@
               <template #title>Summary</template>
               <template #content>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2">
-                  <div class="text-xs text-slate-500 font-semibold">Applicant</div>
+                  <div class="text-xs text-slate-500 font-semibold">Candidate</div>
                   <div class="text-sm font-bold text-slate-900 text-right break-words">{{ applicantDisplayName(app) }}</div>
                   <div class="text-xs text-slate-500 font-semibold">Submitted</div>
                   <div class="text-sm font-bold text-slate-900 text-right break-words">{{ formatDate(app.submitted_at) }}</div>
@@ -128,13 +142,13 @@
                 <div v-else class="text-center py-8 bg-slate-50 rounded-lg border border-slate-200">
                   <i class="pi pi-file-pdf text-4xl text-slate-300 mb-3"></i>
                   <p class="text-slate-600 font-medium">No resume uploaded</p>
-                  <p class="text-sm text-slate-500 mt-1">This applicant hasn't uploaded a resume yet</p>
+                  <p class="text-sm text-slate-500 mt-1">This candidate hasn't uploaded a resume yet</p>
                 </div>
               </template>
             </Card>
 
             <!-- Resume Preview Dialog -->
-            <Dialog v-model:visible="showResumePreview" modal header="Resume Preview" :style="{ width: '90vw', maxWidth: '1200px' }" :dismissableMask="true">
+            <Dialog v-model:visible="showResumePreview" modal header="Resume Preview" :style="{ width: '90vw', maxWidth: '1200px' }" :dismissableMask="true" @hide="closeResumePreview">
               <iframe 
                 v-if="resumePreviewUrl" 
                 :src="resumePreviewUrl" 
@@ -285,8 +299,17 @@ const messaging = ref(false)
 const hasDocumentAccess = ref(false)
 const downloadingResume = ref(false)
 const hasResume = ref(false)
+// Resume Preview Dialog
 const showResumePreview = ref(false)
 const resumePreviewUrl = ref(null)
+
+function closeResumePreview() {
+  if (resumePreviewUrl.value) {
+    window.URL.revokeObjectURL(resumePreviewUrl.value)
+  }
+  resumePreviewUrl.value = null
+  showResumePreview.value = false
+}
 
 // Notes
 const notes = ref([])
@@ -365,7 +388,7 @@ function applicantDisplayName(app) {
     p?.public_display_name ||
     u?.name ||
     u?.full_name ||
-    `Applicant #${app?.applicant_user_id || app?.applicant_id || app?.user_id || ''}`.trim()
+    `Candidate #${app?.applicant_user_id || app?.applicant_id || app?.user_id || ''}`.trim()
   )
 }
 
@@ -562,6 +585,84 @@ async function hire() {
   await doStatus('hired', 'Mark this candidate as hired?')
 }
 
+// Offer letter
+const generatingOffer = ref(false)
+async function downloadOfferLetter() {
+  if (!app.value?.id) return
+  const { value: formValues, isConfirmed } = await Swal.fire({
+    title: 'Generate Offer Letter',
+    html: `
+      <div class="space-y-3 text-left">
+        <div><label class="text-sm font-semibold">Start Date</label><input id="sl-start" type="date" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" /></div>
+        <div><label class="text-sm font-semibold">Compensation</label><input id="sl-salary" type="text" placeholder="e.g. ₱35,000/month" class="w-full mt-1 px-3 py-2 border rounded-lg text-sm" /></div>
+        <div><label class="text-sm font-semibold">Additional notes</label><textarea id="sl-notes" rows="3" placeholder="Optional terms..." class="w-full mt-1 px-3 py-2 border rounded-lg text-sm"></textarea></div>
+      </div>`,
+    showCancelButton: true,
+    confirmButtonText: 'Download',
+    preConfirm: () => ({
+      start_date: document.getElementById('sl-start').value,
+      salary: document.getElementById('sl-salary').value,
+      notes: document.getElementById('sl-notes').value,
+    }),
+  })
+  if (!isConfirmed) return
+  generatingOffer.value = true
+  try {
+    const res = await api.post(`/applications/${app.value.id}/offer-letter`, formValues, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'text/html' }))
+    const a = document.createElement('a')
+    a.href = url; a.download = `offer-letter-${app.value.id}.html`; a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    await Swal.fire({ icon: 'error', title: 'Failed', text: e?.response?.data?.message || 'Could not generate offer letter' })
+  } finally { generatingOffer.value = false }
+}
+
+// Blacklist
+const isBlacklisted = ref(false)
+async function checkBlacklist() {
+  if (!app.value?.applicant_user_id) return
+  try {
+    const res = await api.get(`/employer/blacklist/${app.value.applicant_user_id}/check`)
+    isBlacklisted.value = res.data?.data?.blacklisted || false
+  } catch {}
+}
+async function addToBlacklist() {
+  const { value: reason, isConfirmed } = await Swal.fire({
+    title: 'Add to do-not-contact list?',
+    input: 'text',
+    inputLabel: 'Reason (optional)',
+    showCancelButton: true,
+    confirmButtonText: 'Add',
+    confirmButtonColor: '#ef4444',
+  })
+  if (!isConfirmed) return
+  try {
+    await api.post('/employer/blacklist', { candidate_user_id: app.value.applicant_user_id, reason: reason || null })
+    isBlacklisted.value = true
+    await Swal.fire({ icon: 'success', title: 'Added', timer: 1500, showConfirmButton: false })
+  } catch (e) {
+    await Swal.fire({ icon: 'error', title: 'Failed', text: e?.response?.data?.message || 'Could not add' })
+  }
+}
+async function removeFromBlacklist() {
+  try {
+    await api.delete(`/employer/blacklist/${app.value.applicant_user_id}`)
+    isBlacklisted.value = false
+  } catch {}
+}
+
+async function rateApp(rating) {
+  if (!app.value?.id) return
+  const prev = app.value.employer_rating
+  app.value.employer_rating = rating
+  try {
+    await api.post(`/applications/${app.value.id}/rate`, { rating })
+  } catch {
+    app.value.employer_rating = prev
+  }
+}
+
 function shortlist() {
   doStatus('shortlisted', 'Shortlist this candidate?')
 }
@@ -693,6 +794,7 @@ async function goMessages() {
 onMounted(async () => {
   await fetchOne()
   loadNotes()
+  checkBlacklist()
   try {
     const u = await me()
     role.value = u?.role || ''

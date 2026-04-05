@@ -25,7 +25,8 @@ const loading = ref(true);
 const error = ref("");
 
 const q = ref("");
-const locationFilter = ref(""); // Changed default from "all" to empty string for InputText
+const locationFilter = ref("");
+const openToWorkOnly = ref(false);
 const candidates = ref([]);
 
 // Debounce helper
@@ -46,6 +47,7 @@ async function load() {
     const params = {};
     if (q.value.trim()) params.q = q.value.trim();
     if (locationFilter.value && locationFilter.value !== "all") params.location = locationFilter.value;
+    if (openToWorkOnly.value) params.open_to_work = 1;
 
     const res = await http.get("/talent-search", { params });
     
@@ -57,17 +59,24 @@ async function load() {
        else raw = [];
     }
     
-    candidates.value = raw.map(p => ({
-      id: p.id,
-      name: p.name,
-      location: [p.city, p.country_code].filter(Boolean).join(", ") || "—",
-      specialty: p.headline || "—",
-      role: p.headline || "—",
-      last_active: p.updated_at,
-      match: p.match,
-      blurb: p.summary || "",
-      avatar: p.avatar
-    }));
+    candidates.value = raw.map(p => {
+      // Mask last name — show first name + last initial only
+      const nameParts = String(p.name || '').trim().split(/\s+/)
+      const maskedName = nameParts.length >= 2
+        ? `${nameParts[0]} ${nameParts[nameParts.length - 1][0].toUpperCase()}.`
+        : (p.name || 'Candidate')
+      return {
+        id: p.id,
+        name: maskedName,
+        location: [p.city, p.country_code].filter(Boolean).join(", ") || "—",
+        specialty: p.headline || "—",
+        role: p.headline || "—",
+        last_active: p.updated_at,
+        match: p.match,
+        blurb: p.summary || "",
+        avatar: p.avatar
+      }
+    })
 
   } catch (e) {
     console.error(e);
@@ -86,7 +95,7 @@ async function load() {
 onMounted(() => load());
 
 // Watchers for server-side search
-vueWatch([q, locationFilter], () => {
+vueWatch([q, locationFilter, openToWorkOnly], () => {
   debounceLoad();
 });
 
@@ -222,6 +231,13 @@ async function bulkInvite() {
               class="w-full !pl-10 !border-0 !shadow-none !bg-transparent focus:!ring-0 text-lg" 
             />
          </div>
+         <div class="h-px md:h-auto md:w-px bg-gray-200 mx-2"></div>
+         <button @click="openToWorkOnly = !openToWorkOnly"
+           :class="['flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all border',
+             openToWorkOnly ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300']">
+           <span class="w-2 h-2 rounded-full" :class="openToWorkOnly ? 'bg-white' : 'bg-emerald-400'"></span>
+           Open to work
+         </button>
       </div>
 
       <!-- Results Area -->

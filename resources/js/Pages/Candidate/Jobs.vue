@@ -218,6 +218,14 @@
                 </div>
 
                 <div class="flex md:flex-col items-center md:items-end justify-between gap-4 mt-4 md:mt-0 pl-4 border-t md:border-t-0 border-gray-100 pt-4 md:pt-0">
+                   <!-- Match score -->
+                   <div v-if="computeMatchScore(j)" class="flex flex-col items-center">
+                     <div class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-0.5">Match</div>
+                     <div class="text-lg font-black"
+                       :class="computeMatchScore(j) >= 80 ? 'text-emerald-600' : computeMatchScore(j) >= 60 ? 'text-blue-600' : 'text-slate-500'">
+                       {{ computeMatchScore(j) }}%
+                     </div>
+                   </div>
                    <div class="text-xs font-medium text-gray-400 whitespace-nowrap">
                       {{ formatRelative(j.published_at || j.created_at) }}
                    </div>
@@ -294,8 +302,41 @@ const error = ref("");
 
 const payload = ref(null);
 const savedJobs = ref([]);
-const activeTab = ref('browse'); // 'browse' | 'saved'
+const activeTab = ref('browse');
 const savedLoading = ref(false);
+
+// Candidate profile for match scoring
+const candidateProfile = ref(null);
+
+async function loadCandidateProfile() {
+  try {
+    const res = await api.get('/me/applicant');
+    candidateProfile.value = res.data?.data ?? res.data ?? null;
+  } catch {}
+}
+
+function computeMatchScore(job) {
+  if (!candidateProfile.value) return null;
+  const p = candidateProfile.value;
+  let score = 50; // base
+
+  // Headline keyword match
+  if (p.headline && job.title) {
+    const words = p.headline.toLowerCase().split(/\s+/)
+    const title = job.title.toLowerCase()
+    const matches = words.filter(w => w.length > 3 && title.includes(w)).length
+    score += Math.min(matches * 15, 30)
+  }
+
+  // Location match
+  if (p.city && job.city && p.city.toLowerCase() === job.city.toLowerCase()) score += 10
+  if (p.country && job.country && p.country.toLowerCase() === job.country.toLowerCase()) score += 5
+
+  // Employment type preference (if stored)
+  if (job.work_mode === 'remote') score += 5
+
+  return Math.min(score, 98)
+}
 
 async function fetchSavedJobs() {
   savedLoading.value = true;
@@ -499,7 +540,7 @@ watch(
   }
 );
 
-onMounted(() => fetchJobs(1));
+onMounted(() => { fetchJobs(1); loadCandidateProfile(); });
 </script>
 
 <style scoped>

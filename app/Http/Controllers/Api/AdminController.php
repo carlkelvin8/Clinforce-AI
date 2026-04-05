@@ -139,8 +139,7 @@ class AdminController extends ApiController
         if ($status) $query->where('status', $status);
         if ($q !== '') {
             $query->where(function ($qq) use ($q) {
-                $qq->where('title', 'like', "%{$q}%")
-                   ->orWhere('company_name', 'like', "%{$q}%");
+                $qq->where('title', 'like', "%{$q}%");
             });
         }
 
@@ -183,7 +182,13 @@ class AdminController extends ApiController
     {
         $this->requireAdmin();
 
-        $period = $request->query('period', 'monthly'); // weekly | monthly | yearly
+        $period = $request->query('period', 'monthly');
+
+        // Cache admin analytics for 10 minutes per period
+        $cacheKey = "admin_analytics:{$period}";
+        $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        if ($cached) return $this->ok($cached);
+
         $driver = DB::connection()->getDriverName();
 
         switch ($period) {
@@ -230,14 +235,18 @@ class AdminController extends ApiController
             ->limit(5)
             ->get();
 
-        return $this->ok([
+        $result = [
             'revenue'             => $revenue,
             'users'               => $users,
             'by_plan'             => $byPlan,
             'top_employers'       => $topEmployers,
             'role_distribution'   => \App\Models\User::selectRaw('role, COUNT(*) as count')->groupBy('role')->get(),
             'subscription_status' => \App\Models\Subscription::selectRaw('status, COUNT(*) as count')->groupBy('status')->get(),
-        ]);
+        ];
+
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $result, now()->addMinutes(10));
+
+        return $this->ok($result);
     }
 
     // ── Plans ────────────────────────────────────────────────────────────
@@ -277,8 +286,7 @@ class AdminController extends ApiController
             ->limit(5)->get(['id', 'email', 'phone', 'role', 'status']);
 
         $jobs = Job::where('title', 'like', "%{$q}%")
-            ->orWhere('company_name', 'like', "%{$q}%")
-            ->limit(5)->get(['id', 'title', 'company_name', 'status']);
+            ->limit(5)->get(['id', 'title', 'status']);
 
         $subscriptions = Subscription::whereHas('user', fn($uq) => $uq->where('email', 'like', "%{$q}%"))
             ->with('user:id,email', 'plan:id,name')
@@ -302,7 +310,7 @@ class AdminController extends ApiController
             ->get(['id', 'title', 'status', 'created_at']);
 
         $applications = JobApplication::where('applicant_user_id', $id)
-            ->with('job:id,title,company_name')
+            ->with('job:id,title')
             ->orderByDesc('id')->limit(10)->get();
 
         return $this->ok(compact('user', 'subscriptions', 'jobs', 'applications'));

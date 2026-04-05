@@ -16,6 +16,9 @@ use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
 use App\Services\TrialService;
 use App\Rules\StrongPassword;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -44,10 +47,19 @@ class AuthController extends Controller
         $email = $request->input('email');
         $phone = $request->input('phone');
 
-        if ($email && User::where('email', $email)->exists()) {
-            return response()->json(['message' => 'Email already exists.'], 409);
+        // If email exists but is unverified, delete the stale account so they can re-register
+        if ($email) {
+            $existing = User::where('email', $email)->first();
+            if ($existing) {
+                if (!$existing->hasVerifiedEmail()) {
+                    $existing->tokens()->delete();
+                    $existing->delete();
+                } else {
+                    return response()->json(['message' => 'Email already exists.'], 409);
+                }
+            }
         }
-        if ($phone && User::where('phone', $phone)->exists()) {
+        if ($phone && User::where('phone', $phone)->whereNotNull('email_verified_at')->exists()) {
             return response()->json(['message' => 'Phone already exists.'], 409);
         }
 
@@ -115,8 +127,9 @@ class AuthController extends Controller
             return response()->json(['message' => 'Account is disabled.'], 403);
         }
 
-        if (in_array($user->role, ['employer', 'applicant'], true) && $user->email && !$user->hasVerifiedEmail()) {
-            return response()->json(['message' => 'Please verify your email address before logging in.'], 403);
+        // Auto-verify on login if not yet verified (no longer block login)
+        if ($user->email && !$user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
         }
 
         // Successful login — clear the rate limiter
@@ -124,6 +137,9 @@ class AuthController extends Controller
 
         $user->last_login_at = now();
         $user->save();
+
+        // ── IP / location tracking & suspicious login alert ──────────────
+        $this->trackLoginLocation($user, $request);
 
         app(TrialService::class)->ensureActivated($user, $request);
         $user->refresh();
@@ -231,9 +247,8 @@ class AuthController extends Controller
             ]);
         }
 
-        $url = URL::temporarySignedRoute(
+        $url = URL::signedRoute(
             'verification.verify',
-            now()->addMinutes(60),
             [
                 'id' => $user->id,
                 'hash' => sha1($user->getEmailForVerification()),
@@ -249,27 +264,19 @@ class AuthController extends Controller
         ]);
     }
 
-    public function verifyEmail(Request $request, $id, $hash): JsonResponse
+    public function verifyEmail(Request $request, $id, $hash)
     {
         $user = User::findOrFail($id);
 
         if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
-            return response()->json(['message' => 'Invalid verification link.'], 403);
+            return redirect(config('app.frontend_url', '/') . '/verify/success?status=invalid');
         }
 
-        if ($user->hasVerifiedEmail()) {
-            return response()->json([
-                'message' => 'Email already verified.',
-                'data' => ['verified' => true],
-            ]);
+        if (!$user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
         }
 
-        $user->markEmailAsVerified();
-
-        return response()->json([
-            'message' => 'Email verified successfully!',
-            'data' => ['verified' => true],
-        ]);
+        return redirect(config('app.frontend_url', '/') . '/verify/success?status=verified');
     }
 
     public function resendVerificationEmail(Request $request): JsonResponse
@@ -490,6 +497,69 @@ class AuthController extends Controller
         $user->currentAccessToken()?->delete();
 
         return response()->json(['message' => 'Logged out.']);
+    }
+
+    private function trackLoginLocation(User $user, Request $request): void
+    {
+        try {
+            $ip = $request->ip();
+            $ua = substr((string) $request->userAgent(), 0, 500);
+
+            // Resolve country via free ip-api.com (no key needed, 45 req/min)
+            $countryCode = null;
+            $countryName = null;
+            $city        = null;
+
+            try {
+                $geoUrl  = "http://ip-api.com/json/{$ip}?fields=status,country,countryCode,city";
+                $context = stream_context_create(['http' => ['timeout' => 2]]);
+                $raw     = @file_get_contents($geoUrl, false, $context);
+                if ($raw) {
+                    $geo = json_decode($raw, true);
+                    if (($geo['status'] ?? '') === 'success') {
+                        $countryCode = $geo['countryCode'] ?? null;
+                        $countryName = $geo['country']     ?? null;
+                        $city        = $geo['city']        ?? null;
+                    }
+                }
+            } catch (\Throwable $e) {}
+
+            // Check if this country has been seen before for this user
+            $knownCountry = DB::table('login_locations')
+                ->where('user_id', $user->id)
+                ->where('country_code', $countryCode)
+                ->exists();
+
+            // Store the login location
+            DB::table('login_locations')->insert([
+                'user_id'      => $user->id,
+                'ip_address'   => $ip,
+                'country_code' => $countryCode,
+                'country_name' => $countryName,
+                'city'         => $city,
+                'user_agent'   => $ua,
+                'created_at'   => now(),
+            ]);
+
+            // Alert admin if new country and user has email
+            if (!$knownCountry && $countryCode && $user->email) {
+                $adminEmail = config('mail.from.address');
+                $when       = now()->toDateTimeString();
+                $location   = trim("{$city}, {$countryName}") ?: $countryCode;
+
+                Mail::raw(
+                    "Suspicious login alert for ClinForce.\n\n" .
+                    "User: {$user->email} (ID #{$user->id}, role: {$user->role})\n" .
+                    "New country: {$location} ({$countryCode})\n" .
+                    "IP: {$ip}\n" .
+                    "Time: {$when}\n\n" .
+                    "If this was not expected, consider suspending the account.",
+                    fn ($m) => $m->to($adminEmail)->subject("⚠️ New country login — {$user->email}")
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning('trackLoginLocation failed: ' . $e->getMessage());
+        }
     }
 
     private function userPayload(User $user): array

@@ -102,6 +102,13 @@ function normalizeAppStage(a) {
   return "new";
 }
 
+function maskLastName(fullName) {
+  if (!fullName) return 'Candidate'
+  const parts = String(fullName).trim().split(/\s+/)
+  if (parts.length < 2) return fullName
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`
+}
+
 function candidateAvatarUrl(a) {
   if (!a) return null;
   const u = a.applicant || a.user || null;
@@ -646,7 +653,7 @@ const donutChartOptions = computed(() => ({
         <div class="flex flex-col bg-gradient-to-b from-white to-slate-50 dark:from-slate-800 dark:to-slate-900 p-5 rounded-2xl border border-slate-200/70 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow duration-300">
             <span class="text-sm text-slate-600 dark:text-slate-400 font-medium mb-2 flex items-center gap-2">
                 <i class="pi pi-users text-blue-600 bg-blue-50 dark:bg-blue-900/40 p-1.5 rounded-lg text-xs"></i>
-                Total Applicants
+                Total Candidates
             </span>
              <div class="flex items-baseline gap-2">
                 <span class="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{{ kpis.totalApps }}</span>
@@ -756,7 +763,7 @@ const donutChartOptions = computed(() => ({
                         class="bg-slate-100 text-slate-600 font-bold w-9 h-9 text-xs border border-slate-200"
                       />
                       <span class="font-medium text-slate-900 dark:text-slate-100">
-                        {{ data?.applicant_name || data?.user?.name || ('Applicant #' + (data?.applicant_user_id ?? '')) || 'Candidate' }}
+                        {{ maskLastName(data?.applicant_name || data?.user?.name || ('Candidate #' + (data?.applicant_user_id ?? ''))) }}
                       </span>
                   </div>
                 </template>

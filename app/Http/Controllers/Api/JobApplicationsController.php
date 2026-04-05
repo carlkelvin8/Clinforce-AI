@@ -11,6 +11,7 @@ use App\Models\Document;
 use App\Models\Job;
 use App\Models\JobApplication;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -49,6 +50,16 @@ class JobApplicationsController extends ApiController
         // Only applicant/admin can apply
         if (!$this->isApplicantRole($u)) {
             return $this->fail('Forbidden (403). Only applicant accounts can apply.', null, 403);
+        }
+
+        // Check for existing active application to the same job
+        $existing = JobApplication::where('job_id', $job->id)
+            ->where('applicant_user_id', $u->id)
+            ->whereNotIn('status', ['withdrawn', 'rejected'])
+            ->first();
+
+        if ($existing) {
+            return $this->fail('You have already applied for this job.', ['job' => ['Already applied']], 409);
         }
 
         $v = $request->validated();
@@ -139,7 +150,7 @@ class JobApplicationsController extends ApiController
                     'portfolio_score' => 0.65,
                 ],
             ],
-            'url' => "/employer/applications/{$app->id}",
+            'url' => "/applicants/{$app->id}",
             'batch_key' => "employer:{$employerId}:job:{$app->job_id}:new_application",
         ]);
     }
@@ -261,21 +272,20 @@ class JobApplicationsController extends ApiController
         // Serve file securely
         $filePath = $resume->file_url;
         
-        // Handle full URLs - extract just the path
-        if (str_starts_with($filePath, 'http://') || str_starts_with($filePath, 'https://')) {
-            // Extract path from URL: http://127.0.0.1:8000/storage/documents/... -> documents/...
-            $parsed = parse_url($filePath);
-            $path = $parsed['path'] ?? '';
-            // Remove /storage/ prefix
-            $filePath = preg_replace('#^/storage/#', '', $path);
+        // Fix for production /build/ prefix or full URLs
+        if (str_contains($filePath, '/build/')) {
+            $filePath = str_replace('/build/', '/', $filePath);
+        }
+
+        // If it's a full URL, we need to extract the relative path after /storage/
+        if (str_contains($filePath, '/storage/')) {
+            $pos = strpos($filePath, '/storage/');
+            $filePath = substr($filePath, $pos + 9); // length of "/storage/"
         } else {
             // Remove leading slash and public prefix if present
             $filePath = ltrim($filePath, '/');
             if (str_starts_with($filePath, 'public/')) {
                 $filePath = substr($filePath, 7);
-            }
-            if (str_starts_with($filePath, 'storage/')) {
-                $filePath = substr($filePath, 8);
             }
         }
 
@@ -357,14 +367,6 @@ class JobApplicationsController extends ApiController
             $hasSubscription = $u->subscription !== null;
             
             $applications->getCollection()->transform(function ($app) use ($hasSubscription) {
-                // Add applicant name to the application object
-                if ($app->applicant && $app->applicant->applicantProfile) {
-                    $profile = $app->applicant->applicantProfile;
-                    $app->applicant_name = trim(($profile->first_name ?? '') . ' ' . ($profile->last_name ?? ''));
-                } else {
-                    $app->applicant_name = $app->applicant->email ?? 'Unknown';
-                }
-                
                 $app->has_resume = Document::query()
                     ->where('user_id', $app->applicant_user_id)
                     ->where('doc_type', 'resume')
@@ -530,5 +532,121 @@ class JobApplicationsController extends ApiController
         }
 
         return $this->ok($application->fresh(), 'Status updated');
+    }
+
+    public function withdraw(Request $request, JobApplication $application): JsonResponse
+    {
+        $u = $this->requireAuth();
+
+        if ($application->applicant_user_id !== $u->id && !$this->isAdmin($u)) {
+            return $this->fail('Forbidden', null, 403);
+        }
+
+        if (in_array($application->status, ['hired', 'rejected', 'withdrawn'], true)) {
+            return $this->fail('Cannot withdraw from current status', null, 409);
+        }
+
+        $from = $application->status;
+
+        DB::transaction(function () use ($application, $u, $request) {
+            $application->status = 'withdrawn';
+            $application->save();
+
+            ApplicationStatusHistory::query()->create([
+                'application_id'     => $application->id,
+                'from_status'        => $application->getOriginal('status') ?? 'submitted',
+                'to_status'          => 'withdrawn',
+                'changed_by_user_id' => $u->id,
+                'note'               => $request->input('reason') ?? 'Withdrawn by candidate',
+                'created_at'         => now(),
+            ]);
+        });
+
+        // Email the employer
+        try {
+            $application->load(['job.owner', 'applicant']);
+            $employerEmail = $application->job?->owner?->email;
+            if ($employerEmail) {
+                Mail::raw(
+                    "A candidate has withdrawn their application for \"{$application->job?->title}\".\n\nApplication ID: #{$application->id}",
+                    fn ($m) => $m->to($employerEmail)->subject("Application withdrawn — {$application->job?->title}")
+                );
+            }
+        } catch (\Throwable $e) {}
+
+        return $this->ok($application->fresh(), 'Application withdrawn');
+    }
+
+    public function rateCandidate(Request $request, JobApplication $application): JsonResponse
+    {
+        $u = $this->requireAuth();
+        $application->load('job');
+
+        $isOwner = $application->job
+            && in_array($u->role, ['employer', 'agency'], true)
+            && $application->job->owner_user_id === $u->id
+            && $application->job->owner_type === $u->role;
+
+        if (!$this->isAdmin($u) && !$isOwner) {
+            return $this->fail('Forbidden', null, 403);
+        }
+
+        $v = $request->validate([
+            'rating' => 'required|integer|min:1|max:5',
+            'note'   => 'nullable|string|max:1000',
+        ]);
+
+        $application->employer_rating = $v['rating'];
+        $application->employer_rating_note = $v['note'] ?? null;
+        $application->save();
+
+        return $this->ok($application, 'Rating saved');
+    }
+
+    public function exportCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $u = $this->requireAuth();
+
+        if (!$this->isOwnerRole($u)) {
+            abort(403);
+        }
+
+        $q = JobApplication::query()->with(['job', 'applicant.applicantProfile']);
+
+        if (!$this->isAdmin($u)) {
+            $q->whereHas('job', fn($jq) => $jq->where('owner_user_id', $u->id)->where('owner_type', $u->role));
+        }
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="candidates-export.csv"',
+        ];
+
+        return response()->stream(function () use ($q) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['ID', 'Candidate', 'Job', 'Status', 'Rating', 'Applied', 'Email', 'Phone']);
+
+            $q->chunk(200, function ($apps) use ($handle) {
+                foreach ($apps as $a) {
+                    $profile = $a->applicant?->applicantProfile;
+                    $first = $profile?->first_name ?? '';
+                    $last  = $profile?->last_name ?? '';
+                    $name  = trim($first . ' ' . $last) ?: ($a->applicant?->email ?? 'Candidate #' . $a->applicant_user_id);
+
+                    fputcsv($handle, [
+                        $a->id,
+                        $name,
+                        $a->job?->title ?? '',
+                        $a->status,
+                        $a->employer_rating ?? '',
+                        $a->submitted_at?->toDateString() ?? '',
+                        $a->applicant?->email ?? '',
+                        $a->applicant?->phone ?? '',
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, 200, $headers);
     }
 }

@@ -13,6 +13,146 @@ use Illuminate\Validation\Rule;
 
 class UsersController extends ApiController
 {
+    public function sessions(Request $request): JsonResponse
+    {
+        $user = $this->requireAuth();
+        $currentTokenId = $user->currentAccessToken()?->id;
+
+        $sessions = $user->tokens()
+            ->orderByDesc('last_used_at')
+            ->get()
+            ->map(fn ($t) => [
+                'id'           => $t->id,
+                'name'         => $t->name,
+                'last_used_at' => optional($t->last_used_at)->toISOString(),
+                'created_at'   => optional($t->created_at)->toISOString(),
+                'is_current'   => $t->id === $currentTokenId,
+            ]);
+
+        return $this->ok($sessions);
+    }
+
+    public function revokeSession(Request $request, int $tokenId): JsonResponse
+    {
+        $user = $this->requireAuth();
+        $deleted = $user->tokens()->where('id', $tokenId)->delete();
+        if (!$deleted) return $this->fail('Session not found', null, 404);
+        return $this->ok(['message' => 'Session revoked.']);
+    }
+
+    public function revokeAllSessions(Request $request): JsonResponse
+    {
+        $user = $this->requireAuth();
+        $currentId = $user->currentAccessToken()?->id;
+        // Revoke all except current
+        $user->tokens()->where('id', '!=', $currentId)->delete();
+        return $this->ok(['message' => 'All other sessions revoked.']);
+    }
+
+    public function loginHistory(Request $request): JsonResponse
+    {
+        $user = $this->requireAuth();
+        $history = \DB::table('login_locations')
+            ->where('user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get();
+        return $this->ok($history);
+    }
+
+    public function gdprExport(): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $user = $this->requireAuth();
+        $user->load(['applicantProfile', 'employerProfile', 'agencyProfile']);
+
+        $applications = \App\Models\JobApplication::query()
+            ->where('applicant_user_id', $user->id)
+            ->with('job:id,title,city,country')
+            ->get(['id', 'job_id', 'status', 'cover_letter', 'submitted_at', 'created_at']);
+
+        $conversations = \App\Models\ConversationParticipant::query()
+            ->where('user_id', $user->id)
+            ->with(['conversation.messages' => fn($q) => $q->where('sender_user_id', $user->id)->select('id', 'conversation_id', 'body', 'created_at')])
+            ->get();
+
+        $documents = \App\Models\Document::query()
+            ->where('user_id', $user->id)
+            ->get(['id', 'doc_type', 'file_name', 'created_at']);
+
+        $export = [
+            'exported_at'   => now()->toIso8601String(),
+            'user'          => [
+                'id'         => $user->id,
+                'email'      => $user->email,
+                'phone'      => $user->phone,
+                'role'       => $user->role,
+                'created_at' => optional($user->created_at)->toIso8601String(),
+            ],
+            'profile'       => $user->applicantProfile?->toArray() ?? $user->employerProfile?->toArray() ?? [],
+            'applications'  => $applications->toArray(),
+            'messages_sent' => $conversations->flatMap(fn($p) => $p->conversation?->messages ?? [])->values()->toArray(),
+            'documents'     => $documents->toArray(),
+        ];
+
+        $json = json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        return response()->stream(function () use ($json) {
+            echo $json;
+        }, 200, [
+            'Content-Type'        => 'application/json',
+            'Content-Disposition' => 'attachment; filename="clinforce-data-export-' . $user->id . '.json"',
+        ]);
+    }
+
+    public function requestDeletion(Request $request): JsonResponse
+    {
+        $user = $this->requireAuth();
+
+        $data = $request->validate([
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        // Schedule deletion 30 days from now — store in cache
+        $key = "account_deletion:{$user->id}";
+        \Illuminate\Support\Facades\Cache::put($key, [
+            'user_id'    => $user->id,
+            'email'      => $user->email,
+            'reason'     => $data['reason'] ?? null,
+            'requested_at' => now()->toIso8601String(),
+            'delete_at'  => now()->addDays(30)->toIso8601String(),
+        ], now()->addDays(31));
+
+        // Email confirmation
+        try {
+            \Illuminate\Support\Facades\Mail::raw(
+                "Hi,\n\nWe received a request to delete your ClinForce account.\n\n" .
+                "Your account will be permanently deleted on " . now()->addDays(30)->format('F j, Y') . ".\n\n" .
+                "If you change your mind, log in before that date and cancel the deletion from your settings.\n\n" .
+                "— ClinForce Team",
+                fn ($m) => $m->to($user->email)->subject('Account deletion scheduled — ClinForce')
+            );
+        } catch (\Throwable $e) {}
+
+        return $this->ok([
+            'message'   => 'Account deletion scheduled.',
+            'delete_at' => now()->addDays(30)->toIso8601String(),
+        ]);
+    }
+
+    public function cancelDeletion(): JsonResponse
+    {
+        $user = $this->requireAuth();
+        \Illuminate\Support\Facades\Cache::forget("account_deletion:{$user->id}");
+        return $this->ok(['message' => 'Account deletion cancelled.']);
+    }
+
+    public function deletionStatus(): JsonResponse
+    {
+        $user = $this->requireAuth();
+        $pending = \Illuminate\Support\Facades\Cache::get("account_deletion:{$user->id}");
+        return $this->ok(['pending' => $pending]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $u = $this->requireAuth();
