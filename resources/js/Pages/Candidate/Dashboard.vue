@@ -187,7 +187,7 @@
 
               <div v-else-if="jobs.length === 0" class="py-12 text-center text-slate-500 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
                 <i class="pi pi-search text-3xl mb-3 text-slate-300 dark:text-slate-600"></i>
-                <p>No specific recommendations yet.</p>
+                <p>No jobs matching your specialty yet.</p>
                 <RouterLink :to="{ name: 'candidate.jobs' }">
                   <Button label="Browse all jobs" text class="mt-2 !text-blue-600" />
                 </RouterLink>
@@ -402,7 +402,7 @@ function calcProfileCompleteness(user) {
     ap.headline,
     ap.summary,
     String(ap.years_experience ?? ""),
-    ap.country_code,
+    ap.country,
     ap.city,
   ];
   const filled = fields.filter((v) => String(v || "").trim().length > 0).length;
@@ -587,8 +587,50 @@ const pipeline = computed(() => {
 async function fetchJobs() {
   jobsLoading.value = true;
   try {
-    const res = await api.get("/public/jobs", { params: { per_page: 3 } });
-    jobs.value = unwrapPaginated(res.data);
+    const ap = meUser.value?.applicant_profile || meUser.value?.applicantProfile || null;
+    const params = { per_page: 5 };
+
+    // Use candidate's headline to find matching jobs
+    const headline = (ap?.headline || "").trim();
+    if (headline) {
+      // Extract meaningful keywords: split by common separators, filter short words
+      const keywords = headline
+        .split(/[\s•·\/\-,]+/)
+        .map(w => w.trim())
+        .filter(w => w.length >= 3)
+        .slice(0, 3);
+
+      if (keywords.length) {
+        // Search using the most specific term first (longest word)
+        keywords.sort((a, b) => b.length - a.length);
+        params.q = keywords[0];
+      }
+    }
+
+    const res = await api.get("/public/jobs", { params });
+    let results = unwrapPaginated(res.data);
+
+    // If headline produced no results, fall back to broader search
+    if (results.length === 0 && headline) {
+      const allWords = headline
+        .split(/[\s•·\/\-,]+/)
+        .map(w => w.trim())
+        .filter(w => w.length >= 3);
+      if (allWords.length > 1) {
+        // Try with second keyword
+        params.q = allWords[1];
+        const res2 = await api.get("/public/jobs", { params });
+        results = unwrapPaginated(res2.data);
+      }
+    }
+
+    // If still no results, fetch general latest jobs
+    if (results.length === 0) {
+      const res3 = await api.get("/public/jobs", { params: { per_page: 5 } });
+      results = unwrapPaginated(res3.data);
+    }
+
+    jobs.value = results;
   } finally {
     jobsLoading.value = false;
   }

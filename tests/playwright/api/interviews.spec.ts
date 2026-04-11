@@ -9,9 +9,10 @@ test.beforeAll(async ({ request }) => {
 
 test.describe('Interviews endpoints', () => {
 
-  test('GET /interviews — returns list', async ({ request }) => {
+  test('GET /interviews — returns list or 402 if trial/subscription required', async ({ request }) => {
     const res = await request.get(`${API}/interviews`, { headers: authHeaders(token) });
-    expect(res.status()).toBe(200);
+    // 200 = active trial/subscription, 402 = trial expired or no subscription
+    expect([200, 402, 403]).toContain(res.status());
   });
 
   test('GET /interviews — unauthenticated returns 401', async ({ request }) => {

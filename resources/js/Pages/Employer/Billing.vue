@@ -160,7 +160,9 @@ onMounted(async () => {
 async function startSubscription() {
   statusMsg.value = "";
   errorMsg.value  = "";
-  if (!hasPaymentMethod.value) {
+  // Trial plan: skip payment method check
+  const isTrial = selectedPrice.value?.is_trial || (typeof selectedPrice.value?.price_cents === "number" && selectedPrice.value?.price_cents === 0);
+  if (!isTrial && !hasPaymentMethod.value) {
     const r = await Swal.fire({ icon: "warning", title: "Payment Method Required", text: "Please add a payment method before subscribing.", confirmButtonText: "Add Payment Method", showCancelButton: true });
     if (r.isConfirmed) window.location.href = "/employer/payment-method";
     return;
@@ -379,7 +381,7 @@ const subscriptionPriceLabel = computed(() => {
                 <div class="h-1 w-full rounded-t-2xl" :class="p.is_trial ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-blue-500 to-indigo-600'"></div>
 
                 <div v-if="isCurrent(p)" class="absolute top-3 right-3 rounded-full bg-green-500 px-2.5 py-0.5 text-[10px] font-bold text-white uppercase shadow">Current</div>
-                <div v-else-if="p.is_trial" class="absolute top-3 right-3 rounded-full bg-emerald-500 px-2.5 py-0.5 text-[10px] font-bold text-white uppercase shadow">Free Trial</div>
+                <div v-else-if="p.is_trial" class="absolute top-3 right-3 rounded-full bg-emerald-500 px-2.5 py-0.5 text-[10px] font-bold text-white uppercase shadow">7 Days Trial</div>
 
                 <div class="flex flex-col flex-1 p-5">
                   <div class="text-sm font-bold billing-text-primary leading-snug mb-3 pr-16">{{ planName(p) }}</div>
@@ -387,7 +389,7 @@ const subscriptionPriceLabel = computed(() => {
                   <div class="mb-4">
                     <template v-if="p.is_trial">
                       <div class="text-3xl font-extrabold text-emerald-500 leading-none">Free</div>
-                      <div class="text-xs billing-text-muted mt-1">7-day access · No card required</div>
+                      <div class="text-xs billing-text-muted mt-1">7 Days Trial · No card required</div>
                     </template>
                     <template v-else>
                       <div class="flex items-baseline gap-0.5">
@@ -430,7 +432,7 @@ const subscriptionPriceLabel = computed(() => {
                   <div class="text-xs font-semibold billing-text-muted uppercase tracking-wide mb-0.5">Order Summary</div>
                   <div class="font-bold billing-text-primary">{{ planName(selectedPrice) }}</div>
                   <div class="text-sm billing-text-muted">
-                    <template v-if="selectedPrice.is_trial">Free · 7-day trial</template>
+                    <template v-if="selectedPrice.is_trial">Free · 7 Days Trial</template>
                     <template v-else>{{ planCurrencySymbol(selectedPrice) }}{{ planPriceLabel(selectedPrice) }} · {{ planInterval(selectedPrice) }}</template>
                     <span v-if="currencyInfo?.rate_is_stale" class="text-amber-500 ml-1">(estimated)</span>
                   </div>

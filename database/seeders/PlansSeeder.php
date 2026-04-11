@@ -79,7 +79,7 @@ class PlansSeeder extends Seeder
             // ── International Plans (USD) ────────────────────────────────────
             [
                 'id'                   => 4,
-                'name'                 => 'International – 7 Day Trial',
+                'name'                 => '7 Days Trial',
                 'stripe_price_id'      => 'price_intl_trial',
                 'duration_months'      => 0,        // 7 days — handled by trial logic
                 'job_post_limit'       => 5,
@@ -98,7 +98,7 @@ class PlansSeeder extends Seeder
             ],
             [
                 'id'                   => 5,
-                'name'                 => 'International – 3 Months',
+                'name'                 => '3 Months',
                 'stripe_price_id'      => 'price_intl_3mo',
                 'duration_months'      => 3,
                 'job_post_limit'       => 20,
@@ -118,7 +118,7 @@ class PlansSeeder extends Seeder
             ],
             [
                 'id'                   => 6,
-                'name'                 => 'International – 6 Months',
+                'name'                 => '6 Months',
                 'stripe_price_id'      => 'price_intl_6mo',
                 'duration_months'      => 6,
                 'job_post_limit'       => 50,
@@ -138,7 +138,7 @@ class PlansSeeder extends Seeder
             ],
             [
                 'id'                   => 7,
-                'name'                 => 'International – 1 Year',
+                'name'                 => '1 Year',
                 'stripe_price_id'      => 'price_intl_1yr',
                 'duration_months'      => 12,
                 'job_post_limit'       => 999,

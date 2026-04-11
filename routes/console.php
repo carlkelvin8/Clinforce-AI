@@ -32,6 +32,9 @@ Schedule::command('job-alerts:send')->everySixHours();
 // Subscription renewal reminders — runs daily at 9am
 Schedule::command('subscriptions:renewal-reminders')->dailyAt('09:00');
 
+// Trial ending/expired notifications — runs daily at 8am
+Schedule::command('trials:notify-ending')->dailyAt('08:00');
+
 // Process queued jobs — runs every minute (for database queue on shared hosting)
 // On a proper server, run: php artisan queue:work --daemon instead
 Schedule::command('queue:work --stop-when-empty --tries=3')->everyMinute()->withoutOverlapping();

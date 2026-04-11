@@ -161,6 +161,8 @@ const modalOpen = ref(false);
 const saving = ref(false);
 const formError = ref("");
 const formFieldErrors = ref({});
+const isEditing = ref(false);
+const editingInterviewId = ref(null);
 
 const appsLoading = ref(false);
 const applications = ref([]);
@@ -177,6 +179,8 @@ const form = ref({
 function resetForm() {
   formError.value = "";
   formFieldErrors.value = {};
+  isEditing.value = false;
+  editingInterviewId.value = null;
   const now = new Date();
   const start = new Date(now.getTime() + 60 * 60 * 1000);
   const end = new Date(start.getTime() + 30 * 60 * 1000);
@@ -242,6 +246,28 @@ function openScheduleModal() {
   loadApplications();
 }
 
+function openRescheduleModal(interview) {
+  resetForm();
+  isEditing.value = true;
+  editingInterviewId.value = interview.id;
+
+  // Pre-fill with current interview data
+  form.value.scheduled_start = new Date(interview.scheduled_start);
+  form.value.scheduled_end = new Date(interview.scheduled_end);
+  form.value.mode = interview.mode || "video";
+  form.value.meeting_link = interview.meeting_link || "";
+  form.value.location_text = interview.location_text || "";
+
+  // Load applications for the dropdown
+  loadApplications().then(() => {
+    if (interview.application_id) {
+      form.value.application_id = Number(interview.application_id);
+    }
+  });
+
+  modalOpen.value = true;
+}
+
 function closeScheduleModal() {
   modalOpen.value = false;
 }
@@ -293,17 +319,6 @@ async function submitSchedule() {
   saving.value = true;
 
   try {
-    if (!form.value.application_id) {
-      formError.value = "Please select an application.";
-      return;
-    }
-
-    const appId = Number(form.value.application_id);
-    if (!appId || appId <= 0) {
-      formError.value = "Invalid application selected. Please choose again.";
-      return;
-    }
-
     const start = form.value.scheduled_start;
     const end = form.value.scheduled_end;
 
@@ -312,7 +327,6 @@ async function submitSchedule() {
       return;
     }
 
-    // Send local datetime string (not UTC) so server's after:now check works correctly
     function toLocalISO(d) {
       const pad = n => String(n).padStart(2, '0');
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
@@ -326,10 +340,32 @@ async function submitSchedule() {
       location_text: form.value.location_text?.trim() || null,
     };
 
-    const res = await api.post(`/applications/${appId}/interviews`, payload);
-    const created = unwrap(res.data);
+    if (isEditing.value && editingInterviewId.value) {
+      // Update existing interview
+      const res = await api.put(`/interviews/${editingInterviewId.value}`, payload);
+      const updated = unwrap(res.data);
+      const idx = interviews.value.findIndex(iv => iv.id === updated.id);
+      if (idx >= 0) interviews.value[idx] = updated;
+      else interviews.value = [...interviews.value, updated];
+    } else {
+      // Create new interview
+      if (!form.value.application_id) {
+        formError.value = "Please select an application.";
+        return;
+      }
 
-    interviews.value = [...interviews.value, created].sort((a, b) => {
+      const appId = Number(form.value.application_id);
+      if (!appId || appId <= 0) {
+        formError.value = "Invalid application selected. Please choose again.";
+        return;
+      }
+
+      const res = await api.post(`/applications/${appId}/interviews`, payload);
+      const created = unwrap(res.data);
+      interviews.value = [...interviews.value, created];
+    }
+
+    interviews.value.sort((a, b) => {
       const da = parseDate(a?.scheduled_start)?.getTime() ?? 0;
       const db = parseDate(b?.scheduled_start)?.getTime() ?? 0;
       return da - db;
@@ -343,7 +379,7 @@ async function submitSchedule() {
       formError.value = payload?.message || "Validation failed.";
       setFieldErrors(payload);
     } else {
-      formError.value = payload?.message || "Failed to schedule interview.";
+      formError.value = payload?.message || (isEditing.value ? "Failed to reschedule interview." : "Failed to schedule interview.");
     }
   } finally {
     saving.value = false;
@@ -648,6 +684,16 @@ async function submitFeedback() {
                 <Column header="Actions" style="min-width: 260px">
                     <template #body="{ data }">
                         <div class="flex items-center gap-2 flex-wrap">
+                            <!-- Reschedule (only for non-cancelled, non-completed) -->
+                            <Button
+                                v-if="data?.status !== 'cancelled' && data?.status !== 'completed'"
+                                label="Reschedule"
+                                icon="pi pi-calendar-plus"
+                                size="small"
+                                outlined
+                                class="!text-xs !px-3 !py-1.5 !border-amber-200 !text-amber-700 hover:!bg-amber-50 hover:!border-amber-300 transition-colors"
+                                @click="openRescheduleModal(data)"
+                            />
                             <!-- View Application -->
                             <Button
                                 label="Application"
@@ -793,11 +839,11 @@ async function submitFeedback() {
         </Dialog>
 
         <!-- Modal -->
-        <Dialog v-model:visible="modalOpen" header="Schedule Interview" modal :style="{ width: '50rem' }" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }" class="p-fluid">
+        <Dialog v-model:visible="modalOpen" modal :style="{ width: '50rem' }" :breakpoints="{ '1199px': '75vw', '575px': '90vw' }" class="p-fluid">
              <template #header>
                 <div class="flex flex-col gap-1">
-                    <span class="text-xl font-bold text-gray-900">Schedule Interview</span>
-                    <span class="text-sm text-gray-500">Set up a new meeting with a candidate</span>
+                    <span class="text-xl font-bold text-gray-900">{{ isEditing ? 'Reschedule Interview' : 'Schedule Interview' }}</span>
+                    <span class="text-sm text-gray-500">{{ isEditing ? 'Update the meeting date, time, or details' : 'Set up a new meeting with a candidate' }}</span>
                 </div>
              </template>
 
@@ -807,20 +853,20 @@ async function submitFeedback() {
              </div>
 
              <div class="space-y-6 py-2">
-                 <div class="flex flex-col gap-2">
+                 <div v-if="!isEditing" class="flex flex-col gap-2">
                      <label class="text-sm font-semibold text-gray-700">Application</label>
-                     <Select 
-                        v-model="form.application_id" 
-                        :options="applicationOptions" 
-                        optionLabel="label" 
-                        optionValue="appId" 
-                        placeholder="Select candidate application..." 
-                        :disabled="appsLoading" 
-                        filter 
+                     <Select
+                        v-model="form.application_id"
+                        :options="applicationOptions"
+                        optionLabel="label"
+                        optionValue="appId"
+                        placeholder="Select candidate application..."
+                        :disabled="appsLoading"
+                        filter
                         filterPlaceholder="Search by name or job..."
                         :filterFields="['label']"
-                        class="w-full" 
-                        :class="{'p-invalid': formFieldErrors?.application_id}" 
+                        class="w-full"
+                        :class="{'p-invalid': formFieldErrors?.application_id}"
                         :loading="appsLoading"
                         emptyFilterMessage="No matching applications found"
                         emptyMessage="No applications available"
@@ -830,8 +876,14 @@ async function submitFeedback() {
                      <small v-if="formFieldErrors?.application_id" class="text-red-600 text-xs">{{ formFieldErrors.application_id[0] }}</small>
                  </div>
 
-                 <!-- Selected Application Detail -->
-                 <div v-if="selectedApplication" class="p-4 bg-slate-50 rounded-2xl border border-slate-100 animate-fade-in">
+                 <!-- Rescheduling note -->
+                 <div v-if="isEditing" class="p-3 bg-amber-50 rounded-lg border border-amber-200 text-sm text-amber-700 flex items-start gap-2">
+                    <i class="pi pi-exclamation-triangle mt-0.5"></i>
+                    <span>Changing the date/time will notify the candidate about the reschedule.</span>
+                 </div>
+
+                 <!-- Selected Application Detail (create mode only) -->
+                 <div v-if="!isEditing && selectedApplication" class="p-4 bg-slate-50 rounded-2xl border border-slate-100 animate-fade-in">
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-xs font-black text-slate-400 uppercase tracking-widest">Candidate Details</span>
                         <Tag :value="selectedApplication.status" severity="secondary" class="uppercase text-[10px]" rounded />
@@ -853,15 +905,36 @@ async function submitFeedback() {
                     </div>
                  </div>
 
+                 <!-- Date/Time pickers -->
                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                      <div class="flex flex-col gap-2">
-                         <label class="text-sm font-semibold text-gray-700">Start Time</label>
-                         <DatePicker v-model="form.scheduled_start" showTime hourFormat="12" class="w-full" :class="{'p-invalid': formFieldErrors?.scheduled_start}" />
+                         <label class="text-sm font-semibold text-gray-700">Start Date & Time</label>
+                         <DatePicker
+                           v-model="form.scheduled_start"
+                           showTime
+                           showIcon
+                           hourFormat="12"
+                           date-format="M dd, yy"
+                           placeholder="Select date & time"
+                           class="w-full"
+                           :class="{'p-invalid': formFieldErrors?.scheduled_start}"
+                           :manualInput="false"
+                         />
                          <small v-if="formFieldErrors?.scheduled_start" class="text-red-600 text-xs">{{ formFieldErrors.scheduled_start[0] }}</small>
                      </div>
                      <div class="flex flex-col gap-2">
-                         <label class="text-sm font-semibold text-gray-700">End Time</label>
-                         <DatePicker v-model="form.scheduled_end" showTime hourFormat="12" class="w-full" :class="{'p-invalid': formFieldErrors?.scheduled_end}" />
+                         <label class="text-sm font-semibold text-gray-700">End Date & Time</label>
+                         <DatePicker
+                           v-model="form.scheduled_end"
+                           showTime
+                           showIcon
+                           hourFormat="12"
+                           date-format="M dd, yy"
+                           placeholder="Select date & time"
+                           class="w-full"
+                           :class="{'p-invalid': formFieldErrors?.scheduled_end}"
+                           :manualInput="false"
+                         />
                          <small v-if="formFieldErrors?.scheduled_end" class="text-red-600 text-xs">{{ formFieldErrors.scheduled_end[0] }}</small>
                      </div>
                  </div>
@@ -872,7 +945,7 @@ async function submitFeedback() {
                          <Select v-model="form.mode" :options="modeOptions" optionLabel="label" optionValue="value" class="w-full" :class="{'p-invalid': formFieldErrors?.mode}" />
                          <small v-if="formFieldErrors?.mode" class="text-red-600 text-xs">{{ formFieldErrors.mode[0] }}</small>
                      </div>
-                     
+
                      <div class="flex flex-col gap-2">
                          <div v-if="form.mode === 'in_person'" class="flex flex-col gap-2">
                              <label class="text-sm font-semibold text-gray-700">Location</label>
@@ -891,7 +964,7 @@ async function submitFeedback() {
              <template #footer>
                 <div class="flex justify-end gap-2 pt-4">
                     <Button label="Cancel" icon="pi pi-times" text severity="secondary" @click="closeScheduleModal" />
-                    <Button label="Save Schedule" icon="pi pi-check" @click="submitSchedule" :loading="saving" />
+                    <Button :label="isEditing ? 'Update Schedule' : 'Save Schedule'" :icon="isEditing ? 'pi pi-calendar-plus' : 'pi pi-check'" @click="submitSchedule" :loading="saving" />
                 </div>
              </template>
         </Dialog>

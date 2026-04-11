@@ -209,4 +209,46 @@ class ProfilesController extends ApiController
 
         return $this->ok($profile, 'Profile saved');
     }
+
+    /**
+     * POST /me/applicant/avatar
+     */
+    public function uploadApplicantAvatar(Request $request): JsonResponse
+    {
+        $u = $this->requireAuth();
+        if ($u->role !== 'applicant') {
+            return $this->fail('Only applicants can upload avatars', null, 403);
+        }
+
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+        ]);
+
+        $profile = ApplicantProfile::query()->firstOrCreate(
+            ['user_id' => $u->id],
+            ['user_id' => $u->id]
+        );
+
+        $file = $request->file('avatar');
+        $ext = $file->getClientOriginalExtension() ?: 'jpg';
+        $name = 'avatar_' . $u->id . '_' . time() . '.' . $ext;
+
+        // Store directly under public/uploads/avatars to avoid symlink issues
+        $destDir = public_path('uploads/avatars');
+        if (!is_dir($destDir)) {
+            mkdir($destDir, 0755, true);
+        }
+
+        $file->move($destDir, $name);
+
+        $publicPath = 'uploads/avatars/' . $name;
+        $profile->update(['avatar' => $publicPath]);
+
+        $avatarUrl = '/' . $publicPath;
+
+        return $this->ok([
+            'avatar_url' => $avatarUrl,
+            'avatar' => $avatarUrl,
+        ], 'Avatar uploaded');
+    }
 }

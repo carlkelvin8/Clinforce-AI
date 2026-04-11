@@ -25,10 +25,8 @@ const editingId = ref(null)
 
 const employmentOptions = [
   { label: 'Any', value: '' },
-  { label: 'Full-time', value: 'full_time' },
-  { label: 'Part-time', value: 'part_time' },
-  { label: 'Contract', value: 'contract' },
-  { label: 'Temporary', value: 'temporary' },
+  { label: 'Full-Time/Part-Time', value: 'full_time_part_time' },
+  { label: 'Contract/Temporary', value: 'contract_temporary' },
   { label: 'Internship', value: 'internship' },
 ]
 const workModeOptions = [

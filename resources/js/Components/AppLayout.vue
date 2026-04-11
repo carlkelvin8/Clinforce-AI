@@ -10,6 +10,7 @@ import Badge from 'primevue/badge';
 import OverlayBadge from 'primevue/overlaybadge';
 import Popover from 'primevue/popover';
 import Drawer from 'primevue/drawer';
+import Dialog from 'primevue/dialog';
 import ChatbotWidget from '@/Components/ChatbotWidget.vue';
 import MarketingPopup from '@/Components/MarketingPopup.vue';
 import StickyMarketingCard from '@/Components/StickyMarketingCard.vue';
@@ -60,13 +61,13 @@ const userInitials = computed(() => (user.value?.name || user.value?.email || 'U
 
 const trialStatus = computed(() => {
     if (!user.value || user.value.role !== 'employer') return null;
-    
+
     // Check if subscription is active
     if (user.value.has_active_subscription) return 'subscribed';
 
     if (user.value.on_trial) return 'trial_active';
     if (user.value.has_expired_trial) return 'trial_expired';
-    
+
     return null;
 });
 
@@ -76,6 +77,21 @@ const trialDaysLeft = computed(() => {
     const now = new Date();
     const diff = end - now;
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
+});
+
+const trialTimeLeft = computed(() => {
+    if (!user.value?.trial_ends_at) return { days: 0, hours: 0, isPast: true };
+    const end = new Date(user.value.trial_ends_at);
+    const now = new Date();
+    const diff = end - now;
+    if (diff <= 0) return { days: 0, hours: 0, isPast: true };
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    return { days, hours, isPast: false };
+});
+
+const showTrialExpiredModal = computed(() => {
+    return trialStatus.value === 'trial_expired' && user.value?.role === 'employer';
 });
 
 function goToBilling() {
@@ -230,7 +246,7 @@ const employerNavGroups = [
     {
         title: 'Hiring',
         items: [
-            { label: 'Jobs', icon: 'pi pi-briefcase', to: { name: 'employer.jobs' } },
+            { label: 'Jobs Posted', icon: 'pi pi-briefcase', to: { name: 'employer.jobs' } },
             { label: 'Pipeline', icon: 'pi pi-th-large', to: { name: 'employer.pipeline' } },
             { label: 'Candidates', icon: 'pi pi-users', to: { name: 'applicants.list' } },
             { label: 'Compare', icon: 'pi pi-sliders-h', to: { name: 'employer.compare' } },
@@ -313,10 +329,17 @@ onMounted(() => {
 
         <!-- Trial Banner -->
             <div v-if="trialStatus === 'trial_active'" class="bg-indigo-600 text-white px-4 py-2 text-sm text-center font-medium z-50">
-              Your free trial ends in {{ trialDaysLeft }} days. <span class="underline cursor-pointer ml-1 font-bold" @click="goToBilling">Subscribe now</span> to keep access.
+              <template v-if="trialTimeLeft.days > 0">
+                Your free trial ends in <strong>{{ trialTimeLeft.days }} day{{ trialTimeLeft.days === 1 ? '' : 's' }}</strong> and <strong>{{ trialTimeLeft.hours }}h</strong>.
+              </template>
+              <template v-else>
+                Your free trial ends in <strong>{{ trialTimeLeft.hours }} hour{{ trialTimeLeft.hours === 1 ? '' : 's' }}</strong>.
+              </template>
+              <span class="underline cursor-pointer ml-1 font-bold" @click="goToBilling">Subscribe now</span> to keep access.
             </div>
             <div v-else-if="trialStatus === 'trial_expired'" class="bg-red-600 text-white px-4 py-2 text-sm text-center font-bold z-50">
-              Your free trial has expired. <span class="underline cursor-pointer ml-1 text-white hover:text-gray-100" @click="goToBilling">Subscribe now</span> to restore access.
+              <i class="pi pi-exclamation-triangle mr-1"></i>
+              Your free trial has expired. <span class="underline cursor-pointer ml-1 text-white hover:text-gray-100" @click="goToBilling">Choose a subscription plan now</span> to restore access.
             </div>
             <div v-else-if="user.in_grace_period" class="bg-amber-500 text-white px-4 py-2 text-sm text-center font-medium z-50">
               Your subscription has expired. You have a 24-hour grace period. <span class="underline cursor-pointer ml-1 font-bold" @click="goToBilling">Renew now</span> to avoid interruption.
@@ -517,6 +540,56 @@ onMounted(() => {
             <MarketingPopup v-if="!isAuthed" />
             <StickyMarketingCard v-if="!isAuthed" />
             <Toast position="bottom-right" />
+
+            <!-- Persistent Trial Expired Blocking Modal -->
+            <Dialog
+                v-model:visible="showTrialExpiredModal"
+                modal
+                :closable="false"
+                :closeOnEscape="false"
+                :dismissableMask="false"
+                :style="{ width: '520px' }"
+                class="trial-expired-modal"
+            >
+                <template #header>
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                            <i class="pi pi-exclamation-triangle text-red-500 text-xl"></i>
+                        </div>
+                        <div>
+                            <div class="text-lg font-bold text-slate-900">Trial Expired</div>
+                            <div class="text-xs text-slate-500">Your 7-day free trial has ended</div>
+                        </div>
+                    </div>
+                </template>
+                <div class="space-y-4 pb-2">
+                    <p class="text-sm text-slate-700">
+                        You no longer have access to candidate profiles, messaging, interview scheduling, or other hiring features.
+                    </p>
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                        <div class="text-sm font-bold text-slate-900 mb-2">What's included with a subscription:</div>
+                        <ul class="space-y-1.5 text-sm text-slate-600">
+                            <li class="flex items-center gap-2"><i class="pi pi-check text-green-500 text-xs"></i> Post and manage job listings</li>
+                            <li class="flex items-center gap-2"><i class="pi pi-check text-green-500 text-xs"></i> View candidate profiles &amp; resumes</li>
+                            <li class="flex items-center gap-2"><i class="pi pi-check text-green-500 text-xs"></i> Message and interview candidates</li>
+                            <li class="flex items-center gap-2"><i class="pi pi-check text-green-500 text-xs"></i> AI-powered candidate screening</li>
+                            <li class="flex items-center gap-2"><i class="pi pi-check text-green-500 text-xs"></i> Analytics dashboard &amp; reporting</li>
+                        </ul>
+                    </div>
+                    <p class="text-sm text-slate-700 font-medium text-center">
+                        Choose a plan that fits your hiring needs — start from just $49.99/month.
+                    </p>
+                </div>
+                <template #footer>
+                    <Button
+                        label="View Subscription Plans"
+                        icon="pi pi-arrow-right"
+                        iconPos="right"
+                        class="w-full !rounded-xl !bg-blue-600 hover:!bg-blue-700 !text-sm"
+                        @click="goToBilling"
+                    />
+                </template>
+            </Dialog>
         </div>
     </div>
 </template>

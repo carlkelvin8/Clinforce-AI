@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use App\Http\Controllers\Api\AuthController as ApiAuthController;
+use App\Http\Controllers\Web\JobPublicController;
 
 // Simple test route that bypasses sessions
 Route::get('/test', function () {
@@ -109,6 +110,12 @@ Route::get('/forgot-password', function () {
 })->name('password.request.page');
 
 Route::view('/', 'app');
+
+// Public job page with Open Graph meta tags for social sharing
+Route::get('/candidate/jobs/{job}', [JobPublicController::class, 'show'])
+    ->middleware('detect.social')
+    ->name('jobs.public.show')
+    ->whereNumber('job');
 
 Route::view('/{any}', 'app')
     ->where('any', '^(?!api).*$');

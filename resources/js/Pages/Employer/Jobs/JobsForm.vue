@@ -43,9 +43,47 @@ const form = ref({
     city: "",
     salary_min: "",
     salary_max: "",
+    salary_type: "annually",
     salary_currency: "USD",
     closes_at: null,
 });
+
+// Computed formatted display values for salary fields
+const salaryMinDisplay = computed({
+    get() { return formatNumber(form.value.salary_min); },
+    set(val) { form.value.salary_min = stripNumber(val); },
+});
+const salaryMaxDisplay = computed({
+    get() { return formatNumber(form.value.salary_max); },
+    set(val) { form.value.salary_max = stripNumber(val); },
+});
+
+// Format a raw number string with commas and 2 decimals: "10000" -> "10,000.00"
+function formatNumber(raw) {
+    const stripped = String(raw || "").replace(/[^0-9.]/g, "");
+    if (stripped === "" || stripped === ".") return "";
+    // Allow partial typing: don't format if user is still typing decimals
+    const num = parseFloat(stripped);
+    if (isNaN(num)) return "";
+    // If ends with dot or has incomplete decimal, show as-is with commas on integer part
+    if (stripped.endsWith(".")) {
+        const parts = stripped.split(".");
+        return Number(parts[0] || "0").toLocaleString("en-US") + ".";
+    }
+    const parts = stripped.split(".");
+    const intPart = Number(parts[0] || "0").toLocaleString("en-US");
+    if (parts.length === 2) {
+        // Pad or truncate decimal to 2
+        let dec = parts[1].slice(0, 2);
+        return intPart + "." + dec;
+    }
+    return intPart + ".00";
+}
+
+// Strip formatting to get raw number: "10,000.00" -> "10000"
+function stripNumber(formatted) {
+    return String(formatted || "").replace(/[^0-9.]/g, "");
+}
 
 // Duplicate detection
 const duplicates = ref([]);
@@ -64,10 +102,8 @@ watch(() => form.value.title, (val) => {
 });
 
 const employmentTypes = [
-    { label: 'Full-time', value: 'full_time' },
-    { label: 'Part-time', value: 'part_time' },
-    { label: 'Contract', value: 'contract' },
-    { label: 'Temporary', value: 'temporary' },
+    { label: 'Full-Time/Part-Time', value: 'full_time_part_time' },
+    { label: 'Contract/Temporary', value: 'contract_temporary' },
     { label: 'Internship', value: 'internship' }
 ];
 
@@ -109,6 +145,7 @@ async function load() {
         form.value.city = j.city || "";
         form.value.salary_min = j.salary_min ?? "";
         form.value.salary_max = j.salary_max ?? "";
+        form.value.salary_type = j.salary_type || "annually";
         form.value.salary_currency = j.salary_currency || "USD";
         form.value.closes_at = j.closes_at ? new Date(j.closes_at) : null;
     } catch (e) {
@@ -137,6 +174,7 @@ async function save() {
         city: String(form.value.city || "").trim() || null,
         salary_min: form.value.salary_min !== "" ? Number(form.value.salary_min) : null,
         salary_max: form.value.salary_max !== "" ? Number(form.value.salary_max) : null,
+        salary_type: form.value.salary_type || null,
         salary_currency: form.value.salary_currency || null,
         closes_at: form.value.closes_at ? new Date(form.value.closes_at).toISOString().split('T')[0] : null,
     };
@@ -166,10 +204,7 @@ async function save() {
     }
 }
 
-onMounted(load);
-
 // ── Job template auto-fill ──────────────────────────────────
-import { http } from '@/lib/http'
 const templates = ref([])
 const selectedTemplate = ref(null)
 
@@ -196,6 +231,7 @@ function applyTemplate(id) {
   form.value.city           = t.city           || form.value.city
   form.value.salary_min     = t.salary_min     ?? form.value.salary_min
   form.value.salary_max     = t.salary_max     ?? form.value.salary_max
+  form.value.salary_type    = t.salary_type    || form.value.salary_type
   form.value.salary_currency= t.salary_currency|| form.value.salary_currency
 }
 
@@ -329,14 +365,26 @@ onMounted(() => { load(); loadTemplates() })
                                 <i class="pi pi-dollar text-blue-600"></i>
                                 Salary Range <span class="text-sm font-normal text-slate-400 ml-1">(optional)</span>
                             </h3>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 <div class="flex flex-col gap-2">
                                     <label for="salary_min" class="font-medium text-slate-700">Minimum</label>
-                                    <InputText id="salary_min" v-model="form.salary_min" type="number" min="0" placeholder="e.g. 30000" :disabled="loading" class="w-full !border-slate-300" />
+                                    <InputText id="salary_min" v-model="salaryMinDisplay" type="text" placeholder="e.g. 10,000.00" :disabled="loading" class="w-full !border-slate-300" />
                                 </div>
                                 <div class="flex flex-col gap-2">
                                     <label for="salary_max" class="font-medium text-slate-700">Maximum</label>
-                                    <InputText id="salary_max" v-model="form.salary_max" type="number" min="0" placeholder="e.g. 60000" :disabled="loading" class="w-full !border-slate-300" />
+                                    <InputText id="salary_max" v-model="salaryMaxDisplay" type="text" placeholder="e.g. 20,000.00" :disabled="loading" class="w-full !border-slate-300" />
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <label for="salary_type" class="font-medium text-slate-700">Annually / Rate per hour</label>
+                                    <Select
+                                        id="salary_type"
+                                        v-model="form.salary_type"
+                                        :options="[{label:'Annually',value:'annually'},{label:'Rate per hour',value:'hourly'}]"
+                                        optionLabel="label"
+                                        optionValue="value"
+                                        :disabled="loading"
+                                        class="w-full !border-slate-300"
+                                    />
                                 </div>
                                 <div class="flex flex-col gap-2">
                                     <label for="salary_currency" class="font-medium text-slate-700">Currency</label>

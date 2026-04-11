@@ -10,7 +10,7 @@ class SubscriptionService
 {
     /**
      * Check if a user (employer/agency) has active access.
-     * Includes a 24-hour grace period after expiry.
+     * Includes: active trial period, active subscription, or 24-hour grace period.
      * Admins and applicants are always allowed.
      */
     public function hasAccess(int $userId): bool
@@ -21,7 +21,14 @@ class SubscriptionService
         // Non-paying roles always pass
         if (in_array($user->role, ['admin', 'applicant'], true)) return true;
 
-        return $this->hasActiveSubscription($userId) || $this->isInGracePeriod($userId);
+        // Active subscription
+        if ($this->hasActiveSubscription($userId)) return true;
+
+        // Active trial period
+        if ($user->onTrial()) return true;
+
+        // Grace period after subscription expires
+        return $this->isInGracePeriod($userId);
     }
 
     /**
@@ -88,12 +95,16 @@ class SubscriptionService
             ->first();
     }
 
-    /** Check if employer can post jobs (needs active subscription). */
+    /** Check if employer can post jobs (needs active subscription or trial). */
     public function canPostJobs(int $userId): bool
     {
         $user = User::find($userId);
         if (!$user) return false;
         if (in_array($user->role, ['admin'], true)) return true;
+
+        // Active trial allows job posting
+        if ($user->onTrial()) return true;
+
         return $this->hasActiveSubscription($userId);
     }
 
@@ -105,9 +116,11 @@ class SubscriptionService
         return (bool) ($sub->plan?->ai_screening_enabled ?? false);
     }
 
-    /** Check if employer can send invitations. */
+    /** Check if employer can send invitations (active subscription or trial). */
     public function canSendInvitations(int $userId): bool
     {
+        $user = User::find($userId);
+        if ($user && $user->onTrial()) return true;
         return $this->hasActiveSubscription($userId);
     }
 }

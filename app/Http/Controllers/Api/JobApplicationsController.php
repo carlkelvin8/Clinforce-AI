@@ -353,6 +353,10 @@ class JobApplicationsController extends ApiController
             $q->where('status', $status);
         }
 
+        if ($jobId = request()->query('job_id')) {
+            $q->where('job_id', (int) $jobId);
+        }
+
         $applications = $q->orderByDesc('id')->paginate(20);
 
         \Log::info('Applications fetched', [

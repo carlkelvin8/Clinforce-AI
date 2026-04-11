@@ -13,6 +13,7 @@ import InputText from "primevue/inputtext";
 import Select from "primevue/select";
 import Tag from "primevue/tag";
 import Message from "primevue/message";
+import Dialog from "primevue/dialog";
 
 /** ===== Sidebar ===== */
 const route = useRoute();
@@ -25,6 +26,9 @@ const q = ref("");
 const status = ref("all"); // all | open | closed | draft
 const sort = ref("recent"); // recent | title
 const rows = ref([]);
+
+// Applicant dialogs state
+const applicantDialog = ref({ visible: false, title: "", type: "", job: null, applicants: [], loading: false });
 
 // ---- helpers ----
 function normalizeStatus(r) {
@@ -110,6 +114,57 @@ function getActiveCount(job) {
 
 function getViewCount(job) {
   return job?.views_count ?? (job?.views ?? 0);
+}
+
+async function openApplicantDialog(job, type) {
+  const title = pickTitle(job);
+  applicantDialog.value = { visible: true, title, type, job, applicants: [], loading: true };
+
+  try {
+    const params = { scope: "owned", job_id: job.id, per_page: 100 };
+    // For "Views" type, we just show the count since views don't have individual applicant records
+    if (type === "views") {
+      applicantDialog.value.loading = false;
+      applicantDialog.value.applicants = [];
+      return;
+    }
+
+    const res = await http.get("/applications", { params });
+    const d = res.data?.data ?? res.data;
+    let apps = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : []);
+
+    // Filter by status type
+    if (type === "active") {
+      const activeStatuses = ["submitted", "shortlisted", "interview"];
+      apps = apps.filter(a => activeStatuses.includes(String(a?.status || "").toLowerCase()));
+    } else if (type === "applied") {
+      // Show all applicants
+    }
+
+    applicantDialog.value.applicants = apps;
+  } catch {
+    applicantDialog.value.applicants = [];
+  } finally {
+    applicantDialog.value.loading = false;
+  }
+}
+
+function formatDateShort(val) {
+  if (!val) return "—";
+  const d = new Date(val);
+  if (!Number.isFinite(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function statusBadgeColor(status) {
+  const s = String(status || "").toLowerCase();
+  if (s === "submitted") return "bg-blue-100 text-blue-700";
+  if (s === "shortlisted") return "bg-green-100 text-green-700";
+  if (s === "interview") return "bg-purple-100 text-purple-700";
+  if (s === "hired") return "bg-emerald-100 text-emerald-700";
+  if (s === "rejected") return "bg-red-100 text-red-700";
+  if (s === "withdrawn") return "bg-slate-100 text-slate-500";
+  return "bg-slate-100 text-slate-600";
 }
 
 function normalizeRows(payload) {
@@ -354,15 +409,18 @@ onBeforeUnmount(() => {
 
             <!-- Stats Grid -->
             <div class="grid grid-cols-3 gap-2 py-3 border-t border-b border-slate-100 dark:border-slate-700 mb-4 bg-slate-50/50 dark:bg-slate-900/50 rounded-lg">
-                <div class="text-center px-2">
+                <div class="text-center px-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative z-20"
+                     @click.stop="openApplicantDialog(r, 'applied')">
                     <div class="text-lg font-bold text-slate-900 dark:text-slate-100">{{ getApplicationCount(r) || 0 }}</div>
                     <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Applied</div>
                 </div>
-                <div class="text-center px-2 border-l border-slate-200 dark:border-slate-700">
+                <div class="text-center px-2 border-l border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative z-20"
+                     @click.stop="openApplicantDialog(r, 'active')">
                     <div class="text-lg font-bold text-green-600">{{ getActiveCount(r) || 0 }}</div>
                     <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Active</div>
                 </div>
-                <div class="text-center px-2 border-l border-slate-200 dark:border-slate-700">
+                <div class="text-center px-2 border-l border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative z-20"
+                     @click.stop="openApplicantDialog(r, 'views')">
                     <div class="text-lg font-bold text-blue-600">{{ getViewCount(r) || 0 }}</div>
                     <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Views</div>
                 </div>
@@ -403,6 +461,67 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </AppLayout>
+
+  <!-- Applicant Detail Dialog -->
+  <Dialog v-model:visible="applicantDialog.visible"
+          :header="`${applicantDialog.title} — ${applicantDialog.type === 'applied' ? 'All Applicants' : applicantDialog.type === 'active' ? 'Active Applicants' : 'Views'}`"
+          :style="{ width: '640px' }"
+          modal
+          :closable="true"
+          class="!rounded-2xl">
+    <!-- Loading -->
+    <div v-if="applicantDialog.loading" class="flex items-center justify-center py-12">
+      <i class="pi pi-spin pi-spinner text-3xl text-blue-500 mr-3"></i>
+      <span class="text-slate-500 text-sm">Loading applicants…</span>
+    </div>
+
+    <!-- Views summary -->
+    <div v-else-if="applicantDialog.type === 'views'" class="py-6 text-center">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 text-blue-600 mb-4">
+        <i class="pi pi-eye text-2xl"></i>
+      </div>
+      <p class="text-lg font-bold text-slate-900">{{ getViewCount(applicantDialog.job) || 0 }} total views</p>
+      <p class="text-sm text-slate-500 mt-1">This job has been viewed by candidates.</p>
+    </div>
+
+    <!-- No applicants -->
+    <div v-else-if="applicantDialog.applicants.length === 0" class="py-8 text-center">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-slate-100 text-slate-400 mb-3">
+        <i class="pi pi-users text-xl"></i>
+      </div>
+      <p class="text-slate-500 font-medium">No applicants found</p>
+      <p class="text-xs text-slate-400 mt-1">No one has applied to this role yet.</p>
+    </div>
+
+    <!-- Applicant list -->
+    <div v-else class="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+      <div v-for="app in applicantDialog.applicants" :key="app.id"
+           class="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer"
+           @click="$router.push({ name: 'applicants.view', params: { id: app.id } }); applicantDialog.visible = false;">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          <!-- Avatar -->
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+            {{ (app.applicant_name || app.applicant?.email || 'A').charAt(0).toUpperCase() }}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="font-semibold text-sm text-slate-900 truncate">
+              {{ app.applicant_name || app.applicant?.email || 'Anonymous' }}
+            </div>
+            <div class="text-xs text-slate-500">
+              Applied {{ formatDateShort(app.submitted_at || app.created_at) }}
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 ml-2">
+          <span class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                :class="statusBadgeColor(app.status)">
+            {{ app.status || 'submitted' }}
+          </span>
+          <i class="pi pi-chevron-right text-xs text-slate-400"></i>
+        </div>
+      </div>
+    </div>
+  </Dialog>
 </template>
 
 <style scoped>

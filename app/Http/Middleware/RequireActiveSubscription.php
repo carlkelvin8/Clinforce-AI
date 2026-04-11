@@ -20,8 +20,8 @@ class RequireActiveSubscription
             return $this->respondUnauthorized($request);
         }
 
-        // Only employers need subscriptions
-        if ($user->role !== 'employer') {
+        // Only employers and agencies need subscriptions
+        if (!in_array($user->role, ['employer', 'agency'], true)) {
             return $next($request);
         }
 

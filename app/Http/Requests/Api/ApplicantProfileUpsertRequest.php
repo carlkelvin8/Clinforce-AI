@@ -43,6 +43,7 @@ class ApplicantProfileUpsertRequest extends FormRequest
             'work_setup'      => ['nullable','in:onsite,hybrid,remote'],
             'open_to_work'    => ['nullable','boolean'],
             'portfolio_links' => ['nullable','array'],
+            'avatar'          => ['nullable','string','max:500'],
         ];
     }
 

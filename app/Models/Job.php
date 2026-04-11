@@ -24,6 +24,7 @@ class Job extends Model
         'archived_at',
         'salary_min',
         'salary_max',
+        'salary_type',
         'salary_currency',
         'closes_at',
         'view_count',

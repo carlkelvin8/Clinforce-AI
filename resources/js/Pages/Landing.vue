@@ -1,3 +1,4 @@
+
 <template>
   <AppLayout :guestFull="true">
     <div class="relative min-h-screen overflow-hidden font-sans bg-slate-50/30 dark:bg-slate-950">

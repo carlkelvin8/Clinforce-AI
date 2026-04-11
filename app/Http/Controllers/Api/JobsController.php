@@ -135,6 +135,7 @@ class JobsController extends Controller
             'city'            => $request->city,
             'salary_min'      => $request->salary_min,
             'salary_max'      => $request->salary_max,
+            'salary_type'     => $request->salary_type ?: 'annually',
             'salary_currency' => $request->salary_currency,
             'status'          => 'draft',
         ]);
@@ -304,14 +305,14 @@ class JobsController extends Controller
     }
 
     /**
-     * GET /api/jobs/{job}/duplicate-check — check for similar titles
+     * GET /api/jobs/duplicate-check — check for similar titles
      */
-    public function duplicateCheck(Request $request, string $title): \Illuminate\Http\JsonResponse
+    public function duplicateCheck(Request $request): \Illuminate\Http\JsonResponse
     {
         $u = $request->user();
         if (!$u) return response()->json(['message' => 'Unauthenticated'], 401);
 
-        $t = trim($title);
+        $t = trim($request->query('title', ''));
         if (strlen($t) < 5) return response()->json(['data' => ['duplicates' => []]]);
 
         $similar = Job::query()

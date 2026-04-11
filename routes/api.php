@@ -109,6 +109,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/deletion-status', [UsersController::class, 'deletionStatus']);
     Route::put('/me/applicant', [ProfilesController::class, 'upsertApplicant']);
     Route::get('/me/applicant', [ProfilesController::class, 'meApplicant']);
+    Route::post('/me/applicant/avatar', [ProfilesController::class, 'uploadApplicantAvatar']);
     Route::put('/me/employer', [ProfilesController::class, 'upsertEmployer']);
     Route::put('/me/agency', [ProfilesController::class, 'upsertAgency']);
     Route::get('/me/employer', [ProfilesController::class, 'meEmployer']);
@@ -176,17 +177,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/invitations', [App\Http\Controllers\Api\InvitationController::class, 'store']);
     });
 
-    // Interviews
-    Route::get('/interviews', [InterviewsController::class, 'index']);
-    Route::get('/interviews/{interview}', [InterviewsController::class, 'show']);
-    Route::get('/interviews/{interview}/ics', [InterviewsController::class, 'exportIcs']);
-    Route::post('/interviews/{interview}/respond', [InterviewsController::class, 'respond']);
-    Route::post('/interviews/{interview}/no-show', [InterviewsController::class, 'markNoShow']);
+    // Interviews — listing + write actions require active trial/subscription
     Route::middleware(['require.sub'])->group(function () {
+        Route::get('/interviews', [InterviewsController::class, 'index']);
         Route::post('/applications/{application}/interviews', [InterviewsController::class, 'store']);
         Route::put('/interviews/{interview}', [InterviewsController::class, 'update']);
         Route::post('/interviews/{interview}/cancel', [InterviewsController::class, 'cancel']);
     });
+    Route::get('/interviews/{interview}', [InterviewsController::class, 'show']);
+    Route::get('/interviews/{interview}/ics', [InterviewsController::class, 'exportIcs']);
+    Route::post('/interviews/{interview}/respond', [InterviewsController::class, 'respond']);
+    Route::post('/interviews/{interview}/no-show', [InterviewsController::class, 'markNoShow']);
 
     // Interview feedback
     Route::get('/interviews/{interview}/feedback', [\App\Http\Controllers\Api\InterviewFeedbackController::class, 'show']);
@@ -218,8 +219,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/verification-requests', [VerificationRequestsController::class, 'store']);
     Route::post('/verification-requests/{verificationRequest}/review', [VerificationRequestsController::class, 'review']);
 
-    Route::get('/conversations/unread-count', [MessagesController::class, 'unreadCount']);
     Route::middleware(['require.sub'])->group(function () {
+        Route::get('/conversations/unread-count', [MessagesController::class, 'unreadCount']);
         Route::get('/conversations', [MessagesController::class, 'index']);
         Route::post('/conversations', [MessagesController::class, 'store']);
         Route::get('/conversations/{conversation}', [MessagesController::class, 'show']);

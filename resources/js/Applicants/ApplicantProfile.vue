@@ -58,50 +58,89 @@
         <Message v-else-if="error" severity="error" :closable="false" class="mb-4">{{ error }}</Message>
 
         <div v-else-if="app" class="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <!-- Left sidebar: compact info card -->
           <div class="md:col-span-3 lg:col-span-3">
             <Card class="lg:sticky lg:top-6 !border-0 !shadow-none">
-              <template #title>Summary</template>
+              <template #title>Application Info</template>
               <template #content>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2">
-                  <div class="text-xs text-slate-500 font-semibold">Candidate</div>
-                  <div class="text-sm font-bold text-slate-900 text-right break-words">{{ applicantDisplayName(app) }}</div>
-                  <div class="text-xs text-slate-500 font-semibold">Submitted</div>
-                  <div class="text-sm font-bold text-slate-900 text-right break-words">{{ formatDate(app.submitted_at) }}</div>
-                  <div class="md:col-span-2 border-t border-slate-200 my-1"></div>
-                  <div class="text-xs text-slate-500 font-semibold">Job</div>
-                  <div class="text-sm font-bold text-slate-900 text-right truncate max-w-full md:max-w-[220px]" :title="app.job?.title">{{ app.job?.title || 'N/A' }}</div>
-                  <div class="text-xs text-slate-500 font-semibold" v-if="app.job?.city || app.job?.country_code">Location</div>
-                  <div
-                    class="text-sm font-bold text-slate-900 text-right truncate max-w-full md:max-w-[220px]"
-                    v-if="app.job?.city || app.job?.country_code"
-                    :title="[app.job?.city, countryName(app.job?.country_code)].filter(Boolean).join(', ')"
-                  >
-                    {{ [app.job?.city, countryName(app.job?.country_code)].filter(Boolean).join(', ') }}
+                <div class="space-y-2">
+                  <div>
+                    <div class="text-[10px] uppercase font-semibold text-slate-500">Candidate</div>
+                    <div class="text-sm font-bold text-slate-900">{{ applicantDisplayName(app) }}</div>
+                  </div>
+                  <div>
+                    <div class="text-[10px] uppercase font-semibold text-slate-500">Submitted</div>
+                    <div class="text-sm text-slate-900">{{ formatDate(app.submitted_at) }}</div>
+                  </div>
+                  <div class="border-t border-slate-200 my-1"></div>
+                  <div>
+                    <div class="text-[10px] uppercase font-semibold text-slate-500">Job</div>
+                    <div class="text-sm font-bold text-slate-900">{{ app.job?.title || 'N/A' }}</div>
+                  </div>
+                  <div v-if="app.job?.city || app.job?.country_code">
+                    <div class="text-[10px] uppercase font-semibold text-slate-500">Location</div>
+                    <div class="text-sm text-slate-900">{{ [app.job?.city, countryName(app.job?.country_code)].filter(Boolean).join(', ') }}</div>
+                  </div>
+                  <div v-if="appStatusSteps" class="border-t border-slate-200 my-1"></div>
+                  <div v-if="appStatusSteps">
+                    <div class="text-[10px] uppercase font-semibold text-slate-500 mb-1">Pipeline</div>
+                    <div class="flex items-center gap-1 text-xs">
+                      <span v-for="(step, i) in appStatusSteps" :key="step"
+                        class="px-1.5 py-0.5 rounded"
+                        :class="i <= currentStepIndex ? 'bg-blue-100 text-blue-700 font-semibold' : 'bg-slate-100 text-slate-400'">
+                        {{ titleCase(step) }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </template>
             </Card>
           </div>
 
+          <!-- Main content: candidate profile + details -->
           <div class="md:col-span-9 lg:col-span-9 space-y-6">
+
+            <!-- Candidate Profile Summary Card -->
             <Card class="!border-0 !shadow-none">
               <template #title>
                 <div class="flex items-start justify-between gap-4 flex-wrap">
                   <div>
-                    <div class="text-base font-bold text-slate-900">Cover letter</div>
-                    <div class="text-sm text-slate-500">Submitted <span class="font-semibold text-slate-700">{{ formatDate(app.submitted_at) }}</span></div>
+                    <div class="text-base font-bold text-slate-900">Candidate Profile</div>
+                    <div v-if="candidateHeadline" class="text-sm text-slate-500">{{ candidateHeadline }}</div>
                   </div>
                   <Tag :value="titleCase(app.status)" :severity="getSeverity(app.status)" class="shrink-0 !whitespace-nowrap" />
                 </div>
               </template>
               <template #content>
-                <p v-if="app.cover_letter" class="text-slate-700 leading-7 whitespace-pre-wrap break-words">{{ app.cover_letter }}</p>
-                <p v-else class="text-slate-500">No cover letter provided.</p>
+                <div v-if="hasCandidateProfile" class="space-y-4">
+                  <!-- Professional Summary -->
+                  <div v-if="candidateSummary" class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{{ candidateSummary }}</div>
+                  <div v-else class="text-sm text-slate-400 italic">No summary provided.</div>
+
+                  <!-- Profile Details Grid -->
+                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100">
+                    <div>
+                      <div class="text-[10px] uppercase font-semibold text-slate-400">Experience</div>
+                      <div class="text-sm font-semibold text-slate-900">{{ candidateExperience || 'Not specified' }}</div>
+                    </div>
+                    <div>
+                      <div class="text-[10px] uppercase font-semibold text-slate-400">Location</div>
+                      <div class="text-sm font-semibold text-slate-900">{{ candidateLocation || 'Not specified' }}</div>
+                    </div>
+                    <div>
+                      <div class="text-[10px] uppercase font-semibold text-slate-400">Open to Work</div>
+                      <div class="text-sm font-semibold" :class="candidateOpenToWork ? 'text-emerald-600' : 'text-slate-400'">
+                        {{ candidateOpenToWork ? 'Yes' : 'No' }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="text-sm text-slate-400 italic">This candidate hasn't completed their profile yet.</div>
               </template>
             </Card>
 
             <!-- Document Access Card -->
-            <DocumentAccessCard 
+            <DocumentAccessCard
               v-if="!hasDocumentAccess"
               :applicant-id="app.applicant_user_id"
               :application-id="app.id"
@@ -122,16 +161,16 @@
               <template #content>
                 <div v-if="hasResume">
                   <div class="flex gap-2">
-                    <Button 
-                      label="Preview Resume" 
-                      icon="pi pi-eye" 
+                    <Button
+                      label="Preview Resume"
+                      icon="pi pi-eye"
                       @click="previewResume"
                       class="!rounded-md"
                       outlined
                     />
-                    <Button 
-                      label="Download Resume" 
-                      icon="pi pi-download" 
+                    <Button
+                      label="Download Resume"
+                      icon="pi pi-download"
                       @click="downloadResume"
                       class="!rounded-md"
                       :loading="downloadingResume"
@@ -397,8 +436,38 @@ const canHire = computed(() => {
   if (!app.value) return false
   if (!['employer', 'agency', 'admin'].includes(r)) return false
   const status = String(app.value.status || '').toLowerCase()
-  // Can hire from submitted, shortlisted, or interview status (matches backend allowed transitions)
   return ['submitted', 'shortlisted', 'interview'].includes(status) && !busy.value
+})
+
+// ---- Candidate profile computed properties ----
+const candidateProfile = computed(() => {
+  const u = app.value?.applicant || app.value?.user || null
+  return u?.applicant_profile || u?.applicantProfile || null
+})
+
+const hasCandidateProfile = computed(() => {
+  const p = candidateProfile.value
+  return !!(p && (p.headline || p.summary || p.years_experience || p.city || p.country))
+})
+
+const candidateHeadline = computed(() => candidateProfile.value?.headline || null)
+const candidateSummary = computed(() => candidateProfile.value?.summary || null)
+const candidateExperience = computed(() => {
+  const yrs = candidateProfile.value?.years_experience
+  return yrs != null ? `${yrs} year${yrs === 1 ? '' : 's'}` : null
+})
+const candidateLocation = computed(() => {
+  const p = candidateProfile.value
+  const parts = [p?.city, p?.state, p?.country].filter(Boolean)
+  return parts.length ? parts.join(', ') : null
+})
+const candidateOpenToWork = computed(() => !!candidateProfile.value?.open_to_work)
+
+// Pipeline steps
+const appStatusSteps = ['submitted', 'shortlisted', 'interview', 'hired']
+const currentStepIndex = computed(() => {
+  const status = String(app.value?.status || '').toLowerCase()
+  return appStatusSteps.indexOf(status)
 })
 
 function candidateAvatarUrl(a) {

@@ -42,12 +42,13 @@ class JobUpdateRequest extends ApiRequest
         return [
             'title' => ['sometimes','required','string','min:5','max:190'],
             'description' => ['sometimes','required','string','min:30','max:20000'],
-            'employment_type' => ['sometimes','required', Rule::in(['full_time','part_time','contract','temporary','internship'])],
+            'employment_type' => ['sometimes','required', Rule::in(['full_time','part_time','contract','temporary','internship','full_time_part_time','contract_temporary'])],
             'work_mode' => ['sometimes','required', Rule::in(['on_site','remote','hybrid'])],
             'country' => ['sometimes','nullable','string','max:200'],
             'city' => ['sometimes','nullable','string','min:2','max:120'],
             'salary_min' => ['sometimes','nullable','numeric','min:0'],
             'salary_max' => ['sometimes','nullable','numeric','min:0','gte:salary_min'],
+            'salary_type' => ['sometimes','nullable', Rule::in(['annually','hourly'])],
             'salary_currency' => ['sometimes','nullable','string','size:3'],
             'closes_at'       => ['sometimes','nullable','date'],
 
@@ -74,12 +75,5 @@ class JobUpdateRequest extends ApiRequest
         if ($this->has('title')) {
             $this->merge(['title' => trim((string) $this->input('title'))]);
         }
-    }
-
-    public function messages(): array
-    {
-        return [
-            'country_code.regex' => 'country_code must be ISO-2 uppercase (e.g., PH, US).'
-        ];
     }
 }

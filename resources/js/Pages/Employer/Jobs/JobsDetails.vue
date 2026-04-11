@@ -134,8 +134,6 @@ async function copyShareLink() {
   }
 }
 
-onMounted(load);
-
 async function loadAnalytics() {
   if (!id.value) return
   try {

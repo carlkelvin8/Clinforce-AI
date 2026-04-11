@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'require.sub'    => \App\Http\Middleware\RequireActiveSubscription::class,
             'require.doc_access' => \App\Http\Middleware\RequireDocumentAccess::class,
             'subscription'   => \App\Http\Middleware\EnforceSubscription::class,
+            'detect.social'  => \App\Http\Middleware\DetectSocialCrawler::class,
         ]);
         // Apply to API group by default
         $middleware->appendToGroup('api', \App\Http\Middleware\ApiRateLimit::class);
