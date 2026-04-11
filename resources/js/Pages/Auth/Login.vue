@@ -2,7 +2,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { useRouter, useRoute, RouterLink } from "vue-router";
-import axios from "axios";
+import api from "@/lib/api";
 import AppLayout from "@/Components/AppLayout.vue";
 import Card from "primevue/card";
 import InputText from "primevue/inputtext";
@@ -56,6 +56,14 @@ const router = useRouter();
       error.value = "This verification link is invalid or has expired. Please request a new one.";
     } else if (q.social === "error") {
       error.value = "Google sign in failed. Please try again or use email/password.";
+    } else if (q.registered === "1") {
+      Swal.fire({
+        icon: "success",
+        title: "Registration successful",
+        text: "Please check your email to verify your account, then sign in below.",
+        timer: 3500,
+        showConfirmButton: false,
+      });
     }
   });
   
@@ -64,7 +72,7 @@ const router = useRouter();
     error.value = "";
   
     try {
-      const res = await axios.post("/api/auth/login", {
+      const res = await api.post("/auth/login", {
         identifier: identifier.value.trim(),
         password: password.value,
         remember: remember.value,
@@ -128,7 +136,7 @@ const router = useRouter();
           return;
         }
         try {
-          await axios.post("/api/auth/forgot-password", { email });
+          await api.post("/auth/forgot-password", { email });
         } catch (e) {
           const msg = e?.response?.data?.message || "Could not send reset link.";
           Swal.showValidationMessage(msg);

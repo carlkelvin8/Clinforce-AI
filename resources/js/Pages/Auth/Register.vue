@@ -2,7 +2,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useRouter, RouterLink } from "vue-router";
-import axios from "axios";
+import api from "@/lib/api";
 import AppLayout from "@/Components/AppLayout.vue";
 import Card from "primevue/card";
 import InputText from "primevue/inputtext";
@@ -54,29 +54,23 @@ const roleForApi = computed(() => {
   
     loading.value = true;
     try {
-      const res = await axios.post("/api/auth/register", {
+      await api.post("/auth/register", {
         role: roleForApi.value,
         email: email.value.trim(),
         phone: null,
         password: password.value,
       });
-  
-      const token = res?.data?.data?.token;
-      const user = res?.data?.data?.user;
 
       Swal.fire({
         icon: "success",
         title: "Registration successful",
-        text: "Welcome to clinforce-ai.",
-        timer: 1800,
-        showConfirmButton: false,
+        html: "Please check your email to verify your account. You will be redirected to login.",
+        timer: 3000,
+        showConfirmButton: true,
+        confirmButtonText: "Go to login",
+      }).then(() => {
+        router.push({ name: "auth.login", query: { registered: "1" } });
       });
-
-      if (token) localStorage.setItem("auth_token", token);
-      if (user) localStorage.setItem("auth_user", JSON.stringify(user));
-  
-      if (user?.role === "applicant") return router.push({ name: "candidate.dashboard" });
-      return router.push({ name: "applicants.list" });
     } catch (e) {
       const msg = e?.response?.data?.message || "Registration failed.";
       const errs = e?.response?.data?.errors;
