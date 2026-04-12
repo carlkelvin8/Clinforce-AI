@@ -56,6 +56,8 @@ const router = useRouter();
       error.value = "This verification link is invalid or has expired. Please request a new one.";
     } else if (q.social === "error") {
       error.value = "Google sign in failed. Please try again or use email/password.";
+    } else if (q.social === "no_account") {
+      error.value = "No account found with this email. Please register first.";
     } else if (q.registered === "1") {
       Swal.fire({
         icon: "success",
@@ -156,7 +158,7 @@ const router = useRouter();
   
   function loginWithGoogle() {
     if (loading.value) return;
-    window.location.href = "/auth/google/redirect";
+    window.location.href = "/auth/google/redirect?source=login";
   }
   </script>
   

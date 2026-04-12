@@ -380,10 +380,12 @@ class AuthController extends Controller
     {
         $redirect = $request->query('redirect');
         $role = $request->query('role');
+        $source = $request->query('source', 'register'); // default: register
 
         $state = base64_encode(json_encode(array_filter([
             'redirect' => $redirect,
             'role' => ($role && in_array($role, ['employer', 'applicant', 'agency'], true)) ? $role : null,
+            'source' => $source,
         ])));
 
         return Socialite::driver('google')->stateless()->with(['state' => $state])->redirect();
@@ -412,32 +414,33 @@ class AuthController extends Controller
         }
         $role = $stateData['role'] ?? null;
         $redirect = $stateData['redirect'] ?? null;
+        $source = $stateData['source'] ?? 'register';
 
         $user = User::where('email', $email)->first();
 
         if (!$user) {
-            if (!$role) {
-                $tempData = base64_encode(json_encode([
-                    'email' => $email,
-                    'google_id' => $googleUser->getId(),
-                    'name' => $googleUser->getName(),
-                    'avatar' => method_exists($googleUser, 'getAvatar') ? $googleUser->getAvatar() : null,
-                ]));
-                
-                return redirect('/auth/select-role?data=' . $tempData);
+            if ($source === 'login') {
+                return redirect('/login?social=no_account');
             }
 
-            $user = User::create([
-                'role' => $role,
+            $tempData = base64_encode(json_encode([
                 'email' => $email,
-                'phone' => null,
-                'status' => 'active',
-                'password_hash' => Hash::make(Str::random(40)),
-                'email_verified_at' => now(),
-            ]);
-        } elseif (!$user->email_verified_at) {
+                'google_id' => $googleUser->getId(),
+                'name' => $googleUser->getName(),
+                'avatar' => method_exists($googleUser, 'getAvatar') ? $googleUser->getAvatar() : null,
+            ]));
+
+            return redirect('/auth/select-role?data=' . $tempData);
+        }
+
+        if (!$user->email_verified_at) {
             $user->email_verified_at = now();
             $user->save();
+        }
+
+        // If user has no role yet (came from register with role), set it
+        if ($role && !$user->role) {
+            $user->forceFill(['role' => $role])->save();
         }
 
         $avatarUrl = method_exists($googleUser, 'getAvatar') ? $googleUser->getAvatar() : null;

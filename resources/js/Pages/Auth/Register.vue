@@ -82,7 +82,7 @@ const roleForApi = computed(() => {
   
   function signupWithGoogle() {
     if (loading.value) return;
-    window.location.href = "/auth/google/redirect";
+    window.location.href = "/auth/google/redirect?source=register";
   }
   </script>
   
