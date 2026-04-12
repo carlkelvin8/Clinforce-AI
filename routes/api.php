@@ -128,9 +128,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Jobs (owner) — posting requires active subscription
     Route::get('/jobs', [JobsController::class, 'index']);
+    Route::get('/jobs/duplicate-check', [JobsController::class, 'duplicateCheck']);
     Route::get('/jobs/{job}', [JobsController::class, 'show']);
     Route::get('/jobs/{job}/pipeline-report', [JobsController::class, 'pipelineReport']);
-    Route::get('/jobs/duplicate-check', [JobsController::class, 'duplicateCheck']);
     Route::middleware('subscription:jobs')->group(function () {
         Route::post('/jobs', [JobsController::class, 'store']);
         Route::put('/jobs/{job}', [JobsController::class, 'update']);
