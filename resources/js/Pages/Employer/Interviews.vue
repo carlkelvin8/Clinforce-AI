@@ -378,9 +378,14 @@ async function submitSchedule() {
     if (status === 422) {
       formError.value = payload?.message || "Validation failed.";
       setFieldErrors(payload);
+    } else if (status === 404) {
+      formError.value = payload?.message || "Application not found. Please select a valid application.";
+    } else if (status === 409) {
+      formError.value = payload?.message || "This interview overlaps with an existing one.";
     } else {
       formError.value = payload?.message || (isEditing.value ? "Failed to reschedule interview." : "Failed to schedule interview.");
     }
+    console.error('Interview scheduling error:', e?.response?.data);
   } finally {
     saving.value = false;
   }

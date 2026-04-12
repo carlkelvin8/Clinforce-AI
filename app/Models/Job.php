@@ -18,6 +18,7 @@ class Job extends Model
         'employment_type',
         'work_mode',
         'country',
+        'state',
         'city',
         'status',
         'published_at',

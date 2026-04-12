@@ -2,10 +2,10 @@
 import axios from "axios";
 
 // Simple: baseURL is the full API endpoint
-// VITE_API_URL should be: https://clinforce-ai.gghsoftware.tech/api
-// Then requests like "auth/me" become: https://clinforce-ai.gghsoftware.tech/api/auth/me
+// VITE_API_URL should be: https://app.aiclinforce.com/api
+// Then requests like "auth/me" become: https://app.aiclinforce.com/api/auth/me
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000/api",
+  baseURL: import.meta.env.VITE_API_URL,
   timeout: 20000,
   withCredentials: true,
 });

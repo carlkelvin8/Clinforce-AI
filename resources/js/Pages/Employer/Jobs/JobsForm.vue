@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
+import Swal from "sweetalert2";
 import Card from "primevue/card";
 import Button from "primevue/button";
 import InputText from "primevue/inputtext";
@@ -40,6 +41,7 @@ const form = ref({
     employment_type: "full_time",
     work_mode: "on_site",
     country: "",
+    state: "",
     city: "",
     salary_min: "",
     salary_max: "",
@@ -142,6 +144,7 @@ async function load() {
         form.value.employment_type = j.employment_type || "full_time";
         form.value.work_mode = j.work_mode || "on_site";
         form.value.country = j.country || j.country_code || "";
+        form.value.state = j.state || "";
         form.value.city = j.city || "";
         form.value.salary_min = j.salary_min ?? "";
         form.value.salary_max = j.salary_max ?? "";
@@ -171,6 +174,7 @@ async function save() {
         employment_type: form.value.employment_type,
         work_mode: form.value.work_mode,
         country: form.value.country,
+        state: String(form.value.state || "").trim() || null,
         city: String(form.value.city || "").trim() || null,
         salary_min: form.value.salary_min !== "" ? Number(form.value.salary_min) : null,
         salary_max: form.value.salary_max !== "" ? Number(form.value.salary_max) : null,
@@ -186,6 +190,52 @@ async function save() {
 
         const job = res.data?.data ?? res.data ?? {};
         const jobId = job?.id || id.value;
+
+        // Show popup for new jobs to choose publish or draft
+        if (!editing.value) {
+            const choice = await Swal.fire({
+                icon: 'success',
+                title: 'Job Posted!',
+                html: `
+                    <p class="text-slate-600 mb-4">Your job <strong>"${job.title}"</strong> has been created.</p>
+                    <p class="text-sm text-slate-500">Would you like to publish it now to make it visible to candidates?</p>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Publish Now',
+                cancelButtonText: 'Save as Draft',
+                confirmButtonColor: '#2563eb',
+                cancelButtonColor: '#64748b',
+                reverseButtons: true,
+            });
+
+            if (choice.isConfirmed) {
+                // Publish the job
+                try {
+                    await http.post(`/jobs/${jobId}/publish`);
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Published!',
+                        text: 'Your job is now visible to candidates.',
+                        timer: 2000,
+                        showConfirmButton: false,
+                    });
+                } catch (e) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Job saved as draft',
+                        text: e?.response?.data?.message || 'Could not publish immediately. You can publish it later from your jobs list.',
+                    });
+                }
+            } else {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Saved as Draft',
+                    text: 'You can publish this job anytime from your jobs list.',
+                    timer: 2000,
+                    showConfirmButton: false,
+                });
+            }
+        }
 
         router.push({ name: "employer.jobs.view", params: { id: jobId } });
     } catch (e) {
@@ -228,6 +278,7 @@ function applyTemplate(id) {
   form.value.employment_type= t.employment_type|| form.value.employment_type
   form.value.work_mode      = t.work_mode      || form.value.work_mode
   form.value.country        = t.country        || form.value.country
+  form.value.state          = t.state          || form.value.state
   form.value.city           = t.city           || form.value.city
   form.value.salary_min     = t.salary_min     ?? form.value.salary_min
   form.value.salary_max     = t.salary_max     ?? form.value.salary_max
@@ -335,7 +386,7 @@ onMounted(() => { load(); loadTemplates() })
                                 <i class="pi pi-map-marker text-blue-600"></i>
                                 Location
                             </h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div class="flex flex-col gap-2">
                                     <label for="country" class="font-medium text-slate-700">Country</label>
                                     <Select
@@ -349,6 +400,10 @@ onMounted(() => { load(); loadTemplates() })
                                       placeholder="Select Country"
                                       class="w-full !border-slate-300"
                                     />
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <label for="state" class="font-medium text-slate-700">State / Province</label>
+                                    <InputText id="state" v-model="form.state" placeholder="e.g. NCR, California" :disabled="loading" class="w-full !border-slate-300" />
                                 </div>
                                 <div class="flex flex-col gap-2">
                                     <label for="city" class="font-medium text-slate-700">City</label>

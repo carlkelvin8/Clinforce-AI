@@ -785,7 +785,7 @@ const pricingData = {
     {
       name: 'Starter',
       duration: '3 Months',
-      price: '₱299',
+      price: '₱2,999.99',
       currency: '/ 3 months',
       popular: false,
       features: ['Up to 20 job posts', 'AI candidate screening', 'Analytics dashboard', 'Email & chat support'],
@@ -793,7 +793,7 @@ const pricingData = {
     {
       name: 'Growth',
       duration: '6 Months',
-      price: '₱499',
+      price: '₱4,999.99',
       currency: '/ 6 months',
       popular: true,
       features: ['Up to 50 job posts', 'AI candidate screening', 'Advanced analytics', 'Priority support', 'Talent search'],
@@ -801,7 +801,7 @@ const pricingData = {
     {
       name: 'Pro',
       duration: '1 Year',
-      price: '₱999',
+      price: '₱7,999.99',
       currency: '/ year',
       popular: false,
       features: ['Unlimited job posts', 'AI candidate screening', 'Advanced analytics', 'Dedicated support', 'Custom branding'],

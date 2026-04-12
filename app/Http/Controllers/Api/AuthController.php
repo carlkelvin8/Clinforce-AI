@@ -19,6 +19,7 @@ use App\Rules\StrongPassword;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class AuthController extends Controller
 {
@@ -382,35 +383,40 @@ class AuthController extends Controller
         $role = $request->query('role');
         $source = $request->query('source', 'register'); // default: register
 
-        $state = base64_encode(json_encode(array_filter([
+        // Generate a unique state ID to cache the oauth params
+        $stateId = bin2hex(random_bytes(16));
+        
+        // Store the state data in cache (expires in 15 minutes)
+        Cache::put('oauth_state:' . $stateId, array_filter([
             'redirect' => $redirect,
             'role' => ($role && in_array($role, ['employer', 'applicant', 'agency'], true)) ? $role : null,
             'source' => $source,
-        ])));
+        ]), now()->addMinutes(15));
 
-        return Socialite::driver('google')->stateless()->with(['state' => $state])->redirect();
+        return Socialite::driver('google')->stateless()->with(['state' => $stateId])->redirect();
     }
 
     public function googleCallback(Request $request)
     {
+        $frontendUrl = rtrim(config('app.frontend_url', 'http://localhost:5173'), '/');
+
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
         } catch (\Throwable $e) {
-            return redirect('/login?social=error');
+            Log::error('Google OAuth failed', ['error' => $e->getMessage()]);
+            return redirect($frontendUrl . '/login?social=error');
         }
 
         $email = $googleUser->getEmail();
         if (!$email) {
-            return redirect('/login?social=error');
+            return redirect($frontendUrl . '/login?social=error');
         }
 
-        // Decode state passed through OAuth flow
-        $stateRaw = $request->query('state');
+        // Retrieve state data from cache
+        $stateId = $request->query('state');
         $stateData = [];
-        if ($stateRaw) {
-            try {
-                $stateData = json_decode(base64_decode($stateRaw), true) ?? [];
-            } catch (\Throwable $e) {}
+        if ($stateId) {
+            $stateData = Cache::pull('oauth_state:' . $stateId) ?? [];
         }
         $role = $stateData['role'] ?? null;
         $redirect = $stateData['redirect'] ?? null;
@@ -420,7 +426,7 @@ class AuthController extends Controller
 
         if (!$user) {
             if ($source === 'login') {
-                return redirect('/login?social=no_account');
+                return redirect($frontendUrl . '/login?social=no_account');
             }
 
             $tempData = base64_encode(json_encode([
@@ -430,7 +436,7 @@ class AuthController extends Controller
                 'avatar' => method_exists($googleUser, 'getAvatar') ? $googleUser->getAvatar() : null,
             ]));
 
-            return redirect('/auth/select-role?data=' . $tempData);
+            return redirect($frontendUrl . '/auth/select-role?data=' . $tempData);
         }
 
         if (!$user->email_verified_at) {
@@ -490,7 +496,7 @@ class AuthController extends Controller
             'redirect' => $redirect,
         ]));
 
-        return redirect('/auth/social/callback' . ($query ? ('?' . $query) : ''));
+        return redirect($frontendUrl . '/auth/social/callback' . ($query ? ('?' . $query) : ''));
     }
 
     public function logout(Request $request)

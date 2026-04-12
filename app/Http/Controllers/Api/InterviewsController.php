@@ -109,27 +109,18 @@ class InterviewsController extends ApiController
 
         $meetingLink = $v['meeting_link'] ?? null;
 
-        // If video and no meeting_link, auto-create Zoom meeting
-        if (($v['mode'] ?? null) === 'video' && !$meetingLink) {
-            if (!$this->zoomEnabled()) {
-                return $this->fail(
-                    'Zoom is not configured. Set ZOOM_ACCOUNT_ID / ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET in .env',
-                    null,
-                    422
-                );
-            }
-
+        // If video and no meeting_link but Zoom is configured, auto-create Zoom meeting
+        if (($v['mode'] ?? null) === 'video' && !$meetingLink && $this->zoomEnabled()) {
             $start = Carbon::parse($v['scheduled_start']);
             $end = Carbon::parse($v['scheduled_end']);
             $topic = 'Interview • ' . ($application->job?->title ?: ('Application #' . $application->id));
 
             $created = $this->zoomCreateMeeting($topic, $start, $end);
 
-            if (!$created['ok'] || empty($created['join_url'])) {
-                return $this->fail('Zoom meeting create failed', $created, 422);
+            if ($created['ok'] && !empty($created['join_url'])) {
+                $meetingLink = $created['join_url'];
             }
-
-            $meetingLink = $created['join_url'];
+            // If Zoom create fails, continue without meeting_link (employer can provide later)
         }
 
         // in_person requires location_text
@@ -137,10 +128,7 @@ class InterviewsController extends ApiController
             return $this->fail('location_text required for in_person mode', ['location_text' => ['Required']], 422);
         }
 
-        // final safety: video must end up with meeting_link
-        if (($v['mode'] ?? null) === 'video' && !$meetingLink) {
-            return $this->fail('meeting_link required for video mode', ['meeting_link' => ['Required']], 422);
-        }
+        // Video and phone modes can work without a meeting_link (employer can call/message candidate directly)
 
         $interview = null;
 

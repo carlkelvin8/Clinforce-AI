@@ -206,8 +206,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/document-access/purchase', [App\Http\Controllers\Api\DocumentAccessController::class, 'purchase']);
     Route::get('/document-access', [App\Http\Controllers\Api\DocumentAccessController::class, 'index']);
     
-    // AI Chatbot
+    // AI Chatbot - Enterprise Grade
     Route::post('/chatbot', [ChatbotController::class, 'chat']);
+    Route::get('/chatbot/health', [ChatbotController::class, 'health']);
+    Route::post('/chatbot/analyze-document', [ChatbotController::class, 'analyzeDocument']);
+    Route::post('/chatbot/match-candidates', [ChatbotController::class, 'matchCandidates']);
+    Route::post('/chatbot/interview-questions', [ChatbotController::class, 'generateInterviewQuestions']);
     Route::post('/subscriptions', [SubscriptionController::class, 'store']);
     Route::post('/subscriptions/{subscription}/cancel', [SubscriptionController::class, 'cancel']);
 
@@ -291,6 +295,49 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/job-alerts', [\App\Http\Controllers\Api\JobAlertsController::class, 'store']);
     Route::put('/job-alerts/{jobAlert}', [\App\Http\Controllers\Api\JobAlertsController::class, 'update']);
     Route::delete('/job-alerts/{jobAlert}', [\App\Http\Controllers\Api\JobAlertsController::class, 'destroy']);
+
+    // ═══════════════════════════════════════════════════════════
+    // CANDIDATE PROFILE ENHANCEMENTS
+    // ═══════════════════════════════════════════════════════════
+    
+    // AI Resume Generator
+    Route::post('/resume/generate', [\App\Http\Controllers\Api\ResumeController::class, 'generate']);
+    Route::get('/resume', [\App\Http\Controllers\Api\ResumeController::class, 'show']);
+    Route::get('/profile/completeness', [\App\Http\Controllers\Api\ResumeController::class, 'completeness']);
+    Route::patch('/profile/enhancements', [\App\Http\Controllers\Api\ResumeController::class, 'updateProfile']);
+    
+    // Video Introduction
+    Route::post('/video-intro/upload', [\App\Http\Controllers\Api\VideoIntroController::class, 'upload']);
+    Route::patch('/video-intro', [\App\Http\Controllers\Api\VideoIntroController::class, 'update']);
+    Route::delete('/video-intro', [\App\Http\Controllers\Api\VideoIntroController::class, 'destroy']);
+    Route::get('/video-intro/{userId}', [\App\Http\Controllers\Api\VideoIntroController::class, 'show']);
+    Route::get('/video-intro/guidelines', [\App\Http\Controllers\Api\VideoIntroController::class, 'guidelines']);
+    
+    // Portfolio
+    Route::get('/portfolio', [\App\Http\Controllers\Api\PortfolioController::class, 'index']);
+    Route::post('/portfolio', [\App\Http\Controllers\Api\PortfolioController::class, 'store']);
+    Route::put('/portfolio/{portfolio}', [\App\Http\Controllers\Api\PortfolioController::class, 'update']);
+    Route::delete('/portfolio/{portfolio}', [\App\Http\Controllers\Api\PortfolioController::class, 'destroy']);
+    Route::post('/portfolio/reorder', [\App\Http\Controllers\Api\PortfolioController::class, 'reorder']);
+    Route::get('/portfolio/{userId}/public', [\App\Http\Controllers\Api\PortfolioController::class, 'showPublic']);
+    
+    // Skills Assessments
+    Route::get('/assessments/templates', [\App\Http\Controllers\Api\SkillsAssessmentController::class, 'templates']);
+    Route::post('/assessments/{template}/start', [\App\Http\Controllers\Api\SkillsAssessmentController::class, 'start']);
+    Route::post('/assessments/{assessment}/submit', [\App\Http\Controllers\Api\SkillsAssessmentController::class, 'submit']);
+    Route::get('/assessments/history', [\App\Http\Controllers\Api\SkillsAssessmentController::class, 'history']);
+    Route::get('/skills/verified', [\App\Http\Controllers\Api\SkillsAssessmentController::class, 'verifiedSkills']);
+    
+    // Endorsements
+    Route::get('/endorsements/my', [\App\Http\Controllers\Api\EndorsementController::class, 'myEndorsements']);
+    Route::get('/endorsements/user/{userId}', [\App\Http\Controllers\Api\EndorsementController::class, 'showUserEndorsements']);
+    Route::post('/endorsements', [\App\Http\Controllers\Api\EndorsementController::class, 'store']);
+    Route::put('/endorsements/{endorsement}', [\App\Http\Controllers\Api\EndorsementController::class, 'update']);
+    Route::delete('/endorsements/{endorsement}', [\App\Http\Controllers\Api\EndorsementController::class, 'destroy']);
+    Route::post('/endorsements/{endorsement}/hide', [\App\Http\Controllers\Api\EndorsementController::class, 'hide']);
+    Route::post('/endorsements/{endorsement}/show', [\App\Http\Controllers\Api\EndorsementController::class, 'show']);
+    Route::post('/endorsements/{endorsement}/vote', [\App\Http\Controllers\Api\EndorsementController::class, 'vote']);
+    Route::get('/endorsements/suggestions', [\App\Http\Controllers\Api\EndorsementController::class, 'suggestEndorsees']);
 
     // Analytics
     Route::get('/analytics/dashboard', [\App\Http\Controllers\Api\AnalyticsController::class, 'dashboard']);

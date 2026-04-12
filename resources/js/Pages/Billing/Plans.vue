@@ -26,9 +26,13 @@
 
           <div class="text-center mb-6">
             <h3 class="text-2xl font-bold text-gray-900 mb-2">{{ plan.name }}</h3>
-            <div class="text-4xl font-bold text-blue-600 mb-2">
+            <div v-if="plan.price_cents === 0" class="text-4xl font-bold text-green-600 mb-2">
+              Free
+              <span class="text-lg text-gray-500">/ {{ plan.duration_months === 0 ? '7 days' : plan.duration_months + ' months' }}</span>
+            </div>
+            <div v-else class="text-4xl font-bold text-blue-600 mb-2">
               ${{ (plan.price_cents / 100).toFixed(2) }}
-              <span class="text-lg text-gray-500">/ {{ plan.duration_months }} mo</span>
+              <span class="text-lg text-gray-500">/ {{ plan.duration_months === 0 ? '7 days' : plan.duration_months + ' months' }}</span>
             </div>
           </div>
 
@@ -61,18 +65,20 @@
           </ul>
 
           <!-- CTA Button -->
-          <button @click="selectPlan(plan)" 
+          <button @click="selectPlan(plan)"
                   :disabled="processing"
                   class="w-full py-3 rounded-lg font-semibold transition-colors"
-                  :class="plan.is_popular 
-                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'">
+                  :class="plan.is_popular
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : plan.price_cents === 0
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'">
             <span v-if="processing && selectedPlanId === plan.id">
               <i class="pi pi-spin pi-spinner mr-2"></i>
               Processing...
             </span>
             <span v-else>
-              Choose {{ plan.name }}
+              {{ plan.price_cents === 0 ? 'Start Free Trial' : 'Choose ' + plan.name }}
             </span>
           </button>
         </div>
@@ -141,10 +147,11 @@ const loadPlans = async () => {
   try {
     loading.value = true;
     const response = await http.get('/plans');
-    plans.value = response.data.map(plan => ({
+    const plansData = response.data?.data || response.data || [];
+    plans.value = Array.isArray(plansData) ? plansData.map(plan => ({
       ...plan,
       is_popular: plan.name.toLowerCase().includes('professional') || plan.name.toLowerCase().includes('pro')
-    }));
+    })) : [];
   } catch (error) {
     console.error('Failed to load plans:', error);
     Swal.fire({

@@ -6,15 +6,15 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'https://aiclinforce.com',
-        'https://www.aiclinforce.com',
-        'https://app.aiclinforce.com',
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
-    ],
+    'allowed_origins' => array_filter([
+        env('APP_FRONTEND_URL'),
+        env('APP_URL'),
+        env('VITE_APP_FRONTEND_URL'),
+        in_array(env('APP_ENV', 'production'), ['local', 'testing']) ? 'http://localhost:5173' : null,
+        in_array(env('APP_ENV', 'production'), ['local', 'testing']) ? 'http://127.0.0.1:5173' : null,
+        in_array(env('APP_ENV', 'production'), ['local', 'testing']) ? 'http://localhost:8000' : null,
+        in_array(env('APP_ENV', 'production'), ['local', 'testing']) ? 'http://127.0.0.1:8000' : null,
+    ]),
 
     'allowed_origins_patterns' => [],
 

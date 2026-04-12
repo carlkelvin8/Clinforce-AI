@@ -26,7 +26,7 @@ class JobPublicController extends Controller
         // Eager-load owner and profiles for OG tag data
         $job->load(['owner' => function ($q) {
             $q->select('id', 'email');
-        }, 'owner.employerProfile:id,user_id,business_name', 'owner.agencyProfile:id,user_id,agency_name']);
+        }, 'owner.employerProfile:user_id,business_name', 'owner.agencyProfile:user_id,agency_name']);
 
         $isCrawler = $request->attributes->get('_social_crawler', false);
 
