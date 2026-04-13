@@ -53,4 +53,14 @@ class Job extends Model
     {
         return $this->hasMany(AiScreening::class, 'job_id');
     }
+
+    public function screeningQuestions(): HasMany
+    {
+        return $this->hasMany(ScreeningQuestion::class, 'job_id');
+    }
+
+    public function asyncInterviews(): HasMany
+    {
+        return $this->hasMany(AsyncInterview::class, 'job_id');
+    }
 }

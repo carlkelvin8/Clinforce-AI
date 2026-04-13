@@ -30,6 +30,12 @@ use App\Http\Controllers\Api\SecureDocumentController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\ZoomWebhookController;
 use App\Http\Controllers\Api\ZoomSettingsController;
+use App\Http\Controllers\Api\ScreeningQuestionsController;
+use App\Http\Controllers\Api\AsyncInterviewsController;
+use App\Http\Controllers\Api\ReferenceChecksController;
+use App\Http\Controllers\Api\BackgroundChecksController;
+use App\Http\Controllers\Api\CredentialVerificationController;
+use App\Http\Controllers\Api\ApplicationAnalyticsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -341,6 +347,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Analytics
     Route::get('/analytics/dashboard', [\App\Http\Controllers\Api\AnalyticsController::class, 'dashboard']);
+    Route::get('/analytics/applications', [ApplicationAnalyticsController::class, 'index']);
+    Route::get('/analytics/applications/time-to-hire', [ApplicationAnalyticsController::class, 'timeToHire']);
+    Route::get('/analytics/applications/source', [ApplicationAnalyticsController::class, 'sourceBreakdown']);
 
     // Employer tools
     Route::get('/employer/blacklist', [\App\Http\Controllers\Api\EmployerToolsController::class, 'blacklistIndex']);
@@ -367,6 +376,75 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications/preferences', [NotificationsController::class, 'preferencesGet'])->name('notifications.preferences.get');
     Route::put('/notifications/preferences', [NotificationsController::class, 'preferencesUpdate'])->name('notifications.preferences.update');
 
+    // ═══════════════════════════════════════════════════════════
+    // 2.2 SMART SCREENING & ASSESSMENTS
+    // ═══════════════════════════════════════════════════════════
+
+    // Custom Screening Questions (per-job knockout questions)
+    Route::get('/jobs/{job}/screening-questions', [ScreeningQuestionsController::class, 'index']);
+    Route::put('/screening-questions/reorder', [ScreeningQuestionsController::class, 'reorder']);
+    Route::get('/applications/{application}/screening-answers', [ScreeningQuestionsController::class, 'getAnswers']);
+
+    Route::middleware('subscription')->group(function () {
+        Route::post('/jobs/{job}/screening-questions', [ScreeningQuestionsController::class, 'store']);
+        Route::post('/jobs/{job}/screening-questions/{question}/duplicate', [ScreeningQuestionsController::class, 'duplicate']);
+        Route::put('/jobs/{job}/screening-questions/{question}', [ScreeningQuestionsController::class, 'update']);
+        Route::delete('/jobs/{job}/screening-questions/{question}', [ScreeningQuestionsController::class, 'destroy']);
+        Route::post('/applications/{application}/screening-answers', [ScreeningQuestionsController::class, 'submitAnswers']);
+    });
+
+    // Async Video Interviews
+    Route::get('/async-interviews/{asyncInterview}/session', [AsyncInterviewsController::class, 'getSession']);
+
+    Route::middleware('subscription')->group(function () {
+        Route::get('/jobs/{job}/async-interviews', [AsyncInterviewsController::class, 'index']);
+        Route::post('/jobs/{job}/async-interviews', [AsyncInterviewsController::class, 'store']);
+        Route::get('/async-interviews/{asyncInterview}', [AsyncInterviewsController::class, 'show']);
+        Route::put('/async-interviews/{asyncInterview}', [AsyncInterviewsController::class, 'update']);
+        Route::delete('/async-interviews/{asyncInterview}', [AsyncInterviewsController::class, 'destroy']);
+        Route::get('/async-interviews/{asyncInterview}/responses', [AsyncInterviewsController::class, 'responses']);
+        Route::get('/async-interviews/{asyncInterview}/responses/{asyncResponse}', [AsyncInterviewsController::class, 'showResponse']);
+        Route::post('/async-interviews/{asyncInterview}/start', [AsyncInterviewsController::class, 'startSession']);
+        Route::post('/async-interviews/{asyncInterview}/upload', [AsyncInterviewsController::class, 'uploadAnswer']);
+    });
+
+    // Reference Checks
+    Route::get('/reference-checks/respond/{token}', [ReferenceChecksController::class, 'respondByToken']);
+    Route::post('/reference-checks/respond/{token}', [ReferenceChecksController::class, 'submitResponse']);
+
+    Route::middleware('subscription')->group(function () {
+        Route::get('/applications/{application}/reference-checks', [ReferenceChecksController::class, 'index']);
+        Route::post('/applications/{application}/reference-checks', [ReferenceChecksController::class, 'store']);
+        Route::get('/reference-checks/{referenceCheck}', [ReferenceChecksController::class, 'show']);
+        Route::post('/reference-checks/{referenceCheck}/remind', [ReferenceChecksController::class, 'remind']);
+        Route::delete('/reference-checks/{referenceCheck}', [ReferenceChecksController::class, 'destroy']);
+    });
+
+    // Background Checks
+    Route::get('/background-checks/providers', [BackgroundChecksController::class, 'providers']);
+    Route::post('/background-checks/webhook/{provider}', [BackgroundChecksController::class, 'webhook']);
+
+    Route::middleware('subscription')->group(function () {
+        Route::get('/applications/{application}/background-checks', [BackgroundChecksController::class, 'index']);
+        Route::post('/applications/{application}/background-checks', [BackgroundChecksController::class, 'store']);
+        Route::get('/background-checks/{backgroundCheck}', [BackgroundChecksController::class, 'show']);
+        Route::put('/background-checks/{backgroundCheck}', [BackgroundChecksController::class, 'update']);
+        Route::post('/background-checks/{backgroundCheck}/cancel', [BackgroundChecksController::class, 'cancel']);
+        Route::post('/background-checks/{backgroundCheck}/consent', [BackgroundChecksController::class, 'giveConsent']);
+    });
+
+    // Credential / License Verification
+    Route::get('/credentials/types', [CredentialVerificationController::class, 'types']);
+
+    Route::middleware('subscription')->group(function () {
+        Route::get('/credentials', [CredentialVerificationController::class, 'index']);
+        Route::post('/credentials', [CredentialVerificationController::class, 'store']);
+        Route::get('/credentials/{credential}', [CredentialVerificationController::class, 'show']);
+        Route::put('/credentials/{credential}/verify', [CredentialVerificationController::class, 'verify']);
+        Route::post('/credentials/{credential}/recheck', [CredentialVerificationController::class, 'recheck']);
+        Route::get('/credentials/expiring', [CredentialVerificationController::class, 'expiring']);
+    });
+
     // ── Admin ────────────────────────────────────────────────────────────
     Route::prefix('admin')->group(function () {
         Route::get('/stats',                    [\App\Http\Controllers\Api\AdminController::class, 'stats']);
@@ -389,6 +467,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/error-logs',               [\App\Http\Controllers\Api\AdminController::class, 'errorLogs']);
         Route::get('/contacts',                 [\App\Http\Controllers\Api\AdminController::class, 'contacts']);
         Route::get('/ai-screenings',            [\App\Http\Controllers\Api\AdminController::class, 'aiScreenings']);
+        Route::get('/background-checks',        [\App\Http\Controllers\Api\BackgroundChecksController::class, 'adminIndex']);
+        Route::get('/credentials',              [\App\Http\Controllers\Api\CredentialVerificationController::class, 'adminIndex']);
         Route::get('/export',                   [\App\Http\Controllers\Api\AdminController::class, 'exportCsv']);
         // New routes
         Route::get('/users/{id}/notes',         [\App\Http\Controllers\Api\AdminController::class, 'userNotes']);

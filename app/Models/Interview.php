@@ -26,12 +26,16 @@ class Interview extends Model
         'cancel_reason',
         'created_by_user_id',
         'reminder_sent_at',
+        'reminder_24h_sent_at',
+        'reminder_1h_sent_at',
     ];
 
     protected $casts = [
         'scheduled_start' => 'datetime',
         'scheduled_end' => 'datetime',
         'reminder_sent_at' => 'datetime',
+        'reminder_24h_sent_at' => 'datetime',
+        'reminder_1h_sent_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

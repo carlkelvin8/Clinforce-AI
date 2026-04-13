@@ -20,6 +20,9 @@ Schedule::command('sanctum:prune-expired --hours=0')->daily();
 // Send interview reminders (24h and 1h before) — runs every 30 minutes
 Schedule::command('interviews:reminders')->everyThirtyMinutes();
 
+// Check credential expiry and send warnings — runs daily at 7am
+Schedule::command('credentials:check-expiry')->dailyAt('07:00');
+
 // Prune rejected applications per employer data retention settings — runs daily at 2am
 Schedule::command('applications:prune-rejected')->dailyAt('02:00');
 

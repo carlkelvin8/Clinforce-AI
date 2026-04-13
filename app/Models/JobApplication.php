@@ -63,4 +63,32 @@ class JobApplication extends Model
     {
         return $this->hasMany(AiScreening::class, 'application_id');
     }
+
+    public function screeningAnswers(): HasMany
+    {
+        return $this->hasMany(ScreeningAnswer::class, 'application_id');
+    }
+
+    public function asyncResponses(): HasMany
+    {
+        return $this->hasMany(AsyncResponse::class, 'application_id');
+    }
+
+    public function referenceChecks(): HasMany
+    {
+        return $this->hasMany(ReferenceCheck::class, 'application_id');
+    }
+
+    public function backgroundChecks(): HasMany
+    {
+        return $this->hasMany(BackgroundCheck::class, 'application_id');
+    }
+
+    /**
+     * Check if any knockout questions were triggered for this application.
+     */
+    public function hasKnockouts(): bool
+    {
+        return $this->screeningAnswers()->where('knockout_triggered', true)->exists();
+    }
 }
