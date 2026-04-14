@@ -152,6 +152,37 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/job-templates/{jobTemplate}', [\App\Http\Controllers\Api\JobTemplatesController::class, 'destroy']);
     Route::post('/job-templates/{jobTemplate}/use', [\App\Http\Controllers\Api\JobTemplatesController::class, 'useTemplate']);
 
+    // Job Template Writer & AI
+    Route::prefix('job-template-writer')->group(function () {
+        // Template CRUD
+        Route::get('/templates', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'index']);
+        Route::get('/templates/{template}', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'show']);
+        Route::post('/templates', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'store']);
+        Route::put('/templates/{template}', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'update']);
+        Route::delete('/templates/{template}', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'destroy']);
+        Route::post('/templates/{template}/use', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'useTemplate']);
+        
+        // Helper data
+        Route::get('/categories', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'categories']);
+        Route::get('/compliance-helper', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'complianceHelper']);
+        
+        // AI features
+        Route::post('/ai/generate', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'generate']);
+        Route::post('/ai/generate-variants', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'generateVariants']);
+        Route::post('/ai/suggestions', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'suggestions']);
+        Route::post('/ai/compliance', [\App\Http\Controllers\Api\JobTemplateWriterController::class, 'compliance']);
+        
+        // A/B Testing
+        Route::get('/ab-tests', [\App\Http\Controllers\Api\TemplateAbTestController::class, 'index']);
+        Route::get('/ab-tests/{test}', [\App\Http\Controllers\Api\TemplateAbTestController::class, 'show']);
+        Route::post('/ab-tests', [\App\Http\Controllers\Api\TemplateAbTestController::class, 'store']);
+        Route::post('/ab-tests/{test}/start', [\App\Http\Controllers\Api\TemplateAbTestController::class, 'start']);
+        Route::post('/ab-tests/{test}/stop', [\App\Http\Controllers\Api\TemplateAbTestController::class, 'stop']);
+        Route::delete('/ab-tests/{test}', [\App\Http\Controllers\Api\TemplateAbTestController::class, 'destroy']);
+        Route::get('/ab-tests/{test}/analytics', [\App\Http\Controllers\Api\TemplateAbTestController::class, 'analytics']);
+        Route::post('/ab-tests/{test}/create-variants', [\App\Http\Controllers\Api\TemplateAbTestController::class, 'createVariants']);
+    });
+
     // Applications
     Route::post('/jobs/{job}/apply', [JobApplicationsController::class, 'apply']);
     Route::get('/applications', [JobApplicationsController::class, 'index']);
@@ -487,5 +518,41 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/funnel',                   [\App\Http\Controllers\Api\AdminController::class, 'applicationFunnel']);
         Route::get('/revenue-by-country',       [\App\Http\Controllers\Api\AdminController::class, 'revenueByCountry']);
         Route::get('/db-table-sizes',           [\App\Http\Controllers\Api\AdminController::class, 'dbTableSizes']);
+
+        // ── Trust & Safety ───────────────────────────────────────────────
+        Route::get('/trust/dashboard',                      [\App\Http\Controllers\Api\TrustSafetyController::class, 'dashboard']);
+        Route::get('/trust/identity-verifications',         [\App\Http\Controllers\Api\TrustSafetyController::class, 'identityVerifications']);
+        Route::patch('/trust/identity-verifications/{id}',  [\App\Http\Controllers\Api\TrustSafetyController::class, 'reviewIdentityVerification']);
+        Route::get('/trust/fraud-logs',                     [\App\Http\Controllers\Api\TrustSafetyController::class, 'fraudLogs']);
+        Route::patch('/trust/fraud-logs/{id}',              [\App\Http\Controllers\Api\TrustSafetyController::class, 'updateFraudLog']);
+        Route::get('/trust/employer-scores',                [\App\Http\Controllers\Api\TrustSafetyController::class, 'employerTrustScores']);
+        Route::get('/trust/employer-reviews',               [\App\Http\Controllers\Api\TrustSafetyController::class, 'employerReviews']);
+        Route::patch('/trust/employer-reviews/{id}',        [\App\Http\Controllers\Api\TrustSafetyController::class, 'moderateEmployerReview']);
+        Route::get('/trust/red-flags',                      [\App\Http\Controllers\Api\TrustSafetyController::class, 'redFlags']);
+        Route::patch('/trust/red-flags/{id}',               [\App\Http\Controllers\Api\TrustSafetyController::class, 'updateRedFlag']);
+        Route::get('/trust/content-reports',                [\App\Http\Controllers\Api\ContentReportsController::class, 'index']);
+        Route::patch('/trust/content-reports/{id}',         [\App\Http\Controllers\Api\ContentReportsController::class, 'review']);
+        Route::get('/trust/moderation-queue',               [\App\Http\Controllers\Api\ContentReportsController::class, 'moderationQueue']);
+        Route::patch('/trust/moderation-queue/{id}',        [\App\Http\Controllers\Api\ContentReportsController::class, 'reviewModerationItem']);
+    });
+
+    // ── Trust & Safety (user-facing) ─────────────────────────────────────
+    Route::post('/report',                                  [\App\Http\Controllers\Api\TrustSafetyController::class, 'reportContent']);
+    Route::post('/employers/{employerUserId}/review',       [\App\Http\Controllers\Api\TrustSafetyController::class, 'submitEmployerReview']);
+
+    // ── Advanced Analytics ───────────────────────────────────────────────
+    Route::middleware('subscription')->group(function () {
+        Route::get('/analytics/hiring-dashboard',          [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'hiringDashboard']);
+        Route::get('/analytics/time-to-hire',              [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'timeToHireBreakdown']);
+        Route::get('/analytics/source-attribution',        [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'sourceAttribution']);
+        Route::get('/analytics/cost-per-hire',             [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'costPerHire']);
+        Route::get('/analytics/salary-benchmarks',         [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'salaryBenchmarks']);
+        Route::get('/analytics/supply-demand',             [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'supplyDemandHeatmap']);
+        Route::get('/analytics/trending-skills',           [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'trendingSkills']);
+        Route::get('/analytics/competitors',               [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'competitorAnalysis']);
+        Route::get('/analytics/industry-benchmarks',       [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'industryBenchmarks']);
+        Route::get('/custom-reports',                      [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'customReports']);
+        Route::post('/custom-reports',                     [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'createCustomReport']);
+        Route::post('/custom-reports/{reportId}/execute',  [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'executeCustomReport']);
     });
 });

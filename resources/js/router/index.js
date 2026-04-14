@@ -25,8 +25,13 @@ const AdminPlans        = () => import("@/Pages/Admin/Plans.vue");
 const AdminVerifications= () => import("@/Pages/Admin/Verifications.vue");
 const AdminAuditLogs    = () => import("@/Pages/Admin/AuditLogs.vue");
 const AdminSystemStatus = () => import("@/Pages/Admin/SystemStatus.vue");
-const AdminContacts     = () => import("@/Pages/Admin/Contacts.vue");
-const AdminAiScreenings = () => import("@/Pages/Admin/AiScreenings.vue");
+const AdminContacts              = () => import("@/Pages/Admin/Contacts.vue");
+const AdminAiScreenings          = () => import("@/Pages/Admin/AiScreenings.vue");
+const AdminTrustSafety           = () => import("@/Pages/Admin/TrustSafety.vue");
+const AdminIdentityVerifications = () => import("@/Pages/Admin/IdentityVerifications.vue");
+const AdminContentReports        = () => import("@/Pages/Admin/ContentReports.vue");
+const AdminEmployerTrust         = () => import("@/Pages/Admin/EmployerTrust.vue");
+const AdminMarketIntelligence    = () => import("@/Pages/Admin/MarketIntelligence.vue");
 
 // --- Staff pages ---
 const EmployerDashboard = () => import("@/Pages/Employer/Dashboard.vue");
@@ -42,6 +47,7 @@ const EmployerPaymentMethod = () => import("@/Pages/Billing/PaymentMethod.vue");
 const EmployerCandidateProfile = () => import("@/Pages/Employer/CandidateProfile.vue");
 const EmployerSettings = () => import("@/Pages/Employer/Settings.vue");
 const EmployerAnalytics = () => import("@/Pages/Employer/Analytics.vue");
+const EmployerAdvancedAnalytics = () => import("@/Pages/Employer/AdvancedAnalytics.vue");
 const PublicEmployerProfile = () => import("@/Pages/Public/EmployerProfile.vue");
 const EmployerKanbanBoard = () => import("@/Pages/Employer/KanbanBoard.vue");
 const EmployerJobTemplates = () => import("@/Pages/Employer/JobTemplates.vue");
@@ -172,6 +178,7 @@ const routes = [
   { path: "/employer/payment-method", name: "employer.payment-method", component: EmployerPaymentMethod, meta: staffMeta },
   { path: "/employer/settings", name: "employer.settings", component: EmployerSettings, meta: staffMeta },
   { path: "/employer/analytics", name: "employer.analytics", component: EmployerAnalytics, meta: staffMeta },
+  { path: "/employer/analytics/advanced", name: "employer.analytics.advanced", component: EmployerAdvancedAnalytics, meta: staffMeta },
   { path: "/employer/candidates/:id", name: "employer.candidates.view", component: EmployerCandidateProfile, props: true, meta: staffMeta },
   { path: "/employer/pipeline", name: "employer.pipeline", component: EmployerKanbanBoard, meta: staffMeta },
   { path: "/employer/job-templates", name: "employer.job-templates", component: EmployerJobTemplates, meta: staffMeta },
@@ -227,6 +234,13 @@ const routes = [
   { path: "/admin/system",         name: "admin.system",        component: AdminSystemStatus,  meta: { requiresAuth: true, roles: ['admin'] } },
   { path: "/admin/contacts",       name: "admin.contacts",      component: AdminContacts,      meta: { requiresAuth: true, roles: ['admin'] } },
   { path: "/admin/ai-screenings",  name: "admin.ai-screenings", component: AdminAiScreenings,  meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/trust",                    name: "admin.trust",                    component: AdminTrustSafety,           meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/trust/identity",           name: "admin.identity-verifications",   component: AdminIdentityVerifications, meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/trust/reports",            name: "admin.content-reports",          component: AdminContentReports,        meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/trust/moderation",         name: "admin.moderation-queue",         component: AdminContentReports,        meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/trust/employer",           name: "admin.employer-trust",           component: AdminEmployerTrust,         meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/trust/fraud",              name: "admin.fraud-logs",               component: AdminEmployerTrust,         meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: "/admin/market-intelligence",      name: "admin.market-intelligence",      component: AdminMarketIntelligence,    meta: { requiresAuth: true, roles: ['admin'] } },
 
   // Public pages
   { path: "/employer/:slug", name: "public.employer", component: PublicEmployerProfile },

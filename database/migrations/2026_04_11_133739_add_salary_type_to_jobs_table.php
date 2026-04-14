@@ -8,14 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('jobs', function (Blueprint $table) {
-            $table->string('salary_type', 50)->default('annually')->after('salary_max');
+        Schema::table('jobs_table', function (Blueprint $table) {
+            $table->string('salary_type', 50)->default('annually')->after('salary_currency');
         });
     }
 
     public function down(): void
     {
-        Schema::table('jobs', function (Blueprint $table) {
+        Schema::table('jobs_table', function (Blueprint $table) {
             $table->dropColumn('salary_type');
         });
     }

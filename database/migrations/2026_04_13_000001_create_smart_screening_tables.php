@@ -14,7 +14,7 @@ return new class extends Migration
         // ── 1. Screening Questions (per-job knockout questions) ──
         Schema::create('screening_questions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('job_id')->constrained('jobs')->onDelete('cascade');
+            $table->foreignId('job_id')->constrained('jobs_table')->onDelete('cascade');
             $table->string('question');
             $table->enum('type', ['text', 'yes_no', 'multiple_choice', 'number'])->default('text');
             $table->json('options')->nullable()->comment('For multiple_choice: array of strings');
@@ -45,7 +45,7 @@ return new class extends Migration
         // ── 3. Async Video Interviews (employer-defined Q&A sessions) ──
         Schema::create('async_interviews', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('job_id')->constrained('jobs')->onDelete('cascade');
+            $table->foreignId('job_id')->constrained('jobs_table')->onDelete('cascade');
             $table->string('title');
             $table->text('description')->nullable();
             $table->json('questions')->comment('Array of {id, question, time_limit_sec, max_duration_sec, allow_retries}');

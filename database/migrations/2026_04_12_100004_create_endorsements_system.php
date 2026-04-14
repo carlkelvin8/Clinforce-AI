@@ -17,7 +17,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('endorsements', function (Blueprint $table) {
+        if (!Schema::hasTable('endorsements')) {
+            Schema::create('endorsements', function (Blueprint $table) {
             $table->id();
             
             // Who is endorsing whom
@@ -29,7 +30,7 @@ return new class extends Migration
             // Endorsement Type
             $table->enum('type', ['skill', 'recommendation', 'character', 'work_ethic', 'leadership'])
                   ->default('skill')->index();
-            $table->string('skill_name')->nullable()->index()
+            $table->string('skill_name')->nullable()
                   ->comment('Specific skill being endorsed (for type=skill)');
             
             // Content
@@ -66,9 +67,11 @@ return new class extends Migration
             $table->index(['recipient_user_id', 'is_hidden']);
             $table->index('skill_name');
         });
+        }
 
         // Endorsement votes (helpful/not helpful)
-        Schema::create('endorsement_votes', function (Blueprint $table) {
+        if (!Schema::hasTable('endorsement_votes')) {
+            Schema::create('endorsement_votes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('endorsement_id')->constrained('endorsements')->onDelete('cascade');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
@@ -78,6 +81,7 @@ return new class extends Migration
             
             $table->unique(['endorsement_id', 'user_id']);
         });
+        }
     }
 
     /**

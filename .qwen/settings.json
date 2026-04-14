@@ -20,7 +20,8 @@
       "Bash(certutil *)",
       "Bash(@node *)",
       "Bash(del *)",
-      "Bash(type *)"
+      "Bash(type *)",
+      "Bash(deploy-hostinger.bat)"
     ]
   },
   "$version": 3

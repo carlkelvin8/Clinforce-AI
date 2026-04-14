@@ -904,4 +904,343 @@ PROMPT;
             'message' => 'Could not parse structured resume. Raw text provided.',
         ];
     }
+
+    // ============================================================
+    // AI JOB DESCRIPTION WRITER
+    // ============================================================
+
+    /**
+     * Generate professional job description from template parameters
+     */
+    public function generateJobDescription(array $params): array
+    {
+        if (!$this->isAvailable()) {
+            return [
+                'error' => 'AI service unavailable',
+                'message' => 'Cannot generate job description at this time',
+            ];
+        }
+
+        $prompt = $this->buildJobDescriptionPrompt($params);
+
+        $messages = [
+            ['role' => 'system', 'content' => $this->getJobDescriptionSystemPrompt()],
+            ['role' => 'user', 'content' => $prompt],
+        ];
+
+        $response = $this->chat($messages, [
+            'model_type' => 'analytical',
+            'enable_tools' => false,
+            'temperature' => 0.7,
+            'max_tokens' => 4096,
+        ]);
+
+        return $this->parseGeneratedJobDescription($response['content'] ?? '', $params);
+    }
+
+    /**
+     * Generate multiple A/B test variants of a job description
+     */
+    public function generateJobDescriptionVariants(array $params, int $count = 2): array
+    {
+        if (!$this->isAvailable()) {
+            return [
+                'error' => 'AI service unavailable',
+                'message' => 'Cannot generate job description variants at this time',
+            ];
+        }
+
+        $variants = [];
+        $styles = [
+            'professional' => 'Professional and formal tone, focusing on credentials and requirements',
+            'engaging' => 'Engaging and enthusiastic tone, highlighting benefits and culture',
+            'concise' => 'Direct and concise, focusing on key requirements and benefits',
+            'storytelling' => 'Narrative style, painting a picture of the role and its impact',
+        ];
+
+        for ($i = 0; $i < min($count, 4); $i++) {
+            $style = array_values($styles)[$i];
+            $variantParams = array_merge($params, ['style' => $style, 'variant' => chr(65 + $i)]);
+            
+            $prompt = $this->buildJobDescriptionPrompt($variantParams);
+
+            $messages = [
+                ['role' => 'system', 'content' => $this->getJobDescriptionSystemPrompt()],
+                ['role' => 'user', 'content' => $prompt],
+            ];
+
+            $response = $this->chat($messages, [
+                'model_type' => 'analytical',
+                'enable_tools' => false,
+                'temperature' => 0.8 + ($i * 0.05), // Increase creativity for each variant
+                'max_tokens' => 4096,
+            ]);
+
+            $parsed = $this->parseGeneratedJobDescription($response['content'] ?? '', $variantParams);
+            $parsed['variant'] = chr(65 + $i);
+            $parsed['style'] = array_keys($styles)[$i];
+            
+            $variants[] = $parsed;
+        }
+
+        return [
+            'success' => true,
+            'variants' => $variants,
+            'count' => count($variants),
+            'generated_at' => now()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Generate best-practice suggestions for a job description
+     */
+    public function generateJobDescriptionSuggestions(string $description, array $context = []): array
+    {
+        if (!$this->isAvailable()) {
+            return [
+                'error' => 'AI service unavailable',
+                'message' => 'Cannot generate suggestions at this time',
+            ];
+        }
+
+        $contextStr = json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        $prompt = "Review and provide optimization suggestions for this job description:\n\n{$description}";
+        if (!empty($context)) {
+            $prompt .= "\n\nAdditional context: {$contextStr}";
+        }
+        $prompt .= "\n\nProvide specific, actionable suggestions to improve conversion rates, compliance, and candidate engagement.";
+
+        $messages = [
+            ['role' => 'system', 'content' => $this->getJobSuggestionsSystemPrompt()],
+            ['role' => 'user', 'content' => $prompt],
+        ];
+
+        $response = $this->chat($messages, [
+            'model_type' => 'analytical',
+            'enable_tools' => false,
+            'temperature' => 0.5,
+            'max_tokens' => 2048,
+        ]);
+
+        return $this->parseJobSuggestions($response['content'] ?? '');
+    }
+
+    /**
+     * Generate compliance checklist for healthcare job
+     */
+    public function generateComplianceChecklist(string $roleType, string $category, array $params = []): array
+    {
+        if (!$this->isAvailable()) {
+            return [
+                'error' => 'AI service unavailable',
+                'message' => 'Cannot generate compliance checklist at this time',
+            ];
+        }
+
+        $paramsStr = json_encode($params, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        $prompt = "Generate a comprehensive compliance checklist for a {$roleType} position in the {$category} category.";
+        if (!empty($params)) {
+            $prompt .= "\n\nAdditional parameters: {$paramsStr}";
+        }
+
+        $messages = [
+            ['role' => 'system', 'content' => $this->getComplianceChecklistSystemPrompt()],
+            ['role' => 'user', 'content' => $prompt],
+        ];
+
+        $response = $this->chat($messages, [
+            'model_type' => 'analytical',
+            'enable_tools' => false,
+            'temperature' => 0.3,
+            'max_tokens' => 2048,
+        ]);
+
+        return $this->parseComplianceChecklist($response['content'] ?? '');
+    }
+
+    // ============================================================
+    // AI JOB DESCRIPTION - PRIVATE METHODS
+    // ============================================================
+
+    private function getJobDescriptionSystemPrompt(): string
+    {
+        return <<<'PROMPT'
+You are an expert job description writer specializing in healthcare and life sciences recruitment. You create compelling, compliant, and conversion-optimized job descriptions that attract top talent.
+
+Your job descriptions must:
+1. Be engaging, professional, and inclusive
+2. Clearly outline responsibilities, qualifications, and benefits
+3. Include required certifications and licenses for healthcare roles
+4. Comply with employment law and industry standards
+5. Use SEO-friendly language and keywords
+6. Be structured for easy scanning (headings, bullet points)
+7. Include salary range, shift information, and work location
+8. Highlight unique selling points and company culture
+9. Include a clear call-to-action
+
+Return job descriptions in structured JSON format with:
+- title (optimized job title)
+- summary (2-3 sentence overview)
+- responsibilities (5-8 bullet points)
+- qualifications (required and preferred)
+- certifications (required licenses/certs)
+- benefits (comprehensive benefits package)
+- shift_details (shift type, hours, schedule)
+- salary_range (min, max, currency, type)
+- about_role (longer description for engagement)
+- keywords (SEO/application keywords)
+PROMPT;
+    }
+
+    private function getJobSuggestionsSystemPrompt(): string
+    {
+        return <<<'PROMPT'
+You are an expert job description optimizer with deep knowledge of what drives candidate engagement and application conversions.
+
+Analyze the provided job description and provide actionable suggestions to improve:
+1. Conversion optimization (compelling language, clear CTAs)
+2. Compliance (required certifications, legal requirements)
+3. Inclusivity (bias-free, inclusive language)
+4. SEO optimization (keywords, searchability)
+5. Clarity and scannability (structure, formatting)
+6. Competitiveness (salary, benefits, market standards)
+
+Return suggestions in structured JSON format with:
+- suggestions (array of {category, suggestion, priority, impact})
+- missing_elements (array of important missing elements)
+- compliance_issues (array of compliance concerns)
+- optimization_score (0-100 overall score)
+- recommended_actions (top 5 prioritized actions)
+
+Categories: conversion, compliance, inclusivity, seo, clarity, competitiveness
+Priority: high, medium, low
+PROMPT;
+    }
+
+    private function getComplianceChecklistSystemPrompt(): string
+    {
+        return <<<'PROMPT'
+You are a healthcare recruitment compliance expert. Generate a comprehensive compliance checklist for healthcare job postings, ensuring all legal and industry requirements are met.
+
+For each role, provide:
+- Required certifications and licenses
+- State-specific requirements
+- Experience and education requirements
+- Shift and scheduling compliance
+- Salary and compensation disclosure requirements
+- Equal opportunity and inclusion statements
+- Background check and screening requirements
+
+Return in structured JSON format with:
+- certifications (array of required certifications)
+- licenses (array of required licenses)
+- requirements (array of compliance requirements)
+- shift_compliance (shift-related compliance items)
+- experience_requirements (education, years, level)
+- legal_requirements (legal compliance items)
+- recommended_disclosures (recommended job posting disclosures)
+PROMPT;
+    }
+
+    private function buildJobDescriptionPrompt(array $params): string
+    {
+        $required = $params['required_certifications'] ?? [];
+        $benefits = $params['benefits'] ?? [];
+        
+        $prompt = "Create a compelling job description for the following role:\n\n";
+        $prompt .= "**Role:** {$params['role_type']}\n";
+        $prompt .= "**Category:** {$params['category']}\n";
+        $prompt .= "**Title:** {$params['title']}\n";
+        $prompt .= "**Employment Type:** {$params['employment_type']}\n";
+        $prompt .= "**Work Mode:** {$params['work_mode']}\n";
+        $prompt .= "**Location:** " . ($params['city'] ?? 'N/A') . ", " . ($params['country'] ?? 'N/A') . "\n";
+        $prompt .= "**Experience Level:** {$params['experience_level']}\n";
+        $prompt .= "**Minimum Experience:** " . ($params['min_experience_years'] ?? 'N/A') . " years\n";
+        
+        if (!empty($params['shift_type'])) {
+            $prompt .= "**Shift Type:** {$params['shift_type']}\n";
+        }
+        
+        if (!empty($params['salary_min']) && !empty($params['salary_max'])) {
+            $prompt .= "**Salary Range:** {$params['salary_min']} - {$params['salary_max']} {$params['salary_currency']}\n";
+        }
+        
+        if (!empty($required)) {
+            $prompt .= "**Required Certifications:** " . implode(', ', $required) . "\n";
+        }
+        
+        if (!empty($benefits)) {
+            $prompt .= "**Benefits:** " . implode(', ', $benefits) . "\n";
+        }
+        
+        if (!empty($params['style'])) {
+            $prompt .= "\n**Writing Style:** {$params['style']}\n";
+        }
+        
+        $prompt .= "\nGenerate a complete, conversion-optimized job description in structured JSON format.";
+        
+        return $prompt;
+    }
+
+    private function parseGeneratedJobDescription(string $response, array $params): array
+    {
+        if (preg_match('/\{.*\}/s', $response, $matches)) {
+            $description = json_decode($matches[0], true);
+            if ($description) {
+                return [
+                    'success' => true,
+                    'description' => $description,
+                    'is_ai_generated' => true,
+                    'ai_model_used' => 'gpt-4o',
+                    'generated_at' => now()->toIso8601String(),
+                ];
+            }
+        }
+
+        return [
+            'success' => false,
+            'raw_text' => $response,
+            'message' => 'Could not parse structured job description. Raw text provided.',
+        ];
+    }
+
+    private function parseJobSuggestions(string $response): array
+    {
+        if (preg_match('/\{.*\}/s', $response, $matches)) {
+            $suggestions = json_decode($matches[0], true);
+            if ($suggestions) {
+                return [
+                    'success' => true,
+                    'suggestions' => $suggestions,
+                    'generated_at' => now()->toIso8601String(),
+                ];
+            }
+        }
+
+        return [
+            'success' => false,
+            'message' => 'Could not parse structured suggestions',
+        ];
+    }
+
+    private function parseComplianceChecklist(string $response): array
+    {
+        if (preg_match('/\{.*\}/s', $response, $matches)) {
+            $checklist = json_decode($matches[0], true);
+            if ($checklist) {
+                return [
+                    'success' => true,
+                    'checklist' => $checklist,
+                    'generated_at' => now()->toIso8601String(),
+                ];
+            }
+        }
+
+        return [
+            'success' => false,
+            'message' => 'Could not parse structured compliance checklist',
+        ];
+    }
 }

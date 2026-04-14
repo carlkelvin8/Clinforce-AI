@@ -38,11 +38,11 @@ return new class extends Migration
             $this->addIndex($table, 'job_applications', ['job_id', 'status'], 'idx_job_applications_job_status');
         });
 
-        Schema::table('jobs', function (Blueprint $table) {
-            $this->addIndex($table, 'jobs', 'owner_user_id', 'idx_jobs_owner_user_id');
-            $this->addIndex($table, 'jobs', 'status', 'idx_jobs_status');
-            $this->addIndex($table, 'jobs', 'created_at', 'idx_jobs_created_at');
-            $this->addIndex($table, 'jobs', ['owner_user_id', 'status'], 'idx_jobs_owner_status');
+        Schema::table('jobs_table', function (Blueprint $table) {
+            $this->addIndex($table, 'jobs_table', 'owner_user_id', 'idx_jobs_owner_user_id');
+            $this->addIndex($table, 'jobs_table', 'status', 'idx_jobs_status');
+            $this->addIndex($table, 'jobs_table', 'created_at', 'idx_jobs_created_at');
+            $this->addIndex($table, 'jobs_table', ['owner_user_id', 'status'], 'idx_jobs_owner_status');
         });
 
         Schema::table('messages', function (Blueprint $table) {

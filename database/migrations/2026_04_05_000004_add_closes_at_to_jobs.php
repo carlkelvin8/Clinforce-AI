@@ -7,15 +7,15 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::table('jobs', function (Blueprint $table) {
-            $table->timestamp('closes_at')->nullable()->after('archived_at')
+        Schema::table('jobs_table', function (Blueprint $table) {
+            $table->timestamp('closes_at')->nullable()->after('updated_at')
                 ->comment('Application deadline — auto-archive after this date');
         });
     }
 
     public function down(): void
     {
-        Schema::table('jobs', function (Blueprint $table) {
+        Schema::table('jobs_table', function (Blueprint $table) {
             $table->dropColumn('closes_at');
         });
     }
