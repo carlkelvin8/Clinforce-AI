@@ -249,7 +249,7 @@ class AuthController extends Controller
         }
 
         $url = URL::signedRoute(
-            'verification.verify',
+            'api.verification.verify',
             [
                 'id' => $user->id,
                 'hash' => sha1($user->getEmailForVerification()),

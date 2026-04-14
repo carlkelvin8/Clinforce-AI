@@ -257,6 +257,31 @@ const employerNavGroups = [
         ]
     },
     {
+        title: 'Development',
+        items: [
+            { label: 'Learning & Skills', icon: 'pi pi-graduation-cap', to: { name: 'employer.learning-development' } },
+            { label: 'Mentorship', icon: 'pi pi-users', to: { name: 'employer.mentorship' } },
+            { label: 'Certifications', icon: 'pi pi-verified', to: { name: 'employer.certifications' } },
+        ]
+    },
+    {
+        title: 'Analytics',
+        items: [
+            { label: 'Analytics', icon: 'pi pi-chart-line', to: { name: 'employer.analytics' } },
+            { label: 'Advanced Analytics', icon: 'pi pi-chart-bar', to: { name: 'employer.analytics.advanced' } },
+            { label: 'Market Intelligence', icon: 'pi pi-globe', to: { name: 'employer.market-intelligence' } },
+            { label: 'Report Builder', icon: 'pi pi-file-export', to: { name: 'employer.report-builder' } },
+        ]
+    },
+    {
+        title: 'Automation',
+        items: [
+            { label: 'Workflow Automation', icon: 'pi pi-cog', to: { name: 'employer.workflow-automation' } },
+            { label: 'Email Sequences', icon: 'pi pi-envelope', to: { name: 'employer.email-sequences' } },
+            { label: 'Document Generation', icon: 'pi pi-file-pdf', to: { name: 'employer.document-generation' } },
+        ]
+    },
+    {
         title: 'Workspace',
         items: [
             { label: 'Subscription', icon: 'pi pi-credit-card', to: { name: 'employer.billing' } },

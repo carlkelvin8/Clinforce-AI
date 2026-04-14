@@ -36,6 +36,14 @@ use App\Http\Controllers\Api\ReferenceChecksController;
 use App\Http\Controllers\Api\BackgroundChecksController;
 use App\Http\Controllers\Api\CredentialVerificationController;
 use App\Http\Controllers\Api\ApplicationAnalyticsController;
+use App\Http\Controllers\Api\WorkflowAutomationController;
+use App\Http\Controllers\Api\EmailSequenceController;
+use App\Http\Controllers\Api\DocumentGenerationController;
+use App\Http\Controllers\Api\AnalyticsReportingController;
+use App\Http\Controllers\Api\MarketIntelligenceController;
+use App\Http\Controllers\Api\LearningDevelopmentController;
+use App\Http\Controllers\Api\MentorshipController;
+use App\Http\Controllers\Api\CertificationTrackingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -78,7 +86,7 @@ Route::prefix('auth')->group(function () {
     // Email Verification
     Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
         ->middleware(['signed'])
-        ->name('verification.verify');
+        ->name('api.verification.verify');
     Route::post('/email/resend', [AuthController::class, 'resendVerificationEmail'])
         ->middleware(['auth:sanctum', 'throttle:3,1']);
     
@@ -554,5 +562,152 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/custom-reports',                      [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'customReports']);
         Route::post('/custom-reports',                     [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'createCustomReport']);
         Route::post('/custom-reports/{reportId}/execute',  [\App\Http\Controllers\Api\AdvancedAnalyticsController::class, 'executeCustomReport']);
+    });
+
+    // ── Workflow Automation ──────────────────────────────────────────────
+    Route::middleware('subscription')->group(function () {
+        // Hiring Workflows
+        Route::get('/workflow-automation/workflows',                        [WorkflowAutomationController::class, 'getWorkflows']);
+        Route::post('/workflow-automation/workflows',                       [WorkflowAutomationController::class, 'createWorkflow']);
+        Route::put('/workflow-automation/workflows/{workflowId}',           [WorkflowAutomationController::class, 'updateWorkflow']);
+        Route::delete('/workflow-automation/workflows/{workflowId}',        [WorkflowAutomationController::class, 'deleteWorkflow']);
+        
+        // Stage Transitions
+        Route::post('/workflow-automation/advance-candidate',               [WorkflowAutomationController::class, 'advanceCandidate']);
+        Route::get('/workflow-automation/applications/{applicationId}/history', [WorkflowAutomationController::class, 'getStageHistory']);
+        
+        // SLA Tracking
+        Route::get('/workflow-automation/sla-violations',                   [WorkflowAutomationController::class, 'getSlaViolations']);
+        Route::post('/workflow-automation/sla-violations/{violationId}/resolve', [WorkflowAutomationController::class, 'resolveSlaViolation']);
+        
+        // Email Sequences
+        Route::get('/email-sequences',                                      [EmailSequenceController::class, 'getSequences']);
+        Route::post('/email-sequences',                                     [EmailSequenceController::class, 'createSequence']);
+        Route::put('/email-sequences/{sequenceId}',                        [EmailSequenceController::class, 'updateSequence']);
+        Route::delete('/email-sequences/{sequenceId}',                     [EmailSequenceController::class, 'deleteSequence']);
+        
+        // Email Sequence Steps
+        Route::get('/email-sequences/{sequenceId}/steps',                   [EmailSequenceController::class, 'getSequenceSteps']);
+        Route::post('/email-sequences/{sequenceId}/steps',                  [EmailSequenceController::class, 'createSequenceStep']);
+        Route::put('/email-sequences/{sequenceId}/steps/{stepId}',          [EmailSequenceController::class, 'updateSequenceStep']);
+        Route::delete('/email-sequences/{sequenceId}/steps/{stepId}',       [EmailSequenceController::class, 'deleteSequenceStep']);
+        
+        // Email Enrollments
+        Route::post('/email-sequences/enroll',                              [EmailSequenceController::class, 'enrollUser']);
+        Route::get('/email-sequences/enrollments',                          [EmailSequenceController::class, 'getEnrollments']);
+        Route::post('/email-sequences/enrollments/{enrollmentId}/pause',    [EmailSequenceController::class, 'pauseEnrollment']);
+        Route::post('/email-sequences/enrollments/{enrollmentId}/resume',   [EmailSequenceController::class, 'resumeEnrollment']);
+        
+        // Email Analytics
+        Route::get('/email-sequences/{sequenceId}/analytics',               [EmailSequenceController::class, 'getSequenceAnalytics']);
+        
+        // Document Templates
+        Route::get('/document-templates',                                    [DocumentGenerationController::class, 'getTemplates']);
+        Route::post('/document-templates',                                   [DocumentGenerationController::class, 'createTemplate']);
+        Route::put('/document-templates/{templateId}',                      [DocumentGenerationController::class, 'updateTemplate']);
+        Route::delete('/document-templates/{templateId}',                   [DocumentGenerationController::class, 'deleteTemplate']);
+        
+        // Document Generation
+        Route::post('/generate-document',                                    [DocumentGenerationController::class, 'generateDocument']);
+        Route::get('/generated-documents',                                   [DocumentGenerationController::class, 'getGeneratedDocuments']);
+        Route::post('/generated-documents/{documentId}/send',                [DocumentGenerationController::class, 'sendDocument']);
+        Route::get('/generated-documents/{documentId}/download',             [DocumentGenerationController::class, 'downloadDocument']);
+        
+        // Document Analytics
+        Route::get('/document-analytics',                                    [DocumentGenerationController::class, 'getDocumentAnalytics']);
+    });
+
+    // ═══════════════════════════════════════════════════════════
+    // ANALYTICS & REPORTING FEATURES
+    // ═══════════════════════════════════════════════════════════
+    
+    Route::middleware('subscription')->group(function () {
+        // Advanced Hiring Analytics Dashboard
+        Route::get('/analytics-reporting/hiring-dashboard',                  [AnalyticsReportingController::class, 'hiringAnalyticsDashboard']);
+        Route::get('/analytics-reporting/time-to-hire',                     [AnalyticsReportingController::class, 'timeToHireBreakdown']);
+        Route::get('/analytics-reporting/source-attribution',               [AnalyticsReportingController::class, 'sourceAttribution']);
+        Route::get('/analytics-reporting/cost-per-hire',                    [AnalyticsReportingController::class, 'costPerHire']);
+        Route::get('/analytics-reporting/funnel-analysis',                  [AnalyticsReportingController::class, 'funnelAnalysis']);
+        
+        // Market Intelligence Reports
+        Route::get('/analytics-reporting/salary-benchmarks',                [AnalyticsReportingController::class, 'salaryBenchmarks']);
+        Route::get('/analytics-reporting/supply-demand-heatmap',             [AnalyticsReportingController::class, 'supplyDemandHeatmap']);
+        Route::get('/analytics-reporting/competitor-analysis',               [AnalyticsReportingController::class, 'competitorAnalysis']);
+        Route::get('/analytics-reporting/trending-skills',                   [AnalyticsReportingController::class, 'trendingSkills']);
+        
+        // Custom Report Builder
+        Route::get('/analytics-reporting/custom-reports',                    [AnalyticsReportingController::class, 'getCustomReports']);
+        Route::post('/analytics-reporting/custom-reports',                   [AnalyticsReportingController::class, 'createCustomReport']);
+        Route::post('/analytics-reporting/custom-reports/{reportId}/execute', [AnalyticsReportingController::class, 'executeCustomReport']);
+        Route::post('/analytics-reporting/custom-reports/{reportId}/export', [AnalyticsReportingController::class, 'exportReport']);
+        
+        // Industry Benchmarks
+        Route::get('/analytics-reporting/industry-benchmarks',               [AnalyticsReportingController::class, 'getIndustryBenchmarks']);
+        
+        // Market Intelligence (separate controller for complex market data)
+        Route::get('/market-intelligence/overview',                          [MarketIntelligenceController::class, 'overview']);
+        Route::get('/market-intelligence/salary-trends',                     [MarketIntelligenceController::class, 'salaryTrends']);
+        Route::get('/market-intelligence/demand-forecast',                   [MarketIntelligenceController::class, 'demandForecast']);
+        Route::get('/market-intelligence/competitive-landscape',             [MarketIntelligenceController::class, 'competitiveLandscape']);
+    });
+
+    // ═══════════════════════════════════════════════════════════
+    // LEARNING & DEVELOPMENT PLATFORM
+    // ═══════════════════════════════════════════════════════════
+    
+    Route::middleware('subscription')->group(function () {
+        // Learning Dashboard & Overview
+        Route::get('/learning-development/dashboard',                        [LearningDevelopmentController::class, 'dashboard']);
+        
+        // Skills Management
+        Route::get('/learning-development/skills-catalog',                   [LearningDevelopmentController::class, 'getSkillsCatalog']);
+        Route::get('/learning-development/user-skills',                      [LearningDevelopmentController::class, 'getUserSkills']);
+        Route::post('/learning-development/user-skills',                     [LearningDevelopmentController::class, 'addUserSkill']);
+        Route::put('/learning-development/user-skills/{skillId}',            [LearningDevelopmentController::class, 'updateUserSkill']);
+        
+        // Skill Gap Analysis
+        Route::post('/learning-development/analyze-skill-gaps',              [LearningDevelopmentController::class, 'analyzeSkillGaps']);
+        Route::get('/learning-development/skill-gaps',                       [LearningDevelopmentController::class, 'getSkillGaps']);
+        
+        // Learning Courses
+        Route::get('/learning-development/courses',                          [LearningDevelopmentController::class, 'getCourses']);
+        Route::get('/learning-development/courses/{courseId}',               [LearningDevelopmentController::class, 'getCourse']);
+        Route::post('/learning-development/courses/{courseId}/enroll',       [LearningDevelopmentController::class, 'enrollInCourse']);
+        
+        // Learning Recommendations
+        Route::get('/learning-development/recommendations',                  [LearningDevelopmentController::class, 'getRecommendations']);
+        Route::post('/learning-development/generate-recommendations',        [LearningDevelopmentController::class, 'generateRecommendations']);
+        
+        // Mentorship Program
+        Route::get('/mentorship/mentor-profile',                             [MentorshipController::class, 'getMentorProfile']);
+        Route::post('/mentorship/mentor-profile',                            [MentorshipController::class, 'createMentorProfile']);
+        Route::put('/mentorship/mentor-profile',                             [MentorshipController::class, 'updateMentorProfile']);
+        
+        Route::get('/mentorship/mentee-profile',                             [MentorshipController::class, 'getMenteeProfile']);
+        Route::post('/mentorship/mentee-profile',                            [MentorshipController::class, 'createMenteeProfile']);
+        
+        Route::get('/mentorship/find-mentors',                               [MentorshipController::class, 'findMentors']);
+        Route::post('/mentorship/generate-matches',                          [MentorshipController::class, 'generateMentorMatches']);
+        Route::get('/mentorship/mentor-matches',                             [MentorshipController::class, 'getMentorMatches']);
+        
+        Route::post('/mentorship/request',                                   [MentorshipController::class, 'requestMentorship']);
+        Route::post('/mentorship/relationships/{relationshipId}/respond',    [MentorshipController::class, 'respondToMentorshipRequest']);
+        Route::get('/mentorship/relationships',                              [MentorshipController::class, 'getMentorshipRelationships']);
+        
+        // Certification Tracking
+        Route::get('/certification-tracking/certification-types',           [CertificationTrackingController::class, 'getCertificationTypes']);
+        Route::get('/certification-tracking/user-certifications',           [CertificationTrackingController::class, 'getUserCertifications']);
+        Route::post('/certification-tracking/certifications',               [CertificationTrackingController::class, 'addCertification']);
+        Route::put('/certification-tracking/certifications/{certificationId}', [CertificationTrackingController::class, 'updateCertification']);
+        Route::delete('/certification-tracking/certifications/{certificationId}', [CertificationTrackingController::class, 'deleteCertification']);
+        
+        Route::get('/certification-tracking/renewals-due',                  [CertificationTrackingController::class, 'getRenewalsDue']);
+        Route::post('/certification-tracking/renewals/{renewalId}/start',   [CertificationTrackingController::class, 'startRenewal']);
+        Route::put('/certification-tracking/renewals/{renewalId}/progress', [CertificationTrackingController::class, 'updateRenewalProgress']);
+        Route::post('/certification-tracking/renewals/{renewalId}/complete', [CertificationTrackingController::class, 'completeRenewal']);
+        
+        Route::post('/certification-tracking/certifications/{certificationId}/verify', [CertificationTrackingController::class, 'verifyCertification']);
+        Route::get('/certification-tracking/certifications/{certificationId}/file', [CertificationTrackingController::class, 'getCertificationFile']);
+        Route::get('/certification-tracking/analytics',                     [CertificationTrackingController::class, 'getCertificationAnalytics']);
     });
 });

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-import EmployerLayout from './EmployerLayout.vue';
+import AppLayout from '@/Components/AppLayout.vue';
 import api from '@/lib/api';
 import Select from 'primevue/select';
 import Button from 'primevue/button';
@@ -176,7 +176,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <EmployerLayout>
+  <AppLayout>
     <div class="space-y-6">
       <div>
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Advanced Analytics</h1>
@@ -446,5 +446,5 @@ onMounted(() => {
         </div>
       </div>
     </Dialog>
-  </EmployerLayout>
+  </AppLayout>
 </template>
