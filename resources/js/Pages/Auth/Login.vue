@@ -158,9 +158,8 @@ const router = useRouter();
   
   function loginWithGoogle() {
     if (loading.value) return;
-    const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
-    const baseUrl = apiUrl.replace('/api', '');
-    window.location.href = `${baseUrl}/auth/google/redirect?source=login`;
+    const apiUrl = import.meta.env.VITE_API_URL || window.location.origin + '/api';
+    window.location.href = `${apiUrl}/auth/google/redirect?source=login`;
   }
   </script>
   
