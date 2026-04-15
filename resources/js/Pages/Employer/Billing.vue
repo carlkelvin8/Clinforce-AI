@@ -163,7 +163,7 @@ async function startSubscription() {
   // Trial plan: skip payment method check
   const isTrial = selectedPrice.value?.is_trial || (typeof selectedPrice.value?.price_cents === "number" && selectedPrice.value?.price_cents === 0);
   if (!isTrial && !hasPaymentMethod.value) {
-    const r = await Swal.fire({ icon: "warning", title: "Payment Method Required", text: "Please add a payment method before subscribing.", confirmButtonText: "Add Payment Method", showCancelButton: true });
+    const r = await Swal.fire({ icon: "warning", title: "Payment Method Required", text: "Please add a payment method before subscribing to a paid plan.", confirmButtonText: "Add Payment Method", showCancelButton: true });
     if (r.isConfirmed) window.location.href = "/employer/payment-method";
     return;
   }
@@ -175,7 +175,7 @@ async function startSubscription() {
     const numericPlanId = parseInt(selectedPrice.value?.id ?? selectedPriceId.value, 10);
     if (!numericPlanId) { errorMsg.value = "Missing plan identifier."; return; }
     const res = await http.post("/subscriptions", { plan_id: numericPlanId });
-    statusMsg.value = res.data?.message || "Subscription created.";
+    statusMsg.value = res.data?.message || (isTrial ? "Free trial activated!" : "Subscription created.");
     await load();
   } catch (e) {
     const payload = e?.response?.data;
@@ -447,7 +447,7 @@ const subscriptionPriceLabel = computed(() => {
                   </div>
                 </div>
                 <Button
-                  :label="subscription ? 'Update Plan' : (selectedPrice.is_trial ? 'Start Free Trial' : 'Subscribe Now')"
+                  :label="subscription ? 'Update Plan' : (selectedPrice.is_trial ? 'Start Free Trial (No Card Required)' : 'Subscribe Now')"
                   :icon="selectedPrice.is_trial ? 'pi pi-play' : 'pi pi-check-circle'"
                   :loading="loading"
                   :disabled="!selectedPriceId || checkoutBlocked || isCurrent(selectedPrice)"
