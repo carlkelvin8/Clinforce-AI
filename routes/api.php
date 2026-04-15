@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\LearningDevelopmentController;
 use App\Http\Controllers\Api\MentorshipController;
 use App\Http\Controllers\Api\CertificationTrackingController;
 use App\Http\Controllers\Api\TalentPoolController;
+use App\Http\Controllers\Api\ReferralProgramController;
 
 /*
 |--------------------------------------------------------------------------
@@ -735,6 +736,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/talent-pool/analytics',                                [TalentPoolController::class, 'getAnalytics']);
         Route::post('/candidate-interactions',                              [TalentPoolController::class, 'logInteraction']);
         Route::get('/candidates/{candidateId}/interactions',                [TalentPoolController::class, 'getCandidateInteractions']);
+        
+        // Employee Referral Program
+        Route::get('/referral-programs',                                    [ReferralProgramController::class, 'getPrograms']);
+        Route::post('/referral-programs',                                   [ReferralProgramController::class, 'createProgram']);
+        Route::put('/referral-programs/{id}',                               [ReferralProgramController::class, 'updateProgram']);
+        
+        Route::post('/referrals',                                           [ReferralProgramController::class, 'submitReferral']);
+        Route::get('/referrals/my',                                         [ReferralProgramController::class, 'getMyReferrals']);
+        Route::get('/referrals/all',                                        [ReferralProgramController::class, 'getAllReferrals']);
+        Route::put('/referrals/{id}/status',                                [ReferralProgramController::class, 'updateReferralStatus']);
+        
+        Route::post('/referrals/{referralId}/bonus/approve',                [ReferralProgramController::class, 'approveBonus']);
+        Route::post('/referral-bonuses/{bonusId}/paid',                     [ReferralProgramController::class, 'markBonusPaid']);
+        Route::get('/referral-bonuses/pending',                             [ReferralProgramController::class, 'getPendingBonuses']);
+        
+        Route::get('/referral-leaderboard',                                 [ReferralProgramController::class, 'getLeaderboard']);
+        Route::post('/referral-leaderboard/refresh',                        [ReferralProgramController::class, 'refreshLeaderboard']);
+        
+        Route::get('/referral-analytics',                                   [ReferralProgramController::class, 'getAnalytics']);
+        Route::get('/referral-notifications',                               [ReferralProgramController::class, 'getNotifications']);
+        Route::put('/referral-notifications/{id}/read',                     [ReferralProgramController::class, 'markNotificationRead']);
+
 
     });
 });
