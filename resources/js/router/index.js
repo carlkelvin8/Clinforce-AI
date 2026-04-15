@@ -53,6 +53,7 @@ const EmployerCustomReportBuilder = () => import("@/Pages/Employer/CustomReportB
 const EmployerLearningDevelopment = () => import("@/Pages/Employer/LearningDevelopment.vue");
 const EmployerMentorship = () => import("@/Pages/Employer/Mentorship.vue");
 const EmployerCertificationTracking = () => import("@/Pages/Employer/CertificationTracking.vue");
+const EmployerTalentPool = () => import("@/Pages/Employer/TalentPool.vue");
 const EmployerWorkflowAutomation = () => import("@/Pages/Employer/WorkflowAutomation.vue");
 const EmployerEmailSequences = () => import("@/Pages/Employer/EmailSequences.vue");
 const EmployerDocumentGeneration = () => import("@/Pages/Employer/DocumentGeneration.vue");
@@ -192,6 +193,7 @@ const routes = [
   { path: "/employer/learning-development", name: "employer.learning-development", component: EmployerLearningDevelopment, meta: staffMeta },
   { path: "/employer/mentorship", name: "employer.mentorship", component: EmployerMentorship, meta: staffMeta },
   { path: "/employer/certifications", name: "employer.certifications", component: EmployerCertificationTracking, meta: staffMeta },
+  { path: "/employer/talent-pool", name: "employer.talent-pool", component: EmployerTalentPool, meta: staffMeta },
   { path: "/employer/workflow-automation", name: "employer.workflow-automation", component: EmployerWorkflowAutomation, meta: staffMeta },
   { path: "/employer/email-sequences", name: "employer.email-sequences", component: EmployerEmailSequences, meta: staffMeta },
   { path: "/employer/document-generation", name: "employer.document-generation", component: EmployerDocumentGeneration, meta: staffMeta },

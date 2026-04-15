@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\MarketIntelligenceController;
 use App\Http\Controllers\Api\LearningDevelopmentController;
 use App\Http\Controllers\Api\MentorshipController;
 use App\Http\Controllers\Api\CertificationTrackingController;
+use App\Http\Controllers\Api\TalentPoolController;
 
 /*
 |--------------------------------------------------------------------------
@@ -709,5 +710,31 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/certification-tracking/certifications/{certificationId}/verify', [CertificationTrackingController::class, 'verifyCertification']);
         Route::get('/certification-tracking/certifications/{certificationId}/file', [CertificationTrackingController::class, 'getCertificationFile']);
         Route::get('/certification-tracking/analytics',                     [CertificationTrackingController::class, 'getCertificationAnalytics']);
+        
+        // Talent Pool Management
+        Route::get('/talent-pools',                                         [TalentPoolController::class, 'index']);
+        Route::post('/talent-pools',                                        [TalentPoolController::class, 'store']);
+        Route::get('/talent-pools/{id}',                                    [TalentPoolController::class, 'show']);
+        Route::put('/talent-pools/{id}',                                    [TalentPoolController::class, 'update']);
+        Route::delete('/talent-pools/{id}',                                 [TalentPoolController::class, 'destroy']);
+        
+        Route::post('/talent-pools/{poolId}/candidates',                    [TalentPoolController::class, 'addCandidate']);
+        Route::delete('/talent-pools/{poolId}/candidates/{candidateId}',    [TalentPoolController::class, 'removeCandidate']);
+        Route::put('/talent-pools/{poolId}/candidates/{candidateId}/status', [TalentPoolController::class, 'updateCandidateStatus']);
+        
+        Route::get('/talent-tags',                                          [TalentPoolController::class, 'getTags']);
+        Route::post('/talent-tags',                                         [TalentPoolController::class, 'createTag']);
+        Route::post('/candidates/{candidateId}/tags',                       [TalentPoolController::class, 'tagCandidate']);
+        Route::delete('/candidates/{candidateId}/tags/{tagId}',             [TalentPoolController::class, 'untagCandidate']);
+        
+        Route::get('/nurture-campaigns',                                    [TalentPoolController::class, 'getCampaigns']);
+        Route::post('/nurture-campaigns',                                   [TalentPoolController::class, 'createCampaign']);
+        Route::post('/nurture-campaigns/{campaignId}/steps',                [TalentPoolController::class, 'addCampaignStep']);
+        Route::post('/nurture-campaigns/{campaignId}/activate',             [TalentPoolController::class, 'activateCampaign']);
+        
+        Route::get('/talent-pool/analytics',                                [TalentPoolController::class, 'getAnalytics']);
+        Route::post('/candidate-interactions',                              [TalentPoolController::class, 'logInteraction']);
+        Route::get('/candidates/{candidateId}/interactions',                [TalentPoolController::class, 'getCandidateInteractions']);
+
     });
 });
