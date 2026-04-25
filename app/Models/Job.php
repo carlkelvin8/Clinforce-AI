@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Job extends Model
 {
-    protected $table = 'jobs';
+    protected $table = 'jobs_table';
 
     protected $fillable = [
         'owner_type',

@@ -24,6 +24,8 @@ class DatabaseSeeder extends Seeder
             AiScreeningsSeeder::class,
             MessagesSeeder::class,
             NotificationsSeeder::class,
+            AssessmentTemplatesSeeder::class,
+            PortfolioSeeder::class,
         ]);
     }
 }

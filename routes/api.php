@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\MentorshipController;
 use App\Http\Controllers\Api\CertificationTrackingController;
 use App\Http\Controllers\Api\TalentPoolController;
 use App\Http\Controllers\Api\ReferralProgramController;
+use App\Http\Controllers\Api\CandidateAnalyticsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -323,7 +324,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/applicants', [ApplicantsController::class, 'index']);
     Route::get('/applicants/{userId}', [ApplicantsController::class, 'show']);
     Route::get('/applications/{applicationId}/applicant', [ApplicantsController::class, 'showFromApplication']);
-
+ 
     // Secure document downloads (with subscription gates)
     Route::get('/documents/{documentId}/download', [SecureDocumentController::class, 'download']);
     Route::get('/documents/{documentId}/stream', [SecureDocumentController::class, 'stream']);
@@ -760,4 +761,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     });
+
+    // ═══════════════════════════════════════════════════════════
+    // CANDIDATE ANALYTICS
+    // ═══════════════════════════════════════════════════════════
+    
+    // Candidate Career Analytics Dashboard
+    Route::get('/candidate/analytics', [\App\Http\Controllers\Api\CandidateAnalyticsController::class, 'dashboard']);
 });

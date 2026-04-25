@@ -2,13 +2,13 @@
   <AppLayout>
     <div class="flex flex-col gap-8 max-w-[1600px] mx-auto">
       <!-- Header -->
-      <div class="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-gray-100 pb-6">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Candidates</h1>
           <p class="text-gray-500 text-sm mt-1">Manage and track candidate applications</p>
         </div>
-        <div class="flex items-center gap-2">
-          <Button icon="pi pi-download" label="Export CSV" size="small" severity="secondary" outlined @click="exportCsv" :loading="exporting" />
+        <div class="flex items-center gap-2 ml-auto">
+          <Button icon="pi pi-download" label="Export CSV" size="small" severity="secondary" outlined @click="exportCsv" :loading="exporting" class="!text-sm" />
           <Button icon="pi pi-refresh" :loading="loading" @click="fetchData(1)" text rounded severity="secondary" aria-label="Refresh" />
         </div>
       </div>
@@ -246,13 +246,33 @@ const perPage = ref(15)
 
 const items = ref([])
 const raw = ref(null)
+const analyticsStats = ref(null)
 
-const statCards = computed(() => [
-  { label: 'Total Candidates', value: totalRecords.value, icon: 'pi pi-users', color: 'text-blue-500', bg: 'bg-blue-50' },
-  { label: 'New / Submitted', value: items.value.filter(r => r.status === 'submitted').length, icon: 'pi pi-file', color: 'text-orange-500', bg: 'bg-orange-50' },
-  { label: 'Interviews', value: items.value.filter(r => r.status === 'interview').length, icon: 'pi pi-calendar', color: 'text-purple-500', bg: 'bg-purple-50' },
-  { label: 'Hired', value: items.value.filter(r => r.status === 'hired').length, icon: 'pi pi-check-circle', color: 'text-emerald-500', bg: 'bg-emerald-50' },
-])
+const statCards = computed(() => {
+  // Use analytics pipeline data if available (covers all pages)
+  if (analyticsStats.value?.pipeline) {
+    const p = analyticsStats.value.pipeline
+    const newCount = (p['pending'] || 0) + (p['submitted'] || 0) + (p['applied'] || 0) + (p['new'] || 0)
+    const interviewCount = (p['interview'] || 0) + (p['interviewed'] || 0) + (p['reviewing'] || 0) + (p['assessment'] || 0)
+    const hiredCount = (p['hired'] || 0)
+    return [
+      { label: 'Total Candidates', value: analyticsStats.value.kpis?.total_applications || totalRecords.value, icon: 'pi pi-users', color: 'text-blue-500', bg: 'bg-blue-50' },
+      { label: 'New / Submitted', value: newCount, icon: 'pi pi-file', color: 'text-orange-500', bg: 'bg-orange-50' },
+      { label: 'Interviews', value: interviewCount, icon: 'pi pi-calendar', color: 'text-purple-500', bg: 'bg-purple-50' },
+      { label: 'Hired', value: hiredCount, icon: 'pi pi-check-circle', color: 'text-emerald-500', bg: 'bg-emerald-50' },
+    ]
+  }
+  // Fallback: count from current page items
+  const newCount = items.value.filter(r => ['submitted', 'new', 'pending', 'applied'].includes(r.status)).length
+  const interviewCount = items.value.filter(r => ['interview', 'interviewed', 'reviewing', 'assessment'].includes(r.status)).length
+  const hiredCount = items.value.filter(r => r.status === 'hired').length
+  return [
+    { label: 'Total Candidates', value: totalRecords.value, icon: 'pi pi-users', color: 'text-blue-500', bg: 'bg-blue-50' },
+    { label: 'New / Submitted', value: newCount, icon: 'pi pi-file', color: 'text-orange-500', bg: 'bg-orange-50' },
+    { label: 'Interviews', value: interviewCount, icon: 'pi pi-calendar', color: 'text-purple-500', bg: 'bg-purple-50' },
+    { label: 'Hired', value: hiredCount, icon: 'pi pi-check-circle', color: 'text-emerald-500', bg: 'bg-emerald-50' },
+  ]
+})
 
 const bulkActionOptions = [
   { label: 'Shortlist selected', value: 'shortlist' },
@@ -321,8 +341,23 @@ async function fetchData(page = 1) {
     if (status.value) params.status = status.value
     if (search.value.trim()) params.search = search.value.trim()
 
-    const res = await api.get('/applications', { params })
-    const body = res.data?.data
+    // Fetch applications and analytics stats in parallel
+    const [res, analyticsRes] = await Promise.allSettled([
+      api.get('/applications', { params }),
+      api.get('/analytics/dashboard', { params: { days: 365 } }),
+    ])
+
+    // Handle analytics stats
+    if (analyticsRes.status === 'fulfilled') {
+      const body = analyticsRes.value?.data?.data ?? analyticsRes.value?.data ?? analyticsRes.value
+      analyticsStats.value = body
+    }
+
+    if (res.status === 'rejected') {
+      throw res.reason
+    }
+
+    const body = res.value.data?.data
 
     // Handle employer paginated response
     let paginator = null

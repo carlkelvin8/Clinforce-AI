@@ -301,6 +301,9 @@ const candidateNavGroups = computed(() => [
             { label: 'Invitations', icon: 'pi pi-envelope', to: { name: 'candidate.invitations' } },
             { label: 'Messages', icon: 'pi pi-comments', to: { name: 'candidate.messages' }, badge: unreadMessages.value > 0 ? unreadMessages.value : null },
             { label: 'Job Alerts', icon: 'pi pi-bell', to: { name: 'candidate.job-alerts' } },
+            { label: 'Analytics', icon: 'pi pi-chart-line', to: { name: 'candidate.analytics' } },
+            { label: 'Skills Assessment', icon: 'pi pi-graduation-cap', to: { name: 'candidate.skills-assessment' } },
+            { label: 'Portfolio', icon: 'pi pi-folder', to: { name: 'candidate.portfolio' } },
         ]
     },
     {

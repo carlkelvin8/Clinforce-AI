@@ -51,7 +51,6 @@ const loading = ref(false)
 const saving = ref(false)
 
 // GDPR & account deletion
-const exportingData = ref(false)
 const requestingDeletion = ref(false)
 const deletionPending = ref(null)
 
@@ -60,18 +59,6 @@ async function loadDeletionStatus() {
     const res = await http.get('/user/deletion-status')
     deletionPending.value = res.data?.data?.pending || null
   } catch {}
-}
-
-async function exportGdprData() {
-  exportingData.value = true
-  try {
-    const res = await http.get('/user/gdpr-export', { responseType: 'blob' })
-    const url = URL.createObjectURL(new Blob([res.data], { type: 'application/json' }))
-    const a = document.createElement('a'); a.href = url; a.download = 'my-clinforce-data.json'; a.click()
-    URL.revokeObjectURL(url)
-  } catch (e) {
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Export failed', life: 3000 })
-  } finally { exportingData.value = false }
 }
 
 async function requestAccountDeletion() {
@@ -651,15 +638,6 @@ async function saveSettings() {
               <template #subtitle><span class="text-xs text-slate-500">Your data rights under GDPR.</span></template>
               <template #content>
                 <div class="pt-1 space-y-4">
-                  <!-- Data export -->
-                  <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-100">
-                    <div>
-                      <div class="text-sm font-semibold text-slate-900">Export my data</div>
-                      <div class="text-xs text-slate-500 mt-0.5">Download all your profile, applications, and messages as JSON.</div>
-                    </div>
-                    <Button label="Download" icon="pi pi-download" size="small" severity="secondary" outlined
-                      :loading="exportingData" @click="exportGdprData" class="!rounded-full !text-sm flex-shrink-0 ml-4" />
-                  </div>
                   <!-- Account deletion -->
                   <div class="flex items-center justify-between p-4 rounded-xl border"
                     :class="deletionPending ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100'">

@@ -207,6 +207,14 @@ const router = useRouter();
       <!-- Right Side: Login Form -->
       <div class="min-h-screen flex items-center justify-center p-6 bg-white dark:bg-slate-900 transition-colors duration-300">
         <div class="w-full max-w-[420px]">
+          <!-- Back to Home Button -->
+          <div class="mb-6">
+            <RouterLink :to="{ name: 'landing' }" class="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors group">
+              <i class="pi pi-arrow-left text-xs group-hover:-translate-x-0.5 transition-transform"></i>
+              Back to Home
+            </RouterLink>
+          </div>
+
           <!-- Mobile Header -->
           <div class="mb-8 text-center lg:hidden">
             <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-40 w-auto mx-auto mb-4" />

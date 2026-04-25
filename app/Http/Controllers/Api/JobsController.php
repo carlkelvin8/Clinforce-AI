@@ -132,6 +132,7 @@ class JobsController extends Controller
             'employment_type' => $request->employment_type,
             'work_mode'       => $request->work_mode,
             'country'         => $request->country,
+            'state'           => $request->state,
             'city'            => $request->city,
             'salary_min'      => $request->salary_min,
             'salary_max'      => $request->salary_max,

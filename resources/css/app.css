@@ -1,9 +1,10 @@
 /* PrimeVue icons */
-/* @import 'primeicons/primeicons.css'; */
+@import 'primeicons/primeicons.css';
 
 /* Tailwind CSS */
 @import "tailwindcss";
 @import "./theme.css";
+@import "./animations.css";
 
 /* Tell Tailwind v4 to use .dark class for dark: variants (not prefers-color-scheme) */
 @variant dark (&:where(.dark, .dark *));
@@ -939,3 +940,7 @@ html.dark {
   background-color: #0f172a;
   color: #f1f5f9;
 }
+
+Saturday, 25 April 2026 2:15:51 pm
+
+

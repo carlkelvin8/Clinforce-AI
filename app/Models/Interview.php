@@ -28,16 +28,23 @@ class Interview extends Model
         'reminder_sent_at',
         'reminder_24h_sent_at',
         'reminder_1h_sent_at',
+        'duration_minutes',
+        'interview_type',
+        'scheduled_at',
+        'location',
+        'notes',
     ];
 
     protected $casts = [
         'scheduled_start' => 'datetime',
         'scheduled_end' => 'datetime',
+        'scheduled_at' => 'datetime',
         'reminder_sent_at' => 'datetime',
         'reminder_24h_sent_at' => 'datetime',
         'reminder_1h_sent_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'duration_minutes' => 'integer',
     ];
 
     public function application(): BelongsTo

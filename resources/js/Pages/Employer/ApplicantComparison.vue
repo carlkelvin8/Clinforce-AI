@@ -143,9 +143,7 @@ function hasResume(appId) {
 }
 
 function viewApplicant(appId) {
-  const p = getProfile(appId)
-  const uid = p?.applicant_user_id || p?.applicant?.id
-  if (uid) router.push({ name: 'applicants.view', params: { id: uid } })
+  if (appId) router.push({ name: 'applicants.view', params: { id: appId } })
 }
 
 const ROWS = [

@@ -117,5 +117,10 @@ Route::get('/candidate/jobs/{job}', [JobPublicController::class, 'show'])
     ->name('jobs.public.show')
     ->whereNumber('job');
 
+// Public portfolio page
+Route::get('/portfolio/{userId}/public', [\App\Http\Controllers\Web\PortfolioPublicController::class, 'show'])
+    ->name('portfolio.public.show')
+    ->whereNumber('userId');
+
 Route::view('/{any}', 'app')
     ->where('any', '^(?!api).*$');
