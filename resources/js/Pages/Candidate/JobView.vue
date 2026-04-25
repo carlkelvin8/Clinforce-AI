@@ -21,6 +21,10 @@
                   <i class="pi pi-building text-slate-400"></i>
                   {{ prettyEnum(job.work_mode) }}
                 </span>
+                <span v-if="job.salary_min || job.salary_max" class="flex items-center gap-1 font-semibold text-green-600">
+                  <i class="pi pi-dollar text-green-500"></i>
+                  {{ formatSalary(job) }}
+                </span>
                 <span class="flex items-center gap-1 text-slate-400">
                   <i class="pi pi-clock"></i>
                   Posted {{ fmt(job.published_at || job.created_at) }}
@@ -264,6 +268,31 @@ function prettyEnum(v) {
     .split("_")
     .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
     .join(" ");
+}
+
+function formatSalary(j) {
+  const min = j?.salary_min;
+  const max = j?.salary_max;
+  const currency = j?.salary_currency || 'USD';
+  
+  if (!min && !max) return "—";
+  
+  const formatAmount = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+  
+  if (min && max) {
+    return `${formatAmount(min)} - ${formatAmount(max)}`;
+  } else if (min) {
+    return `From ${formatAmount(min)}`;
+  } else {
+    return `Up to ${formatAmount(max)}`;
+  }
 }
 
 async function fetchJob() {
