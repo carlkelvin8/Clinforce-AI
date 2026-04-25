@@ -333,19 +333,30 @@ async function bulkInvite() {
                </div>
 
                <!-- Footer -->
-               <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between mt-auto">
+               <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-2 mt-auto">
                   <span class="text-xs text-gray-400 font-medium">Active: {{ fmtDate(c.last_active) }}</span>
-                  <Button
-                     :icon="invited[c.id] ? 'pi pi-check' : 'pi pi-send'"
-                     :label="invited[c.id] ? 'Invited' : 'Invite'"
-                     rounded
-                     size="small"
-                     :severity="invited[c.id] ? 'success' : 'secondary'"
-                     class="!h-8 !px-3"
-                     @click="invite(c)"
-                     :loading="inviting[c.id]"
-                     :disabled="invited[c.id]"
-                  />
+                  <div class="flex items-center gap-2">
+                     <Button
+                        icon="pi pi-eye"
+                        label="View Profile"
+                        outlined
+                        rounded
+                        size="small"
+                        class="!h-8 !px-3 !text-xs !border-gray-300 !text-gray-700 hover:!bg-gray-100"
+                        @click="router.push({ name: 'employer.candidates.view', params: { id: c.id } })"
+                     />
+                     <Button
+                        :icon="invited[c.id] ? 'pi pi-check' : 'pi pi-send'"
+                        :label="invited[c.id] ? 'Invited' : 'Invite'"
+                        rounded
+                        size="small"
+                        :severity="invited[c.id] ? 'success' : 'primary'"
+                        class="!h-8 !px-3 !text-xs"
+                        @click="invite(c)"
+                        :loading="inviting[c.id]"
+                        :disabled="invited[c.id]"
+                     />
+                  </div>
                </div>
             </div>
          </div>

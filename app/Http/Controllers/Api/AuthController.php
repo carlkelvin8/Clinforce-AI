@@ -71,12 +71,23 @@ class AuthController extends Controller
             'status'        => 'active',
             'password_hash' => Hash::make($request->input('password')),
         ]);
+        
         if ($user->email) {
             $user->sendEmailVerificationNotification();
         }
 
+        // Auto-login after registration
+        app(TrialService::class)->ensureActivated($user, $request);
+        $user->refresh();
+
+        $token = $user->createToken('clinforce', ['*'], now()->addMinutes(config('sanctum.expiration', 10080)))->plainTextToken;
+
         return response()->json([
             'message' => 'Registered successfully. Please check your email to verify your account.',
+            'data' => [
+                'token' => $token,
+                'user'  => $this->userPayload($user),
+            ],
         ], 201);
     }
 

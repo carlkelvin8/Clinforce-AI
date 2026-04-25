@@ -297,8 +297,7 @@ const selectedApplication = computed(() => {
 
 const modeOptions = [
     { label: 'Video (Zoom)', value: 'video' },
-    { label: 'In person', value: 'in_person' },
-    { label: 'Phone', value: 'phone' }
+    { label: 'In person', value: 'in_person' }
 ];
 
 watch(
@@ -811,7 +810,7 @@ async function submitFeedback() {
                   class="text-[10px] font-medium px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity"
                   :class="calEventClass(iv.status)"
                   :title="`${candidateNameFromInterview(iv)} — ${iv.application?.job?.title || ''}`"
-                  @click="openFeedback(iv)"
+                  @click="openRescheduleModal(iv)"
                 >
                   {{ fmtDate(iv.scheduled_start).time }} {{ candidateNameFromInterview(iv) }}
                 </div>

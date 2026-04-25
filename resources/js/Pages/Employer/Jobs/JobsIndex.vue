@@ -131,7 +131,19 @@ async function openApplicantDialog(job, type) {
 
     const res = await http.get("/applications", { params });
     const d = res.data?.data ?? res.data;
-    let apps = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : []);
+    
+    // Handle both response formats:
+    // 1. When scope=owned: { applications: {...}, has_subscription: true }
+    // 2. When scope=mine: { data: [...] } or direct array
+    let apps = [];
+    if (d?.applications) {
+      // Format 1: owned scope with applications object
+      const appsData = d.applications;
+      apps = Array.isArray(appsData?.data) ? appsData.data : (Array.isArray(appsData) ? appsData : []);
+    } else {
+      // Format 2: mine scope or direct data
+      apps = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : []);
+    }
 
     // Filter by status type
     if (type === "active") {

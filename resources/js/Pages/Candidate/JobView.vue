@@ -37,7 +37,23 @@
                 @click="toggleSave"
                 :loading="saveLoading"
               />
-              <Button v-if="!loading && !error" label="Apply Now" icon="pi pi-send" class="!bg-blue-600 !border-blue-600 hover:!bg-blue-700" @click="applyNow" :loading="applyLoading" :disabled="applyLoading" />
+              <Button 
+                v-if="!loading && !error && hasApplied" 
+                label="Applied" 
+                icon="pi pi-check" 
+                severity="success"
+                class="!bg-green-600 !border-green-600"
+                disabled
+              />
+              <Button 
+                v-else-if="!loading && !error" 
+                label="Apply Now" 
+                icon="pi pi-send" 
+                class="!bg-blue-600 !border-blue-600 hover:!bg-blue-700" 
+                @click="applyNow" 
+                :loading="applyLoading" 
+                :disabled="applyLoading" 
+              />
             </div>
           </div>
         </div>
@@ -104,7 +120,22 @@
                 </div>
                 <div class="pt-4">
                   <div class="mb-3">
-                    <Button label="Apply for this Job" class="w-full !bg-blue-600 !border-blue-600 hover:!bg-blue-700" @click="applyNow" :loading="applyLoading" :disabled="applyLoading" />
+                    <Button 
+                      v-if="hasApplied"
+                      label="✓ Applied" 
+                      icon="pi pi-check"
+                      severity="success"
+                      class="w-full !bg-green-600 !border-green-600" 
+                      disabled
+                    />
+                    <Button 
+                      v-else
+                      label="Apply for this Job" 
+                      class="w-full !bg-blue-600 !border-blue-600 hover:!bg-blue-700" 
+                      @click="applyNow" 
+                      :loading="applyLoading" 
+                      :disabled="applyLoading" 
+                    />
                   </div>
                 </div>
               </div>
@@ -159,6 +190,7 @@ let triedAutoAttach = false;
 
 const saved = ref(false);
 const saveLoading = ref(false);
+const hasApplied = ref(false);
 
 async function toggleSave() {
   saveLoading.value = true;
@@ -183,6 +215,21 @@ async function checkSaved() {
     const list = res.data?.data || [];
     saved.value = list.some(j => String(j?.id) === String(props.id));
   } catch {}
+}
+
+async function checkIfApplied() {
+  try {
+    const res = await api.get('/applications', { params: { scope: 'mine', job_id: props.id } });
+    const p = unwrapPayload(res.data);
+    const apps = Array.isArray(p?.data) ? p.data : Array.isArray(p) ? p : [];
+    // Check if there's an active application (not withdrawn or rejected)
+    hasApplied.value = apps.some(app => 
+      String(app?.job_id) === String(props.id) && 
+      !['withdrawn', 'rejected'].includes(String(app?.status || '').toLowerCase())
+    );
+  } catch {
+    hasApplied.value = false;
+  }
 }
 
 function goBack() {
@@ -276,6 +323,7 @@ async function applyNow() {
     applyOk.value = msg;
     resumeFile.value = null;
     triedAutoAttach = false;
+    hasApplied.value = true; // Update the applied status
     
     // Auto close after success is handled by UI showing success message
   } catch (e) {
@@ -336,6 +384,7 @@ async function autoAttachResumeIfAvailable() {
 onMounted(async () => {
   await fetchJob();
   checkSaved();
+  checkIfApplied();
 });
 </script>
 

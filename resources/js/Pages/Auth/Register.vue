@@ -54,23 +54,53 @@ const roleForApi = computed(() => {
   
     loading.value = true;
     try {
-      await api.post("/auth/register", {
+      const res = await api.post("/auth/register", {
         role: roleForApi.value,
         email: email.value.trim(),
         phone: null,
         password: password.value,
       });
 
-      Swal.fire({
-        icon: "success",
-        title: "Registration successful",
-        html: "Please check your email to verify your account. You will be redirected to login.",
-        timer: 3000,
-        showConfirmButton: true,
-        confirmButtonText: "Go to login",
-      }).then(() => {
-        router.push({ name: "auth.login", query: { registered: "1" } });
-      });
+      // Extract token and user from response
+      const token = res.data?.data?.token;
+      const user = res.data?.data?.user;
+
+      if (token && user) {
+        // Store token and user data
+        localStorage.setItem("token", token);
+        localStorage.setItem("user", JSON.stringify(user));
+
+        // Show success message
+        await Swal.fire({
+          icon: "success",
+          title: "Welcome to ClinForce!",
+          html: "Your account has been created successfully. Please check your email to verify your account.",
+          timer: 3000,
+          showConfirmButton: true,
+          confirmButtonText: "Go to Dashboard",
+        });
+
+        // Redirect based on role
+        if (user.role === "employer" || user.role === "agency") {
+          router.push({ name: "employer.dashboard" });
+        } else if (user.role === "applicant") {
+          router.push({ name: "candidate.dashboard" });
+        } else {
+          router.push({ name: "landing" });
+        }
+      } else {
+        // Fallback to old behavior if no token (shouldn't happen)
+        Swal.fire({
+          icon: "success",
+          title: "Registration successful",
+          html: "Please check your email to verify your account. You will be redirected to login.",
+          timer: 3000,
+          showConfirmButton: true,
+          confirmButtonText: "Go to login",
+        }).then(() => {
+          router.push({ name: "auth.login", query: { registered: "1" } });
+        });
+      }
     } catch (e) {
       const msg = e?.response?.data?.message || "Registration failed.";
       const errs = e?.response?.data?.errors;

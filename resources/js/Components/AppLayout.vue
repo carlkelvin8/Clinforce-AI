@@ -90,11 +90,14 @@ const trialTimeLeft = computed(() => {
     return { days, hours, isPast: false };
 });
 
+const trialExpiredModalDismissed = ref(false);
+
 const showTrialExpiredModal = computed(() => {
-    return trialStatus.value === 'trial_expired' && user.value?.role === 'employer';
+    return trialStatus.value === 'trial_expired' && user.value?.role === 'employer' && !trialExpiredModalDismissed.value;
 });
 
 function goToBilling() {
+    trialExpiredModalDismissed.value = true;
     router.push('/employer/billing');
 }
 
@@ -257,14 +260,6 @@ const employerNavGroups = [
         ]
     },
     {
-        title: 'Development',
-        items: [
-            { label: 'Learning & Skills', icon: 'pi pi-graduation-cap', to: { name: 'employer.learning-development' } },
-            { label: 'Mentorship', icon: 'pi pi-users', to: { name: 'employer.mentorship' } },
-            { label: 'Certifications', icon: 'pi pi-verified', to: { name: 'employer.certifications' } },
-        ]
-    },
-    {
         title: 'Analytics',
         items: [
             { label: 'Analytics', icon: 'pi pi-chart-line', to: { name: 'employer.analytics' } },
@@ -301,6 +296,14 @@ const candidateNavGroups = computed(() => [
             { label: 'Invitations', icon: 'pi pi-envelope', to: { name: 'candidate.invitations' } },
             { label: 'Messages', icon: 'pi pi-comments', to: { name: 'candidate.messages' }, badge: unreadMessages.value > 0 ? unreadMessages.value : null },
             { label: 'Job Alerts', icon: 'pi pi-bell', to: { name: 'candidate.job-alerts' } },
+        ]
+    },
+    {
+        title: 'Development',
+        items: [
+            { label: 'Learning & Skills', icon: 'pi pi-graduation-cap', to: { name: 'candidate.learning-development' } },
+            { label: 'Mentorship', icon: 'pi pi-users', to: { name: 'candidate.mentorship' } },
+            { label: 'Certifications', icon: 'pi pi-verified', to: { name: 'candidate.certifications' } },
             { label: 'Analytics', icon: 'pi pi-chart-line', to: { name: 'candidate.analytics' } },
             { label: 'Skills Assessment', icon: 'pi pi-graduation-cap', to: { name: 'candidate.skills-assessment' } },
             { label: 'Portfolio', icon: 'pi pi-folder', to: { name: 'candidate.portfolio' } },

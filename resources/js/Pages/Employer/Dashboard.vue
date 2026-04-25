@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
 import SkeletonCard from "@/Components/SkeletonCard.vue";
+import EmailVerificationBanner from "@/Components/EmailVerificationBanner.vue";
 import { http } from "../../lib/http";
 import { getCachedUser, me } from "@/lib/auth";
 import { useDarkMode } from "@/composables/useDarkMode";
@@ -709,6 +710,9 @@ const donutChartOptions = computed(() => ({
 <template>
   <AppLayout>
     <div class="flex flex-col gap-8 max-w-7xl mx-auto px-4 md:px-6 py-6">
+      <!-- Email Verification Banner -->
+      <EmailVerificationBanner />
+      
       <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-5">
         <div class="space-y-1">
           <h1 class="text-3xl font-bold text-slate-900 tracking-tight">{{ employerName }} Dashboard</h1>

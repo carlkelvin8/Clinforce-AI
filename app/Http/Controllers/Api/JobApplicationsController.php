@@ -357,7 +357,10 @@ class JobApplicationsController extends ApiController
             $q->where('job_id', (int) $jobId);
         }
 
-        $applications = $q->orderByDesc('id')->paginate(20);
+        $perPage = (int) request()->query('per_page', 20);
+        $perPage = min(max($perPage, 1), 100); // Clamp between 1 and 100
+
+        $applications = $q->orderByDesc('id')->paginate($perPage);
 
         \Log::info('Applications fetched', [
             'user_id' => $u->id,
