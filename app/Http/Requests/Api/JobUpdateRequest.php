@@ -45,6 +45,7 @@ class JobUpdateRequest extends ApiRequest
             'employment_type' => ['sometimes','required', Rule::in(['full_time','part_time','contract','temporary','internship','full_time_part_time','contract_temporary'])],
             'work_mode' => ['sometimes','required', Rule::in(['on_site','remote','hybrid'])],
             'country' => ['sometimes','nullable','string','max:200'],
+            'state' => ['sometimes','nullable','string','max:120'],
             'city' => ['sometimes','nullable','string','min:2','max:120'],
             'salary_min' => ['sometimes','nullable','numeric','min:0'],
             'salary_max' => ['sometimes','nullable','numeric','min:0','gte:salary_min'],
@@ -74,6 +75,13 @@ class JobUpdateRequest extends ApiRequest
         }
         if ($this->has('title')) {
             $this->merge(['title' => trim((string) $this->input('title'))]);
+        }
+        // Normalize dash-format enums to underscore
+        if ($this->has('employment_type')) {
+            $this->merge(['employment_type' => str_replace('-', '_', $this->input('employment_type'))]);
+        }
+        if ($this->has('work_mode')) {
+            $this->merge(['work_mode' => str_replace('-', '_', $this->input('work_mode'))]);
         }
     }
 }

@@ -241,6 +241,9 @@ const routes = [
   { path: "/candidate/settings", name: "candidate.settings", component: CandidateSettings, meta: candidateMeta },
   { path: "/candidate/resume-builder", name: "candidate.resume-builder", component: CandidateResumeBuilder, meta: candidateMeta },
   { path: "/candidate/job-alerts", name: "candidate.job-alerts", component: CandidateJobAlerts, meta: candidateMeta },
+  { path: "/candidate/analytics", name: "candidate.analytics", component: () => import("@/Pages/Candidate/Analytics.vue"), meta: candidateMeta },
+  { path: "/candidate/skills-assessment", name: "candidate.skills-assessment", component: () => import("@/Pages/Candidate/SkillsAssessment.vue"), meta: candidateMeta },
+  { path: "/candidate/portfolio", name: "candidate.portfolio", component: () => import("@/Pages/Candidate/Portfolio.vue"), meta: candidateMeta },
 
   // Admin (role=admin only)
   { path: "/admin",                name: "admin.dashboard",     component: AdminDashboard,     meta: { requiresAuth: true, roles: ['admin'] } },

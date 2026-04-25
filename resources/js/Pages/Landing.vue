@@ -3,12 +3,12 @@
   <AppLayout :guestFull="true">
     <div class="relative min-h-screen overflow-hidden font-sans bg-slate-50/30 dark:bg-slate-950">
       <!-- Marketing Announcement Bar -->
-      <div v-if="showAnnouncement" class="relative z-50 bg-gradient-to-r from-blue-600 via-indigo-700 to-violet-800 text-white px-6 py-3 overflow-hidden shadow-lg animate-fade-in-down">
+      <div v-if="showAnnouncement" class="relative z-50 bg-gradient-to-r from-red-600 via-red-700 to-red-800 text-white px-6 py-3 overflow-hidden shadow-lg animate-fade-in-down">
         <div class="max-w-7xl mx-auto flex items-center justify-center gap-6 text-sm font-bold uppercase tracking-widest">
           <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-white/20 backdrop-blur-md text-[10px]">NEW</span>
-            <span class="hidden sm:inline">AI-Powered Screening Tools are now available!</span>
-            <span class="sm:hidden">AI Screening is here!</span>
+            <span class="px-2 py-0.5 rounded bg-white/20 backdrop-blur-md text-[10px]">🔴 DEVELOPMENT MODE</span>
+            <span class="hidden sm:inline">Design elements should be visible now!</span>
+            <span class="sm:hidden">Dev mode active!</span>
           </div>
           <RouterLink :to="{ name: 'auth.register' }" class="px-4 py-1.5 rounded-full bg-white text-blue-700 hover:bg-slate-100 transition-colors shadow-sm">Learn More</RouterLink>
           <button @click="showAnnouncement = false" class="absolute right-6 p-2 hover:bg-white/10 rounded-full transition-colors">
@@ -74,7 +74,7 @@
           <div class="max-w-2xl reveal">
 
             <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.05] mb-8">
-              The modern way to <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600">hire clinical talent.</span>
+              🚨 TESTING - If you see this, the changes are working! The modern way to <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600">hire clinical talent.</span>
             </h1>
             <p class="text-slate-600 dark:text-slate-400 text-xl md:text-2xl leading-relaxed max-w-lg mb-10 font-medium">
               Streamline your healthcare recruitment. Connect with qualified professionals, automate compliance, and fill shifts faster than ever.
@@ -252,30 +252,65 @@
           </div>
         </section>
 
-        <!-- Banner Section -->
+        <!-- Enhanced Banner Slideshow Section -->
         <section class="mt-32 md:mt-48 reveal">
           <div class="text-center max-w-2xl mx-auto mb-16">
             <h2 class="text-4xl font-black text-slate-900 dark:text-white tracking-tight mb-4">Transforming Healthcare Staffing</h2>
             <p class="text-slate-600 dark:text-slate-400 text-lg font-medium">Industry-leading solutions for modern medical facilities and professionals.</p>
           </div>
-          <div class="grid md:grid-cols-2 gap-8">
-            <div class="relative overflow-hidden rounded-[2.5rem] shadow-2xl group cursor-pointer aspect-[16/9]">
+          
+          <!-- Interactive Banner Grid with Hover Effects -->
+          <div class="grid md:grid-cols-2 gap-8 mb-12">
+            <div class="relative overflow-hidden rounded-[2.5rem] shadow-2xl group cursor-pointer aspect-[16/9] transform hover:scale-[1.02] transition-all duration-500">
               <img :src="banner1" alt="Healthcare Excellence" class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
               <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity"></div>
               <div class="absolute inset-0 p-10 flex flex-col justify-end">
-                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-black uppercase tracking-[0.2em] mb-4 w-fit">Excellence</div>
-                <h3 class="text-3xl font-black text-white mb-2">Clinical Excellence</h3>
-                <p class="text-white/80 font-medium">Precision matching for specialized medical roles.</p>
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-black uppercase tracking-[0.2em] mb-4 w-fit animate-pulse">Excellence</div>
+                <h3 class="text-3xl font-black text-white mb-2 group-hover:text-blue-200 transition-colors">Clinical Excellence</h3>
+                <p class="text-white/80 font-medium group-hover:text-white transition-colors">Precision matching for specialized medical roles and critical care positions.</p>
+                <div class="mt-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div class="flex items-center gap-2 text-blue-200 text-sm font-medium">
+                    <i class="pi pi-arrow-right"></i>
+                    <span>Explore Excellence</span>
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="relative overflow-hidden rounded-[2.5rem] shadow-2xl group cursor-pointer aspect-[16/9]">
+            
+            <div class="relative overflow-hidden rounded-[2.5rem] shadow-2xl group cursor-pointer aspect-[16/9] transform hover:scale-[1.02] transition-all duration-500">
               <img :src="banner2" alt="Professional Staffing" class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" loading="lazy" />
               <div class="absolute inset-0 bg-gradient-to-t from-indigo-900/90 via-indigo-900/20 to-transparent opacity-80 group-hover:opacity-90 transition-opacity"></div>
               <div class="absolute inset-0 p-10 flex flex-col justify-end">
-                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-black uppercase tracking-[0.2em] mb-4 w-fit">Reliability</div>
-                <h3 class="text-3xl font-black text-white mb-2">Professional Staffing</h3>
-                <p class="text-white/80 font-medium">Scalable solutions for healthcare institutions.</p>
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 backdrop-blur-md border border-white/20 text-white text-[10px] font-black uppercase tracking-[0.2em] mb-4 w-fit animate-pulse">Reliability</div>
+                <h3 class="text-3xl font-black text-white mb-2 group-hover:text-indigo-200 transition-colors">Professional Staffing</h3>
+                <p class="text-white/80 font-medium group-hover:text-white transition-colors">Scalable solutions for healthcare institutions and medical facilities.</p>
+                <div class="mt-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div class="flex items-center gap-2 text-indigo-200 text-sm font-medium">
+                    <i class="pi pi-arrow-right"></i>
+                    <span>Discover Solutions</span>
+                  </div>
+                </div>
               </div>
+            </div>
+          </div>
+          
+          <!-- Animated Stats Bar -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div class="text-center p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-lg transition-all group">
+              <div class="text-3xl font-black text-blue-600 mb-2 group-hover:scale-110 transition-transform">500+</div>
+              <div class="text-sm font-medium text-slate-600 dark:text-slate-400">Healthcare Facilities</div>
+            </div>
+            <div class="text-center p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-lg transition-all group">
+              <div class="text-3xl font-black text-emerald-600 mb-2 group-hover:scale-110 transition-transform">10K+</div>
+              <div class="text-sm font-medium text-slate-600 dark:text-slate-400">Medical Professionals</div>
+            </div>
+            <div class="text-center p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-lg transition-all group">
+              <div class="text-3xl font-black text-purple-600 mb-2 group-hover:scale-110 transition-transform">98%</div>
+              <div class="text-sm font-medium text-slate-600 dark:text-slate-400">Success Rate</div>
+            </div>
+            <div class="text-center p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-lg transition-all group">
+              <div class="text-3xl font-black text-amber-600 mb-2 group-hover:scale-110 transition-transform">24/7</div>
+              <div class="text-sm font-medium text-slate-600 dark:text-slate-400">Support Available</div>
             </div>
           </div>
         </section>
@@ -546,6 +581,8 @@
                   </div>
                 </div>
               </div>
+              
+
             </div>
             <div class="bg-white dark:bg-slate-800 rounded-[2.5rem] p-10 border border-slate-100 dark:border-slate-700 shadow-2xl relative">
               <div v-if="contactSuccess" class="absolute inset-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-[2.5rem] z-10 flex flex-col items-center justify-center p-10 text-center animate-fade-in">
@@ -585,36 +622,86 @@
 
       <footer class="border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 pt-24 pb-12">
         <div class="max-w-7xl mx-auto px-6">
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-12 mb-16">
-            <div class="col-span-2">
-              <div class="flex items-center gap-3 mb-6">
-                <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-64 w-auto" />
+          <!-- Main Footer Content -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 mb-16">
+            <!-- Left Side - Company Info & Contact -->
+            <div class="space-y-8">
+              <!-- Logo and Description -->
+              <div>
+                <div class="flex items-center gap-3 mb-6">
+                  <img :src="'/banners/logo.svg'" alt="AI Clinforce Partners" class="h-16 w-auto" />
+                </div>
+                <p class="text-slate-500 dark:text-slate-400 font-medium max-w-md leading-relaxed mb-8">
+                  The next generation of healthcare staffing solutions, powered by intelligent matching and seamless workflows.
+                </p>
+                <!-- Social Media Links -->
+                <div class="flex gap-4">
+                  <a href="#" class="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-600 transition-all">
+                    <i class="pi pi-twitter"></i>
+                  </a>
+                  <a href="#" class="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-600 transition-all">
+                    <i class="pi pi-linkedin"></i>
+                  </a>
+                  <a href="https://www.facebook.com/profile.php?id=61552278210549" target="_blank" class="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-600 transition-all">
+                    <i class="pi pi-facebook"></i>
+                  </a>
+                </div>
               </div>
-              <p class="text-slate-500 dark:text-slate-400 font-medium max-w-sm leading-relaxed mb-8">The next generation of healthcare staffing solutions, powered by intelligent matching and seamless workflows.</p>
-              <div class="flex gap-4">
-                <a href="#" class="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-600 transition-all"><i class="pi pi-twitter"></i></a>
-                <a href="#" class="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-600 transition-all"><i class="pi pi-linkedin"></i></a>
-                <a href="https://www.facebook.com/profile.php?id=61552278210549" target="_blank" class="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-blue-50 dark:hover:bg-slate-700 hover:text-blue-600 transition-all"><i class="pi pi-facebook"></i></a>
+
+              <!-- Contact Information -->
+              <div>
+                <h4 class="text-lg font-bold text-slate-900 dark:text-white mb-6">Contact Information</h4>
+                <div class="space-y-4">
+                  <!-- Address -->
+                  <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <i class="pi pi-map-marker text-sm"></i>
+                    </div>
+                    <div>
+                      <div class="text-sm font-semibold text-slate-900 dark:text-white">Address</div>
+                      <div class="text-sm text-slate-600 dark:text-slate-400">Fayetteville, AR 86516, USA</div>
+                    </div>
+                  </div>
+                  
+                  <!-- Email -->
+                  <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <i class="pi pi-envelope text-sm"></i>
+                    </div>
+                    <div>
+                      <div class="text-sm font-semibold text-slate-900 dark:text-white">Email</div>
+                      <a href="mailto:hello@aiclinforce.com" class="text-sm text-slate-600 dark:text-slate-400 hover:text-blue-600 transition-colors">
+                        hello@aiclinforce.com
+                      </a>
+                    </div>
+                  </div>
+                  
+                  <!-- Business Hours -->
+                  <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/30 text-purple-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <i class="pi pi-clock text-sm"></i>
+                    </div>
+                    <div>
+                      <div class="text-sm font-semibold text-slate-900 dark:text-white">Business Hours</div>
+                      <div class="text-sm text-slate-600 dark:text-slate-400">Mon - Fri 8:00 AM - 6:00 PM CST</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
+
+            <!-- Right Side - Location & Map -->
             <div>
-              <h4 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-6">Platform</h4>
-              <ul class="space-y-4 text-slate-500 dark:text-slate-400 font-medium">
-                <li><a href="#features" class="hover:text-blue-600 transition-colors">Features</a></li>
-                <li><a href="#how-it-works" class="hover:text-blue-600 transition-colors">How it works</a></li>
-                <li><a href="#pricing" class="hover:text-blue-600 transition-colors">Pricing</a></li>
-                <li><a href="#faq" class="hover:text-blue-600 transition-colors">FAQ</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-6">Company</h4>
-              <ul class="space-y-4 text-slate-500 dark:text-slate-400 font-medium">
-                <li><a href="#" class="hover:text-blue-600 transition-colors">About Us</a></li>
-                <li><a href="#" class="hover:text-blue-600 transition-colors">Careers</a></li>
-                <li><a href="#contact" class="hover:text-blue-600 transition-colors">Contact</a></li>
-              </ul>
+              <h4 class="text-lg font-bold text-slate-900 dark:text-white mb-6">Our Location</h4>
+              <p class="text-sm text-slate-600 dark:text-slate-400 mb-6">
+                Visit us at our headquarters in Fayetteville, AR
+              </p>
+              
+
             </div>
           </div>
+
+          <!-- Bottom Section -->
           <div class="pt-12 border-t border-slate-100 dark:border-slate-800 space-y-6">
             <!-- Security badges row -->
             <div class="flex flex-wrap items-center justify-center gap-3">
@@ -626,8 +713,12 @@
                 <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ badge.label }}</span>
               </div>
             </div>
+            
+            <!-- Copyright and Links -->
             <div class="flex flex-col md:flex-row items-center justify-between gap-6">
-              <div class="text-sm font-bold text-slate-400 uppercase tracking-widest">&copy; {{ year }} AI Clinforce Partners.</div>
+              <div class="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                &copy; {{ year }} AI CLINFORCE PARTNERS.
+              </div>
               <div class="flex gap-8 text-sm font-bold text-slate-400 uppercase tracking-widest">
                 <RouterLink :to="{ name: 'privacy' }" class="hover:text-slate-900 dark:hover:text-white transition-colors">Privacy</RouterLink>
                 <RouterLink :to="{ name: 'terms' }" class="hover:text-slate-900 dark:hover:text-white transition-colors">Terms</RouterLink>
@@ -672,12 +763,14 @@ import { RouterLink } from "vue-router";
 import { ref, computed, onMounted, onBeforeUnmount, reactive } from "vue";
 import AppLayout from "@/Components/AppLayout.vue";
 import DarkModeToggle from "@/Components/DarkModeToggle.vue";
-import banner1 from "../../assets/banner.png";
-import banner2 from "../../assets/banner2.png";
 import { post } from "../lib/http";
 import { useDarkMode } from "@/composables/useDarkMode";
 
 const { initDarkMode } = useDarkMode();
+
+// Banner images from public directory
+const banner1 = '/banners/banner.png';
+const banner2 = '/banners/banner2.png';
 
 const year = new Date().getFullYear();
 const mobileOpen = ref(false);

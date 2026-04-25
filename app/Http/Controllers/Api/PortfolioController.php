@@ -42,7 +42,34 @@ class PortfolioController extends ApiController
         $user = $request->user();
         ApplicantProfile::where('user_id', $user->id)->firstOrFail();
 
-        $validator = Validator::make($request->all(), [
+        // Handle tags from FormData (JSON string) or regular request (array)
+        $tags = $request->input('tags');
+        if (is_string($tags)) {
+            $tags = json_decode($tags, true) ?: [];
+        } elseif (!is_array($tags)) {
+            $tags = [];
+        }
+
+        // Handle boolean fields from FormData
+        $isPublic = $request->input('is_public');
+        if (is_string($isPublic)) {
+            $isPublic = in_array($isPublic, ['1', 'true', true], true);
+        } else {
+            $isPublic = (bool) $isPublic;
+        }
+
+        $isFeatured = $request->input('is_featured');
+        if (is_string($isFeatured)) {
+            $isFeatured = in_array($isFeatured, ['1', 'true', true], true);
+        } else {
+            $isFeatured = (bool) $isFeatured;
+        }
+
+        $validator = Validator::make(array_merge($request->all(), [
+            'tags' => $tags,
+            'is_public' => $isPublic,
+            'is_featured' => $isFeatured,
+        ]), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string|max:2000',
             'type' => 'required|in:image,video,link,document,project',
@@ -62,15 +89,17 @@ class PortfolioController extends ApiController
             return $this->fail($validator->errors(), 422);
         }
 
+        $validatedData = $validator->validated();
+
         // Handle file upload if present
         if ($request->hasFile('media')) {
             $file = $request->file('media');
             $path = $file->store('portfolios/' . $user->id, 'public');
-            $validator->validated()['media_url'] = Storage::url($path);
+            $validatedData['media_url'] = Storage::url($path);
         }
 
         $portfolio = Portfolio::create(array_merge(
-            $validator->validated(),
+            $validatedData,
             ['user_id' => $user->id]
         ));
 
@@ -92,7 +121,34 @@ class PortfolioController extends ApiController
             return $this->fail('Unauthorized', 403);
         }
 
-        $validator = Validator::make($request->all(), [
+        // Handle tags from FormData (JSON string) or regular request (array)
+        $tags = $request->input('tags');
+        if (is_string($tags)) {
+            $tags = json_decode($tags, true) ?: [];
+        } elseif (!is_array($tags)) {
+            $tags = [];
+        }
+
+        // Handle boolean fields from FormData
+        $isPublic = $request->input('is_public');
+        if (is_string($isPublic)) {
+            $isPublic = in_array($isPublic, ['1', 'true', true], true);
+        } else {
+            $isPublic = (bool) $isPublic;
+        }
+
+        $isFeatured = $request->input('is_featured');
+        if (is_string($isFeatured)) {
+            $isFeatured = in_array($isFeatured, ['1', 'true', true], true);
+        } else {
+            $isFeatured = (bool) $isFeatured;
+        }
+
+        $validator = Validator::make(array_merge($request->all(), [
+            'tags' => $tags,
+            'is_public' => $isPublic,
+            'is_featured' => $isFeatured,
+        ]), [
             'title' => 'sometimes|string|max:255',
             'description' => 'nullable|string|max:2000',
             'type' => 'sometimes|in:image,video,link,document,project',
@@ -112,7 +168,16 @@ class PortfolioController extends ApiController
             return $this->fail($validator->errors(), 422);
         }
 
-        $portfolio->update($validator->validated());
+        $validatedData = $validator->validated();
+
+        // Handle file upload if present
+        if ($request->hasFile('media')) {
+            $file = $request->file('media');
+            $path = $file->store('portfolios/' . $user->id, 'public');
+            $validatedData['media_url'] = Storage::url($path);
+        }
+
+        $portfolio->update($validatedData);
 
         return $this->ok($portfolio);
     }

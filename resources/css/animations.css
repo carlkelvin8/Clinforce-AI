@@ -1,0 +1,95 @@
+/* Landing Page Animations */
+
+/* Fade and slide animations */
+@keyframes fade-in-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Animation classes */
+.animate-fade-in-down {
+  animation: fade-in-down 0.6s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 4s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Ticker animation */
+.ticker-track {
+  animation: ticker-scroll 30s linear infinite;
+}
+
+/* Demo highlight animation */
+.demo-highlight {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  animation: demo-pulse 2s ease-in-out;
+}
+
+@keyframes demo-pulse {
+  0%, 100% {
+    background-color: rgba(59, 130, 246, 0.05);
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.15);
+  }
+}
+
+/* Demo bar animation */
+.demo-bar {
+  animation: demo-bar-fill 2s ease-out;
+}
+
+@keyframes demo-bar-fill {
+  0% {
+    width: 0%;
+  }
+}
+
+/* Responsive animations */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-down,
+  .animate-pulse-slow,
+  .animate-float,
+  .ticker-track {
+    animation: none;
+    transition: none;
+  }
+}

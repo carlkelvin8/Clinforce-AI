@@ -317,7 +317,7 @@ class ReferralProgramController extends ApiController
     
     // ========== BONUSES ==========
     
-    public function approveBon us(Request $request, $referralId)
+    public function approveBonus(Request $request, $referralId)
     {
         $user = $request->user();
         

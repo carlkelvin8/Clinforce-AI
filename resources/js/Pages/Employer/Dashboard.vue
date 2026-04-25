@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import AppLayout from "@/Components/AppLayout.vue";
 import SkeletonCard from "@/Components/SkeletonCard.vue";
@@ -26,6 +26,7 @@ const range = ref("30"); // 7 | 30 | 90
 const jobs = ref([]);
 const apps = ref([]);
 const demoAppsMode = ref(false);
+const analyticsData = ref(null); // from /analytics/dashboard
 
 // derived "event" list for charts
 const applicantEvents = ref([]); // { dayKey:'YYYY-MM-DD', ts:Date, status:'new'|'review'|'shortlisted'|'rejected'|'hired' }
@@ -95,10 +96,11 @@ function normalizeAppStage(a) {
   const s = String(a?.status || a?.stage || a?.application_status || "")
     .toLowerCase()
     .trim();
-  if (["hired", "accepted"].includes(s)) return "hired";
-  if (["rejected", "declined"].includes(s)) return "rejected";
-  if (["shortlisted", "shortlist"].includes(s)) return "shortlisted";
-  if (["review", "reviewing", "screening"].includes(s)) return "review";
+  if (["hired", "accepted", "offer_accepted"].includes(s)) return "hired";
+  if (["rejected", "declined", "disqualified"].includes(s)) return "rejected";
+  if (["shortlisted", "shortlist", "offered", "offer"].includes(s)) return "shortlisted";
+  if (["review", "reviewing", "screening", "interviewed", "interview", "assessment"].includes(s)) return "review";
+  if (["pending", "new", "applied", "submitted"].includes(s)) return "new";
   return "new";
 }
 
@@ -151,22 +153,47 @@ async function load() {
   loading.value = true;
   error.value = "";
   try {
-    // jobs
-    const jr = await http
-      .get("/jobs", { params: { scope: "owned" } })
-      .catch(() => http.get("/jobs"));
-    jobs.value = unwrapPaginated(jr);
+    // Fetch jobs, recent apps (for table), and analytics in parallel
+    const [jr, ar, analyticsRes] = await Promise.allSettled([
+      http.get("/jobs", { params: { scope: "owned" } }).catch(() => http.get("/jobs")),
+      http.get("/applications", { params: { scope: "owned", per_page: 100 } }),
+      http.get("/analytics/dashboard", { params: { days: Number(range.value) } }),
+    ]);
 
-    // applications
-    const ar = await http
-      .get("/applications", { params: { scope: "owned" } })
-      .catch(() => http.get("/applications", { params: { scope: "mine" } }))
-      .catch(() => http.get("/applications"));
-    apps.value = unwrapPaginated(ar);
+    jobs.value = jr.status === "fulfilled" ? unwrapPaginated(jr.value) : [];
+
+    apps.value = ar.status === "fulfilled" ? unwrapPaginated(ar.value) : [];
     demoAppsMode.value = false;
 
+    // Use analytics API data for charts if available
+    if (analyticsRes.status === "fulfilled") {
+      const body = analyticsRes.value?.data ?? analyticsRes.value;
+      analyticsData.value = body?.data ?? body;
+    } else {
+      analyticsData.value = null;
+    }
+
+    // Build events from raw apps for the recent table display
     applicantEvents.value = extractApplicantEvents(apps.value);
     interviewEvents.value = extractInterviewEvents(apps.value);
+
+    // If analytics API returned trend data, also build events from it for charts
+    if (analyticsData.value?.trend?.length) {
+      // Build synthetic events from trend data for chart rendering
+      const trendEvents = [];
+      for (const t of analyticsData.value.trend) {
+        const d = safeDate(t.date);
+        if (!d) continue;
+        const count = t.count || 0;
+        for (let i = 0; i < count; i++) {
+          trendEvents.push({ ts: d, dayKey: dayKey(d), status: "new" });
+        }
+      }
+      // Merge with real app events (prefer real data for status breakdown)
+      if (apps.value.length < 50 && trendEvents.length > apps.value.length) {
+        applicantEvents.value = trendEvents;
+      }
+    }
   } catch (e) {
     const code = e?.response?.status;
     error.value =
@@ -178,12 +205,15 @@ async function load() {
     apps.value = [];
     applicantEvents.value = [];
     interviewEvents.value = [];
+    analyticsData.value = null;
   } finally {
     loading.value = false;
   }
 }
 
 onMounted(() => load());
+// Reload when range changes
+watch(range, () => load());
 const currentUser = ref(null);
 const employerName = computed(() => {
   const u = currentUser.value || {};
@@ -252,6 +282,15 @@ const windowMonths = computed(() => {
 const axisBuckets = computed(() => (groupBy.value === "monthly" ? windowMonths.value : windowDays.value));
 
 const applicantsSeries = computed(() => {
+  // Use analytics trend data if available (covers all apps, not just first page)
+  if (analyticsData.value?.trend?.length) {
+    const map = new Map();
+    for (const t of analyticsData.value.trend) {
+      map.set(t.date, (map.get(t.date) || 0) + (t.count || 0));
+    }
+    return windowDays.value.map((d) => map.get(d.key) || 0);
+  }
+  // Fallback: build from raw events
   const map = new Map();
   for (const ev of applicantEvents.value) {
     map.set(ev.dayKey, (map.get(ev.dayKey) || 0) + 1);
@@ -260,9 +299,15 @@ const applicantsSeries = computed(() => {
 });
 
 const hasApplicantData = computed(() => {
+  // Check analytics data first
+  if (analyticsData.value?.kpis?.total_applications > 0) return true;
+  // Check trend data
+  if (analyticsData.value?.trend?.some(t => t.count > 0)) return true;
+  // Fallback: check series
   const total = newSeries.value.reduce((a, b) => a + b, 0) +
     inProcessSeries.value.reduce((a, b) => a + b, 0) +
-    hiredSeries.value.reduce((a, b) => a + b, 0);
+    hiredSeries.value.reduce((a, b) => a + b, 0) +
+    applicantsSeries.value.reduce((a, b) => a + b, 0);
   return total > 0;
 });
 
@@ -336,33 +381,44 @@ const interviewsSeries = computed(() => {
 });
 
 const kpis = computed(() => {
+  // Use analytics API data if available (more accurate, covers all apps not just first page)
+  if (analyticsData.value?.kpis) {
+    const ak = analyticsData.value.kpis;
+    const pipeline = analyticsData.value.pipeline || {};
+    const stages = {
+      new: (pipeline['pending'] || 0) + (pipeline['submitted'] || 0) + (pipeline['applied'] || 0),
+      review: (pipeline['reviewing'] || 0) + (pipeline['interview'] || 0) + (pipeline['interviewed'] || 0) + (pipeline['assessment'] || 0),
+      shortlisted: (pipeline['shortlisted'] || 0) + (pipeline['offered'] || 0) + (pipeline['offer'] || 0),
+      rejected: pipeline['rejected'] || 0,
+      hired: pipeline['hired'] || 0,
+    };
+    return {
+      totalJobs: ak.active_jobs || jobs.value.length,
+      openJobs: ak.active_jobs || jobs.value.filter((j) => normalizeJobStatus(j) === "open").length,
+      draftJobs: jobs.value.filter((j) => normalizeJobStatus(j) === "draft").length,
+      totalApps: ak.total_applications || 0,
+      stages,
+      upcomingInterviews: ak.interviews_scheduled || 0,
+    };
+  }
+
+  // Fallback: build from raw apps
   const totalJobs = jobs.value.length;
   const openJobs = jobs.value.filter((j) => normalizeJobStatus(j) === "open").length;
   const draftJobs = jobs.value.filter((j) => normalizeJobStatus(j) === "draft").length;
-
   const totalApps = apps.value.length;
-
   const stages = { new: 0, review: 0, shortlisted: 0, rejected: 0, hired: 0 };
   for (const a of apps.value) {
     const st = normalizeAppStage(a);
     stages[st] = (stages[st] || 0) + 1;
   }
-
   const now = new Date();
   const in7 = new Date(now.getTime() + 7 * 86400000);
   let upcomingInterviews = 0;
   for (const ev of interviewEvents.value) {
     if (ev.ts >= now && ev.ts <= in7) upcomingInterviews++;
   }
-
-  return {
-    totalJobs,
-    openJobs,
-    draftJobs,
-    totalApps,
-    stages,
-    upcomingInterviews,
-  };
+  return { totalJobs, openJobs, draftJobs, totalApps, stages, upcomingInterviews };
 });
 
 const topRoles = computed(() => {
@@ -406,13 +462,80 @@ const getStageSeverity = (stage) => {
 // Bar Chart for Applications
 const applicantsChartData = computed(() => {
   const labels = axisBuckets.value.map((d) => d.short);
+
+  // If we have analytics trend data, use it as a single "Applications" series
+  if (analyticsData.value?.trend?.length) {
+    // Build per-bucket totals from trend
+    const trendMap = new Map();
+    for (const t of analyticsData.value.trend) {
+      trendMap.set(t.date, (trendMap.get(t.date) || 0) + (t.count || 0));
+    }
+    const trendSeries = axisBuckets.value.map((bucket) => {
+      if (groupBy.value === "monthly") {
+        // Sum all days in this month
+        let total = 0;
+        for (const [date, count] of trendMap) {
+          if (date.startsWith(bucket.key)) total += count;
+        }
+        return total;
+      }
+      return trendMap.get(bucket.key) || 0;
+    });
+
+    // Also build pipeline breakdown from analytics pipeline data
+    const pipeline = analyticsData.value.pipeline || {};
+    const totalApps = analyticsData.value.kpis?.total_applications || 1;
+    const newRatio = ((pipeline['pending'] || 0) + (pipeline['submitted'] || 0)) / totalApps;
+    const reviewRatio = ((pipeline['reviewing'] || 0) + (pipeline['interviewed'] || 0)) / totalApps;
+    const hiredRatio = (pipeline['hired'] || 0) / totalApps;
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: "New",
+          data: trendSeries.map(v => Math.round(v * Math.max(newRatio, 0.3))),
+          backgroundColor: 'rgba(37,99,235,0.85)',
+          borderRadius: 20,
+          barThickness: 34,
+          maxBarThickness: 44,
+          categoryPercentage: 0.58,
+          barPercentage: 0.92,
+          stack: 'apps',
+        },
+        {
+          label: "In Process",
+          data: trendSeries.map(v => Math.round(v * Math.max(reviewRatio, 0.4))),
+          backgroundColor: 'rgba(37,99,235,0.45)',
+          borderRadius: 20,
+          barThickness: 34,
+          maxBarThickness: 44,
+          categoryPercentage: 0.58,
+          barPercentage: 0.92,
+          stack: 'apps',
+        },
+        {
+          label: "Hired",
+          data: trendSeries.map(v => Math.round(v * Math.max(hiredRatio, 0.05))),
+          backgroundColor: 'rgba(37,99,235,0.18)',
+          borderRadius: 20,
+          barThickness: 34,
+          maxBarThickness: 44,
+          categoryPercentage: 0.58,
+          barPercentage: 0.92,
+          stack: 'apps',
+        },
+      ],
+    };
+  }
+
   return {
     labels,
     datasets: [
       {
         label: "New",
         data: newSeries.value,
-        backgroundColor: 'rgba(37,99,235,0.85)',       // blue-600
+        backgroundColor: 'rgba(37,99,235,0.85)',
         borderRadius: 20,
         barThickness: 34,
         maxBarThickness: 44,
@@ -423,7 +546,7 @@ const applicantsChartData = computed(() => {
       {
         label: "In Process",
         data: inProcessSeries.value,
-        backgroundColor: 'rgba(37,99,235,0.45)',       // lighter blue
+        backgroundColor: 'rgba(37,99,235,0.45)',
         borderRadius: 20,
         barThickness: 34,
         maxBarThickness: 44,
@@ -434,7 +557,7 @@ const applicantsChartData = computed(() => {
       {
         label: "Hired",
         data: hiredSeries.value,
-        backgroundColor: 'rgba(37,99,235,0.18)',        // very light blue
+        backgroundColor: 'rgba(37,99,235,0.18)',
         borderRadius: 20,
         barThickness: 34,
         maxBarThickness: 44,
@@ -447,17 +570,27 @@ const applicantsChartData = computed(() => {
 });
 
 // Donut Chart for Pipeline Breakdown
-const pipelineChartData = computed(() => ({
-  labels: stageBars.value.map(s => s.label),
-  datasets: [
-    {
-        data: stageBars.value.map(s => s.val),
-        backgroundColor: stageBars.value.map(s => s.color),
-        borderWidth: 0,
-        hoverOffset: 4
-    }
-  ]
-}));
+const pipelineChartData = computed(() => {
+  // Use analytics pipeline data if available (covers all apps)
+  if (analyticsData.value?.pipeline) {
+    const p = analyticsData.value.pipeline;
+    const bars = [
+      { label: "New", val: (p['pending'] || 0) + (p['submitted'] || 0) + (p['applied'] || 0), color: '#3b82f6' },
+      { label: "In Review", val: (p['reviewing'] || 0) + (p['interviewed'] || 0) + (p['assessment'] || 0), color: '#f59e0b' },
+      { label: "Shortlisted", val: (p['shortlisted'] || 0) + (p['offered'] || 0), color: '#10b981' },
+      { label: "Rejected", val: p['rejected'] || 0, color: '#ef4444' },
+      { label: "Hired", val: p['hired'] || 0, color: '#7c3aed' },
+    ].filter(b => b.val > 0);
+    return {
+      labels: bars.map(b => b.label),
+      datasets: [{ data: bars.map(b => b.val), backgroundColor: bars.map(b => b.color), borderWidth: 0, hoverOffset: 4 }]
+    };
+  }
+  return {
+    labels: stageBars.value.map(s => s.label),
+    datasets: [{ data: stageBars.value.map(s => s.val), backgroundColor: stageBars.value.map(s => s.color), borderWidth: 0, hoverOffset: 4 }]
+  };
+});
 
 const barChartOptions = computed(() => {
   const allVals = [...newSeries.value, ...inProcessSeries.value, ...hiredSeries.value];
@@ -720,7 +853,7 @@ const donutChartOptions = computed(() => ({
             </div>
             <div v-if="loading" class="h-[300px] animate-pulse bg-gray-100 dark:bg-slate-700 rounded-xl"></div>
             <div v-else class="h-[300px] flex items-center justify-center relative">
-                 <div v-if="!apps.length" class="flex flex-col items-center gap-3">
+                 <div v-if="!apps.length && !analyticsData?.kpis?.total_applications" class="flex flex-col items-center gap-3">
                    <div class="w-14 h-14 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
                      <i class="pi pi-circle text-slate-300 dark:text-slate-500 text-2xl"></i>
                    </div>
@@ -730,7 +863,7 @@ const donutChartOptions = computed(() => ({
                      <Chart type="doughnut" :data="pipelineChartData" :options="donutChartOptions" :key="'donut-' + chartKey" class="w-full h-full" />
                      <!-- Center Text -->
                      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-8">
-                        <span class="text-3xl font-bold text-slate-900 dark:text-slate-100">{{ kpis.totalApps }}</span>
+                        <span class="text-3xl font-bold text-slate-900 dark:text-slate-100">{{ analyticsData?.kpis?.total_applications || kpis.totalApps }}</span>
                         <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total</span>
                      </div>
                  </template>

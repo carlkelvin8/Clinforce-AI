@@ -13,6 +13,48 @@ import Message from "primevue/message";
 import { http } from "@/lib/http";
 import { countries } from "@/lib/countries";
 
+// Map ISO country codes to full names used in the countries list
+const ISO_TO_COUNTRY = {
+  'US': 'United States of America', 'PH': 'Philippines', 'GB': 'United Kingdom',
+  'AU': 'Australia', 'CA': 'Canada', 'NZ': 'New Zealand', 'SG': 'Singapore',
+  'AE': 'United Arab Emirates', 'SA': 'Saudi Arabia', 'QA': 'Qatar',
+  'KW': 'Kuwait', 'BH': 'Bahrain', 'OM': 'Oman', 'JP': 'Japan',
+  'KR': 'South Korea', 'CN': 'China', 'IN': 'India', 'DE': 'Germany',
+  'FR': 'France', 'IT': 'Italy', 'ES': 'Spain', 'NL': 'Netherlands',
+  'BE': 'Belgium', 'CH': 'Switzerland', 'AT': 'Austria', 'SE': 'Sweden',
+  'NO': 'Norway', 'DK': 'Denmark', 'FI': 'Finland', 'IE': 'Ireland',
+  'PT': 'Portugal', 'GR': 'Greece', 'PL': 'Poland', 'CZ': 'Czech Republic',
+  'HU': 'Hungary', 'RO': 'Romania', 'BG': 'Bulgaria', 'HR': 'Croatia',
+  'BR': 'Brazil', 'MX': 'Mexico', 'AR': 'Argentina', 'CL': 'Chile',
+  'CO': 'Colombia', 'PE': 'Peru', 'ZA': 'South Africa', 'NG': 'Nigeria',
+  'KE': 'Kenya', 'EG': 'Egypt', 'MA': 'Morocco', 'GH': 'Ghana',
+}
+
+function resolveCountry(raw) {
+  if (!raw) return ''
+  // If it's already a full name that exists in the list, use it
+  if (countries.some(c => c.value === raw)) return raw
+  // Try ISO code lookup
+  return ISO_TO_COUNTRY[raw.toUpperCase()] || raw
+}
+
+// Normalize DB values with dashes to underscore format used by form options
+function normalizeEnum(val, map) {
+  if (!val) return val
+  return map[val] || val
+}
+
+const EMPLOYMENT_TYPE_MAP = {
+  'full-time': 'full_time', 'part-time': 'part_time',
+  'contract': 'contract', 'temporary': 'temporary',
+  'internship': 'internship', 'full-time/part-time': 'full_time_part_time',
+  'contract/temporary': 'contract_temporary',
+}
+const WORK_MODE_MAP = {
+  'on-site': 'on_site', 'on_site': 'on_site',
+  'remote': 'remote', 'hybrid': 'hybrid',
+}
+
 const route = useRoute();
 const router = useRouter();
 
@@ -140,10 +182,10 @@ async function load() {
         form.value.title = j.title || "";
         form.value.description = j.description || "";
 
-        // backend fields
-        form.value.employment_type = j.employment_type || "full_time";
-        form.value.work_mode = j.work_mode || "on_site";
-        form.value.country = j.country || j.country_code || "";
+        // backend fields — normalize dash/ISO formats to what the form options expect
+        form.value.employment_type = normalizeEnum(j.employment_type, EMPLOYMENT_TYPE_MAP) || "full_time";
+        form.value.work_mode = normalizeEnum(j.work_mode, WORK_MODE_MAP) || "on_site";
+        form.value.country = resolveCountry(j.country || j.country_code || "");
         form.value.state = j.state || "";
         form.value.city = j.city || "";
         form.value.salary_min = j.salary_min ?? "";

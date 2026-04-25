@@ -20,6 +20,7 @@ class JobStoreRequest extends ApiRequest
             'employment_type' => ['required', Rule::in(['full_time','part_time','contract','temporary','internship','full_time_part_time','contract_temporary'])],
             'work_mode' => ['required', Rule::in(['on_site','remote','hybrid'])],
             'country' => ['nullable','string','max:200'],
+            'state' => ['nullable','string','max:120'],
             'city' => ['nullable','string','min:2','max:120'],
             'salary_min' => ['nullable','numeric','min:0'],
             'salary_max' => ['nullable','numeric','min:0','gte:salary_min'],
@@ -39,6 +40,12 @@ class JobStoreRequest extends ApiRequest
         }
         if ($this->has('title')) {
             $this->merge(['title' => trim((string) $this->input('title'))]);
+        }
+        if ($this->has('employment_type')) {
+            $this->merge(['employment_type' => str_replace('-', '_', $this->input('employment_type'))]);
+        }
+        if ($this->has('work_mode')) {
+            $this->merge(['work_mode' => str_replace('-', '_', $this->input('work_mode'))]);
         }
     }
 }

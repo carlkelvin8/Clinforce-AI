@@ -98,30 +98,14 @@
                   <span class="text-slate-500">Work Mode</span>
                   <span class="font-medium">{{ prettyEnum(job.work_mode) }}</span>
                 </div>
+                <div v-if="job.salary_min || job.salary_max" class="flex justify-between py-2 border-b border-slate-100">
+                  <span class="text-slate-500">Salary</span>
+                  <span class="font-medium">{{ formatSalary(job) }}</span>
+                </div>
                 <div class="pt-4">
-                  <!-- Cover letter templates -->
                   <div class="mb-3">
-                    <button @click="showCoverLetter = !showCoverLetter"
-                      class="w-full flex items-center justify-between text-sm font-semibold text-slate-700 hover:text-blue-600 transition-colors py-1">
-                      <span class="flex items-center gap-1.5"><i class="pi pi-file-edit text-xs"></i> Cover letter (optional)</span>
-                      <i :class="['pi text-xs transition-transform', showCoverLetter ? 'pi-chevron-up' : 'pi-chevron-down']"></i>
-                    </button>
-                    <Transition name="faq-expand">
-                      <div v-if="showCoverLetter" class="mt-2 space-y-2">
-                        <div class="flex flex-wrap gap-1.5">
-                          <button v-for="t in coverTemplates" :key="t.label"
-                            @click="coverLetter = t.text"
-                            class="text-[10px] px-2 py-1 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-600 transition-colors">
-                            {{ t.label }}
-                          </button>
-                        </div>
-                        <textarea v-model="coverLetter" rows="5"
-                          placeholder="Write your cover letter or pick a template above..."
-                          class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:outline-none resize-none bg-slate-50 focus:bg-white transition-colors"></textarea>
-                      </div>
-                    </Transition>
+                    <Button label="Apply for this Job" class="w-full !bg-blue-600 !border-blue-600 hover:!bg-blue-700" @click="applyNow" :loading="applyLoading" :disabled="applyLoading" />
                   </div>
-                  <Button label="Apply for this Job" class="w-full !bg-blue-600 !border-blue-600 hover:!bg-blue-700" @click="applyNow" :loading="applyLoading" :disabled="applyLoading" />
                 </div>
               </div>
             </div>
@@ -169,26 +153,9 @@ const applyLoading = ref(false);
 const applyError = ref("");
 const applyOk = ref("");
 const resumeFile = ref(null);
+const coverLetter = ref("");
 const existingDocs = ref([]);
 let triedAutoAttach = false;
-
-// Cover letter templates
-const coverLetter = ref('');
-const showCoverLetter = ref(false);
-const coverTemplates = [
-  {
-    label: 'Standard application',
-    text: `Dear Hiring Manager,\n\nI am writing to express my strong interest in the ${job.value?.title || 'position'} role. With my background in healthcare and dedication to patient care, I am confident I would be a valuable addition to your team.\n\nI look forward to the opportunity to discuss how my skills and experience align with your needs.\n\nSincerely,`,
-  },
-  {
-    label: 'Experienced clinician',
-    text: `Dear Hiring Team,\n\nAs an experienced healthcare professional, I am excited to apply for the ${job.value?.title || 'position'} role. Throughout my career, I have developed strong clinical skills and a commitment to delivering high-quality patient care.\n\nI would welcome the chance to bring my expertise to your organization.\n\nBest regards,`,
-  },
-  {
-    label: 'New graduate',
-    text: `Dear Hiring Manager,\n\nI am a recent graduate eager to begin my career in healthcare. I am applying for the ${job.value?.title || 'position'} position and am excited about the opportunity to grow professionally within your team.\n\nThank you for considering my application.\n\nSincerely,`,
-  },
-];
 
 const saved = ref(false);
 const saveLoading = ref(false);
