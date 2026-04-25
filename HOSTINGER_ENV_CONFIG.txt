@@ -1,0 +1,31 @@
+# ============================================
+# COPY THIS TO YOUR .env FILE ON HOSTINGER
+# ============================================
+# 
+# Instructions:
+# 1. SSH to your Hostinger server
+# 2. cd /path/to/your/app
+# 3. nano .env
+# 4. Replace the VITE settings with these:
+# ============================================
+
+# CRITICAL: Change these from localhost to production URL
+VITE_APP_NAME=clinforce-ai
+VITE_API_URL=https://app.aiclinforce.com/api
+VITE_STRIPE_PUBLISHABLE_KEY=
+
+# CRITICAL: Make sure these are set correctly
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://app.aiclinforce.com
+
+# DO NOT ADD THIS LINE (remove it if it exists):
+# VITE_DEV_SERVER_URL=
+
+# ============================================
+# After updating .env, run these commands:
+# ============================================
+# php artisan config:clear
+# php artisan cache:clear
+# php artisan config:cache
+# ============================================
