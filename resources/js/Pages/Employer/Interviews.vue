@@ -296,8 +296,7 @@ const selectedApplication = computed(() => {
 });
 
 const modeOptions = [
-    { label: 'Video (Zoom)', value: 'video' },
-    { label: 'In person', value: 'in_person' }
+    { label: 'Video (Zoom)', value: 'video' }
 ];
 
 watch(
