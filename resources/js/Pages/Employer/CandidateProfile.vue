@@ -40,6 +40,14 @@ function formatDate(v) {
   return d.toLocaleDateString()
 }
 
+function formatWorkDate(dateStr) {
+  if (!dateStr) return '';
+  const [year, month] = dateStr.split('-');
+  if (!year || !month) return dateStr;
+  const date = new Date(year, month - 1);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+}
+
 function toArray(val) {
   if (!val) return []
   if (Array.isArray(val)) return val.filter(Boolean)
@@ -216,17 +224,24 @@ onMounted(fetchProfile)
             </div>
           </div>
 
-          <div v-if="Array.isArray(profile.experience) && profile.experience.length" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <h3 class="text-lg font-bold text-slate-900 mb-3">Experience</h3>
+          <div v-if="Array.isArray(profile.work_experience) && profile.work_experience.length" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h3 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <i class="pi pi-briefcase text-slate-600"></i>
+              Work Experience
+            </h3>
             <div class="space-y-4">
-              <div v-for="(x, i) in profile.experience" :key="i" class="flex items-start justify-between gap-4">
-                <div>
-                  <div class="font-semibold text-slate-900">{{ x.title || x.role || 'Role' }}</div>
-                  <div class="text-slate-600">{{ x.company || x.organization || 'Company' }}</div>
+              <div v-for="(exp, i) in profile.work_experience" :key="i" class="border-l-4 border-blue-500 pl-4 py-2">
+                <div class="flex items-start justify-between gap-4 mb-2">
+                  <div class="flex-1">
+                    <h4 class="font-semibold text-slate-900 text-base">{{ exp.job_title || 'Job Title' }}</h4>
+                    <p class="text-slate-600 text-sm mt-1">{{ exp.company || 'Company Name' }}</p>
+                  </div>
+                  <div class="text-sm text-slate-500 text-right shrink-0">
+                    <div>{{ formatWorkDate(exp.start_date) }} - {{ exp.is_current ? 'Present' : formatWorkDate(exp.end_date) }}</div>
+                    <span v-if="exp.is_current" class="inline-block mt-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-medium">Current</span>
+                  </div>
                 </div>
-                <div class="text-sm text-slate-500">
-                  {{ formatDate(x.start_date || x.start) }} - {{ x.end_date || x.end ? formatDate(x.end_date || x.end) : 'Present' }}
-                </div>
+                <p v-if="exp.description" class="text-sm text-slate-600 leading-relaxed mt-2">{{ exp.description }}</p>
               </div>
             </div>
           </div>
