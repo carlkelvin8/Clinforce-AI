@@ -321,7 +321,10 @@ async function bulkInvite() {
 
                <!-- Content -->
                <div class="px-6 flex-1">
-                  <h3 class="text-lg font-bold text-gray-900 leading-tight mb-1 group-hover:text-blue-600 transition-colors">{{ c.name }}</h3>
+                  <div class="flex items-center gap-2 mb-1">
+                    <h3 class="text-lg font-bold text-gray-900 leading-tight group-hover:text-blue-600 transition-colors">{{ c.name }}</h3>
+                    <i class="pi pi-verified text-blue-500 text-sm" title="Verified Candidate"></i>
+                  </div>
                   <p class="text-sm text-gray-500 font-medium mb-4">{{ c.role }}</p>
                   <div class="flex items-center gap-2 text-sm text-gray-600 mb-4">
                      <i class="pi pi-map-marker text-gray-400"></i>
