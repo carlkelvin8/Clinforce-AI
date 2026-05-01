@@ -412,7 +412,7 @@ function calcProfileCompleteness(user) {
 const stats = computed(() => {
   const active = apps.value.filter((a) => !["rejected", "withdrawn"].includes(a.status)).length;
   const interviewStage = apps.value.filter((a) => a.status === "interview").length;
-  const upcomingInterviews = interviewStage;
+  const upcomingInterviews = interviews.value.length; // Use actual interviews count
   const profileCompleteness = calcProfileCompleteness(meUser.value);
   const matchStrength = active > 0 ? "High" : "Low";
   return { active, interviewStage, upcomingInterviews, profileCompleteness, matchStrength };
