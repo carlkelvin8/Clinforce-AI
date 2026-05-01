@@ -169,7 +169,88 @@
             </template>
           </Card>
         </div>
+
+        <!-- Work Experience Section -->
+        <Card class="rounded-2xl shadow-sm bg-white">
+          <template #content>
+            <div class="px-4 py-3 md:px-5 md:py-3">
+              <div class="flex items-center justify-between mb-4">
+                <div class="text-sm font-semibold text-slate-900">Work Experience</div>
+                <Button label="Add Experience" icon="pi pi-plus" size="small" @click="addWorkExperience" class="!rounded-lg !text-xs" />
+              </div>
+
+              <div v-if="workExperiences.length === 0" class="text-center py-6 text-slate-500 text-sm">
+                <i class="pi pi-briefcase text-slate-300 text-2xl mb-2"></i>
+                <div>No work experience added yet</div>
+                <Button label="Add your first experience" size="small" text @click="addWorkExperience" class="!text-xs !mt-2" />
+              </div>
+
+              <div v-else class="space-y-3">
+                <div v-for="(exp, index) in workExperiences" :key="index" 
+                  class="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-blue-300 transition-colors">
+                  <div class="flex items-start justify-between gap-3 mb-3">
+                    <div class="flex-1">
+                      <h4 class="font-semibold text-slate-900 text-sm">{{ exp.job_title || 'Job Title' }}</h4>
+                      <p class="text-xs text-slate-600 mt-0.5">{{ exp.company || 'Company Name' }}</p>
+                      <p class="text-xs text-slate-500 mt-1">
+                        {{ formatWorkDate(exp.start_date) }} - {{ exp.is_current ? 'Present' : formatWorkDate(exp.end_date) }}
+                        <span v-if="exp.is_current" class="ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-medium">Current</span>
+                      </p>
+                    </div>
+                    <div class="flex gap-1">
+                      <Button icon="pi pi-pencil" text rounded size="small" @click="editWorkExperience(index)" title="Edit" />
+                      <Button icon="pi pi-trash" text rounded size="small" severity="danger" @click="removeWorkExperience(index)" title="Remove" />
+                    </div>
+                  </div>
+                  <p v-if="exp.description" class="text-xs text-slate-600 leading-relaxed">{{ exp.description }}</p>
+                </div>
+              </div>
+            </div>
+          </template>
+        </Card>
       </div>
+
+      <!-- Work Experience Dialog -->
+      <Dialog v-model:visible="showWorkExpDialog" :header="editingExpIndex !== null ? 'Edit Work Experience' : 'Add Work Experience'" modal :style="{ width: '600px' }">
+        <div class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-slate-700">Job Title *</label>
+              <InputText v-model="currentExp.job_title" placeholder="e.g. Senior ICU Nurse" class="!h-9 !rounded-lg !text-sm" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-slate-700">Company *</label>
+              <InputText v-model="currentExp.company" placeholder="e.g. City General Hospital" class="!h-9 !rounded-lg !text-sm" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-slate-700">Start Date *</label>
+              <InputText v-model="currentExp.start_date" type="month" class="!h-9 !rounded-lg !text-sm" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-slate-700">End Date</label>
+              <InputText v-model="currentExp.end_date" type="month" :disabled="currentExp.is_current" class="!h-9 !rounded-lg !text-sm" />
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <input type="checkbox" v-model="currentExp.is_current" id="isCurrent" class="w-4 h-4 rounded border-slate-300 text-blue-600" />
+            <label for="isCurrent" class="text-xs text-slate-700 cursor-pointer">I currently work here</label>
+          </div>
+
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-semibold text-slate-700">Description</label>
+            <Textarea v-model="currentExp.description" rows="4" placeholder="Describe your responsibilities and achievements..." class="!rounded-lg !text-sm" />
+          </div>
+        </div>
+
+        <template #footer>
+          <Button label="Cancel" icon="pi pi-times" text @click="closeWorkExpDialog" />
+          <Button label="Save" icon="pi pi-check" @click="saveWorkExperience" />
+        </template>
+      </Dialog>
 
       <!-- Upload document dialog -->
       <Dialog v-model:visible="showUpload" header="Add document" modal :style="{ width: '420px' }">
@@ -243,6 +324,19 @@ const showUpload = ref(false);
 const uploadError = ref("");
 const fileEl = ref(null);
 const upload = ref({ doc_type: "resume", file: null, fileName: "", fileSize: 0 });
+
+// Work Experience
+const workExperiences = ref([]);
+const showWorkExpDialog = ref(false);
+const editingExpIndex = ref(null);
+const currentExp = ref({
+  job_title: "",
+  company: "",
+  start_date: "",
+  end_date: "",
+  is_current: false,
+  description: "",
+});
 
 // ---- Avatar upload ----
 async function onPickAvatar(ev) {
@@ -357,6 +451,9 @@ async function fetchMe() {
     state: ap?.state ?? "", city: ap?.city ?? "",
     open_to_work: ap?.open_to_work ?? false,
   };
+  
+  // Load work experience
+  workExperiences.value = Array.isArray(ap?.work_experience) ? ap.work_experience : [];
 }
 
 async function fetchDocs() {
@@ -384,6 +481,7 @@ async function saveProfile() {
       years_experience: form.value.years_experience, country: form.value.country,
       state: form.value.state, city: form.value.city,
       open_to_work: form.value.open_to_work,
+      work_experience: workExperiences.value,
     });
     success.value = "Saved."; await fetchMe(); await toast("success", "Profile saved");
   } catch (e) { error.value = e?.__payload?.message || e?.message || "Save failed"; }
@@ -424,6 +522,59 @@ async function confirmRemoveDoc(d) {
   try { await api.delete(`/documents/${d.id}`); await fetchDocs(); await toast("success", "Document removed"); }
   catch (e) { error.value = e?.__payload?.message || e?.message || "Remove failed"; }
   finally { removingId.value = null; }
+}
+
+// ---- Work Experience ----
+function addWorkExperience() {
+  editingExpIndex.value = null;
+  currentExp.value = { job_title: "", company: "", start_date: "", end_date: "", is_current: false, description: "" };
+  showWorkExpDialog.value = true;
+}
+
+function editWorkExperience(index) {
+  editingExpIndex.value = index;
+  currentExp.value = { ...workExperiences.value[index] };
+  showWorkExpDialog.value = true;
+}
+
+function removeWorkExperience(index) {
+  workExperiences.value.splice(index, 1);
+  saveProfile();
+}
+
+function saveWorkExperience() {
+  if (!currentExp.value.job_title || !currentExp.value.company || !currentExp.value.start_date) {
+    Swal.fire({ icon: 'warning', title: 'Required Fields', text: 'Please fill in job title, company, and start date' });
+    return;
+  }
+
+  if (editingExpIndex.value !== null) {
+    workExperiences.value[editingExpIndex.value] = { ...currentExp.value };
+  } else {
+    workExperiences.value.push({ ...currentExp.value });
+  }
+
+  // Sort by start date (most recent first)
+  workExperiences.value.sort((a, b) => {
+    const dateA = new Date(a.start_date || '1900-01');
+    const dateB = new Date(b.start_date || '1900-01');
+    return dateB - dateA;
+  });
+
+  closeWorkExpDialog();
+  saveProfile();
+}
+
+function closeWorkExpDialog() {
+  showWorkExpDialog.value = false;
+  editingExpIndex.value = null;
+}
+
+function formatWorkDate(dateStr) {
+  if (!dateStr) return '';
+  const [year, month] = dateStr.split('-');
+  const date = new Date(year, month - 1);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
 }
 
 onMounted(() => {
