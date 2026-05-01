@@ -171,6 +171,7 @@ const form = ref({
   application_id: "",
   scheduled_start: null,
   scheduled_end: null,
+  timezone: "Asia/Manila",
   mode: "video",
   meeting_link: "",
   location_text: "",
@@ -189,6 +190,7 @@ function resetForm() {
     application_id: "",
     scheduled_start: start,
     scheduled_end: end,
+    timezone: "Asia/Manila",
     mode: "video",
     meeting_link: "",
     location_text: "",
@@ -254,6 +256,7 @@ function openRescheduleModal(interview) {
   // Pre-fill with current interview data
   form.value.scheduled_start = new Date(interview.scheduled_start);
   form.value.scheduled_end = new Date(interview.scheduled_end);
+  form.value.timezone = interview.timezone || "Asia/Manila";
   form.value.mode = interview.mode || "video";
   form.value.meeting_link = interview.meeting_link || "";
   form.value.location_text = interview.location_text || "";
@@ -299,6 +302,21 @@ const modeOptions = [
     { label: 'Video (Zoom)', value: 'video' }
 ];
 
+const timezones = [
+    { label: 'Asia/Manila (GMT+8)', value: 'Asia/Manila' },
+    { label: 'America/New_York (EST/EDT)', value: 'America/New_York' },
+    { label: 'America/Chicago (CST/CDT)', value: 'America/Chicago' },
+    { label: 'America/Denver (MST/MDT)', value: 'America/Denver' },
+    { label: 'America/Los_Angeles (PST/PDT)', value: 'America/Los_Angeles' },
+    { label: 'Europe/London (GMT/BST)', value: 'Europe/London' },
+    { label: 'Europe/Paris (CET/CEST)', value: 'Europe/Paris' },
+    { label: 'Asia/Tokyo (JST)', value: 'Asia/Tokyo' },
+    { label: 'Asia/Singapore (SGT)', value: 'Asia/Singapore' },
+    { label: 'Asia/Dubai (GST)', value: 'Asia/Dubai' },
+    { label: 'Australia/Sydney (AEDT/AEST)', value: 'Australia/Sydney' },
+    { label: 'Pacific/Auckland (NZDT/NZST)', value: 'Pacific/Auckland' },
+];
+
 watch(
   () => form.value.mode,
   (m) => {
@@ -333,6 +351,7 @@ async function submitSchedule() {
     const payload = {
       scheduled_start: toLocalISO(start),
       scheduled_end: toLocalISO(end),
+      timezone: form.value.timezone,
       mode: form.value.mode,
       meeting_link: form.value.meeting_link?.trim() || null,
       location_text: form.value.location_text?.trim() || null,
@@ -940,6 +959,13 @@ async function submitFeedback() {
                          />
                          <small v-if="formFieldErrors?.scheduled_end" class="text-red-600 text-xs">{{ formFieldErrors.scheduled_end[0] }}</small>
                      </div>
+                 </div>
+
+                 <!-- Timezone selector -->
+                 <div class="flex flex-col gap-2">
+                     <label class="text-sm font-semibold text-gray-700">Timezone</label>
+                     <Select v-model="form.timezone" :options="timezones" optionLabel="label" optionValue="value" filter class="w-full" placeholder="Select timezone" />
+                     <small class="text-xs text-gray-500">Interview times will be displayed in this timezone</small>
                  </div>
 
                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
